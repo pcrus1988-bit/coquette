@@ -16,7 +16,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -45,6 +45,24 @@ jobs:
 
       - name: Validate Magento migration contract
         run: pnpm --filter @coquette/backend migration:contract
+
+      - name: Build Medusa production artifact
+        env:
+          NODE_ENV: production
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/coquette_ci
+          REDIS_URL: redis://localhost:6379
+          STORE_CORS: http://localhost:8000
+          ADMIN_CORS: http://localhost:9000
+          AUTH_CORS: http://localhost:8000,http://localhost:9000
+          JWT_SECRET: ci-build-only-secret
+          COOKIE_SECRET: ci-build-only-secret
+          MEDUSA_BACKEND_URL: http://localhost:9000
+          MEDUSA_WORKER_MODE: server
+          DISABLE_MEDUSA_ADMIN: "false"
+        run: |
+          pnpm --filter @coquette/backend build
+          test -f apps/backend/.medusa/server/medusa-config.js
+          test -f apps/backend/.medusa/server/package.json
 
       - name: Build storefront
         run: pnpm --filter @coquette/storefront build
