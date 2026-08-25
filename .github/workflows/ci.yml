@@ -43,5 +43,8 @@ jobs:
       - name: Type-check backend
         run: pnpm --filter @coquette/backend exec tsc --noEmit
 
+      - name: Validate Magento migration contract
+        run: pnpm --filter @coquette/backend migration:contract
+
       - name: Build storefront
         run: pnpm --filter @coquette/storefront build
