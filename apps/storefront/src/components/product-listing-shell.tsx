@@ -7,6 +7,8 @@ import {
 } from "../lib/catalogue"
 import { ProductCard } from "./product-card"
 
+type StorefrontLanguage = "el" | "en"
+
 type ProductListingShellProps = {
   eyebrow: string
   title: string
@@ -16,42 +18,81 @@ type ProductListingShellProps = {
   pendingMessage?: string
   page?: number
   hrefBase: string
+  language?: StorefrontLanguage
+  locale?: string
+  productHrefPrefix?: string
 }
 
-const filterGroups = ["Τιμή", "Σχεδιαστής", "Χρώμα", "Μέγεθος"]
+const copy = {
+  el: {
+    filters: ["Τιμή", "Σχεδιαστής", "Χρώμα", "Μέγεθος"],
+    products: "προϊόντα",
+    connectionPending: "catalogue connection pending",
+    filterPending: "Ενεργοποιείται στη φάση search/filter",
+    sort: "Ταξινόμηση ▾",
+    unconfigured:
+      "Το catalogue UI είναι έτοιμο. Αναμένει το dedicated COQUETTE Medusa backend URL και publishable key του staging περιβάλλοντος.",
+    categoryMissingPrefix: "Η κατηγορία",
+    categoryMissingSuffix:
+      "δεν έχει μεταφερθεί ακόμη στο Medusa catalogue. Η σελίδα παραμένει διαθέσιμη για migration/UAT έλεγχο.",
+    unavailable:
+      "Το commerce backend δεν είναι προσωρινά διαθέσιμο. Δεν εμφανίζονται πλασματικά προϊόντα ή τιμές.",
+    pending:
+      "Η συγκεκριμένη εμπορική επιφάνεια θα συνδεθεί με το κατάλληλο Medusa query όταν ολοκληρωθεί το αντίστοιχο migration/merchandising workstream.",
+    empty: "Δεν υπάρχουν δημοσιευμένα προϊόντα σε αυτή την κατηγορία ακόμη.",
+    pagination: "Σελιδοποίηση προϊόντων",
+    previous: "← Προηγούμενα",
+    next: "Επόμενα →",
+  },
+  en: {
+    filters: ["Price", "Designer", "Colour", "Size"],
+    products: "products",
+    connectionPending: "catalogue connection pending",
+    filterPending: "Activates in the search/filter phase",
+    sort: "Sort ▾",
+    unconfigured:
+      "The catalogue UI is ready and is waiting for the dedicated COQUETTE staging Medusa backend URL and publishable key.",
+    categoryMissingPrefix: "Category",
+    categoryMissingSuffix:
+      "has not been migrated to the Medusa catalogue yet. This route remains available for migration and UAT checks.",
+    unavailable:
+      "The commerce backend is temporarily unavailable. The storefront will not invent products or prices.",
+    pending:
+      "This merchandising surface will be connected to its dedicated Medusa query when the related migration/merchandising workstream is complete.",
+    empty: "There are no published products in this category yet.",
+    pagination: "Product pagination",
+    previous: "← Previous",
+    next: "Next →",
+  },
+} satisfies Record<StorefrontLanguage, Record<string, string | string[]>>
+
 const pageSize = 24
 
 function ConnectionMessage({
   state,
   categoryHandle,
+  language,
 }: {
   state: CatalogueState | CategoryCatalogueState
   categoryHandle?: string
+  language: StorefrontLanguage
 }) {
+  const labels = copy[language]
+
   if (state === "unconfigured") {
-    return (
-      <p>
-        Το catalogue UI είναι έτοιμο. Αναμένει το dedicated COQUETTE Medusa backend
-        URL και publishable key του staging περιβάλλοντος.
-      </p>
-    )
+    return <p>{labels.unconfigured}</p>
   }
 
   if (state === "not_found" && categoryHandle) {
     return (
       <p>
-        Η κατηγορία <strong>{categoryHandle}</strong> δεν έχει μεταφερθεί ακόμη στο
-        Medusa catalogue. Η σελίδα παραμένει διαθέσιμη για migration/UAT έλεγχο.
+        {labels.categoryMissingPrefix} <strong>{categoryHandle}</strong>{" "}
+        {labels.categoryMissingSuffix}
       </p>
     )
   }
 
-  return (
-    <p>
-      Το commerce backend δεν είναι προσωρινά διαθέσιμο. Δεν εμφανίζονται πλασματικά
-      προϊόντα ή τιμές.
-    </p>
-  )
+  return <p>{labels.unavailable}</p>
 }
 
 export async function ProductListingShell({
@@ -63,19 +104,25 @@ export async function ProductListingShell({
   pendingMessage,
   page = 1,
   hrefBase,
+  language = "el",
+  locale,
+  productHrefPrefix,
 }: ProductListingShellProps) {
+  const labels = copy[language]
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
   const offset = (safePage - 1) * pageSize
   const result = categoryHandle
-    ? await getCategoryProducts(categoryHandle, pageSize, offset)
+    ? await getCategoryProducts(categoryHandle, pageSize, offset, locale)
     : loadAll
-      ? await getCatalogueProducts(pageSize, offset)
+      ? await getCatalogueProducts(pageSize, offset, locale)
       : null
   const totalPages = result
     ? Math.max(1, Math.ceil(result.count / pageSize))
     : 1
   const hasPrevious = safePage > 1
   const hasNext = result ? safePage < totalPages : false
+  const resolvedProductHrefPrefix =
+    productHrefPrefix || (language === "en" ? "/en/products" : "/products")
 
   return (
     <main className="bg-[#f7f5f2] text-neutral-950">
@@ -94,8 +141,8 @@ export async function ProductListingShell({
           </div>
           <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
             {result?.state === "ready"
-              ? `${result.count} προϊόντα`
-              : "catalogue connection pending"}
+              ? `${result.count} ${labels.products}`
+              : labels.connectionPending}
           </p>
         </div>
       </header>
@@ -103,12 +150,12 @@ export async function ProductListingShell({
       <section className="border-y border-neutral-200 bg-white">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 overflow-x-auto px-5 py-4 lg:px-8">
           <div className="flex gap-2">
-            {filterGroups.map((filter) => (
+            {(labels.filters as string[]).map((filter) => (
               <button
                 className="cursor-not-allowed whitespace-nowrap border border-neutral-200 px-4 py-2 text-[11px] uppercase tracking-[0.12em] text-neutral-400"
                 disabled
                 key={filter}
-                title="Ενεργοποιείται στη φάση search/filter"
+                title={labels.filterPending as string}
                 type="button"
               >
                 {filter} +
@@ -118,10 +165,10 @@ export async function ProductListingShell({
           <button
             className="cursor-not-allowed whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-neutral-400"
             disabled
-            title="Ενεργοποιείται στη φάση search/filter"
+            title={labels.filterPending as string}
             type="button"
           >
-            Ταξινόμηση ▾
+            {labels.sort}
           </button>
         </div>
       </section>
@@ -129,47 +176,54 @@ export async function ProductListingShell({
       <section className="mx-auto max-w-[1440px] px-5 py-14 lg:px-8">
         {!result ? (
           <div className="border border-neutral-200 bg-white p-8 text-sm leading-7 text-neutral-600">
-            <p>
-              {pendingMessage ||
-                "Η συγκεκριμένη εμπορική επιφάνεια θα συνδεθεί με το κατάλληλο Medusa query όταν ολοκληρωθεί το αντίστοιχο migration/merchandising workstream."}
-            </p>
+            <p>{pendingMessage || labels.pending}</p>
           </div>
         ) : result.state !== "ready" ? (
           <div className="border border-neutral-200 bg-white p-8 text-sm leading-7 text-neutral-600">
             <ConnectionMessage
               categoryHandle={categoryHandle}
+              language={language}
               state={result.state}
             />
           </div>
         ) : result.products.length === 0 ? (
           <div className="border border-neutral-200 bg-white p-8 text-sm text-neutral-600">
-            Δεν υπάρχουν δημοσιευμένα προϊόντα σε αυτή την κατηγορία ακόμη.
+            {labels.empty}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-10 lg:grid-cols-4">
             {result.products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                language={language}
+                product={product}
+                productHrefPrefix={resolvedProductHrefPrefix}
+              />
             ))}
           </div>
         )}
 
         {result?.state === "ready" && result.count > 0 ? (
           <nav
-            aria-label="Σελιδοποίηση προϊόντων"
+            aria-label={labels.pagination as string}
             className="mt-14 flex items-center justify-between border-t border-neutral-200 pt-8 text-xs uppercase tracking-[0.14em]"
           >
             {hasPrevious ? (
-              <Link href={`${hrefBase}?page=${safePage - 1}`}>← Προηγούμενα</Link>
+              <Link href={`${hrefBase}?page=${safePage - 1}`}>
+                {labels.previous}
+              </Link>
             ) : (
-              <span className="text-neutral-300">← Προηγούμενα</span>
+              <span className="text-neutral-300">{labels.previous}</span>
             )}
             <span className="text-neutral-500">
               {safePage} / {totalPages}
             </span>
             {hasNext ? (
-              <Link href={`${hrefBase}?page=${safePage + 1}`}>Επόμενα →</Link>
+              <Link href={`${hrefBase}?page=${safePage + 1}`}>
+                {labels.next}
+              </Link>
             ) : (
-              <span className="text-neutral-300">Επόμενα →</span>
+              <span className="text-neutral-300">{labels.next}</span>
             )}
           </nav>
         ) : null}
