@@ -6,7 +6,7 @@ const Brand = model.define("brand", {
   handle: model.text().unique(),
   description: model.text().nullable(),
   logo_url: model.text().nullable(),
-  magento_source_id: model.text().nullable().unique(),
+  magento_source_id: model.text().nullable(),
 })
 
 export default Brand
