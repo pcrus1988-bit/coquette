@@ -12,6 +12,8 @@ type ProductListingShellProps = {
   title: string
   description?: string
   categoryHandle?: string
+  loadAll?: boolean
+  pendingMessage?: string
   page?: number
   hrefBase: string
 }
@@ -57,6 +59,8 @@ export async function ProductListingShell({
   title,
   description,
   categoryHandle,
+  loadAll = false,
+  pendingMessage,
   page = 1,
   hrefBase,
 }: ProductListingShellProps) {
@@ -64,10 +68,14 @@ export async function ProductListingShell({
   const offset = (safePage - 1) * pageSize
   const result = categoryHandle
     ? await getCategoryProducts(categoryHandle, pageSize, offset)
-    : await getCatalogueProducts(pageSize, offset)
-  const totalPages = Math.max(1, Math.ceil(result.count / pageSize))
+    : loadAll
+      ? await getCatalogueProducts(pageSize, offset)
+      : null
+  const totalPages = result
+    ? Math.max(1, Math.ceil(result.count / pageSize))
+    : 1
   const hasPrevious = safePage > 1
-  const hasNext = safePage < totalPages
+  const hasNext = result ? safePage < totalPages : false
 
   return (
     <main className="bg-[#f7f5f2] text-neutral-950">
@@ -85,7 +93,7 @@ export async function ProductListingShell({
             ) : null}
           </div>
           <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-            {result.state === "ready"
+            {result?.state === "ready"
               ? `${result.count} προϊόντα`
               : "catalogue connection pending"}
           </p>
@@ -119,7 +127,14 @@ export async function ProductListingShell({
       </section>
 
       <section className="mx-auto max-w-[1440px] px-5 py-14 lg:px-8">
-        {result.state !== "ready" ? (
+        {!result ? (
+          <div className="border border-neutral-200 bg-white p-8 text-sm leading-7 text-neutral-600">
+            <p>
+              {pendingMessage ||
+                "Η συγκεκριμένη εμπορική επιφάνεια θα συνδεθεί με το κατάλληλο Medusa query όταν ολοκληρωθεί το αντίστοιχο migration/merchandising workstream."}
+            </p>
+          </div>
+        ) : result.state !== "ready" ? (
           <div className="border border-neutral-200 bg-white p-8 text-sm leading-7 text-neutral-600">
             <ConnectionMessage
               categoryHandle={categoryHandle}
@@ -138,7 +153,7 @@ export async function ProductListingShell({
           </div>
         )}
 
-        {result.state === "ready" && result.count > 0 ? (
+        {result?.state === "ready" && result.count > 0 ? (
           <nav
             aria-label="Σελιδοποίηση προϊόντων"
             className="mt-14 flex items-center justify-between border-t border-neutral-200 pt-8 text-xs uppercase tracking-[0.14em]"
