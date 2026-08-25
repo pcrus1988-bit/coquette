@@ -1,9 +1,8 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ProductListingShell } from "../../../components/product-listing-shell"
+import { ENGLISH_LOCALE } from "../../../lib/localization"
 import { designerNames } from "../../../lib/navigation"
-
-const ENGLISH_LOCALE = "en-GB"
 
 const clothingCategories: Record<string, string> = {
   "new-arrivals": "New Arrivals",
