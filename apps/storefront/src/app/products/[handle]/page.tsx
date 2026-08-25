@@ -56,15 +56,26 @@ export default async function ProductPage({
   }
 
   if (!result.product) {
-    return <ProductConnectionState handle={handle} state={result.state as "unconfigured" | "unavailable"} />
+    return (
+      <ProductConnectionState
+        handle={handle}
+        state={result.state as "unconfigured" | "unavailable"}
+      />
+    )
   }
 
   const product = result.product
+  type ProductVariant = NonNullable<typeof product.variants>[number]
+  type ProductImage = NonNullable<typeof product.images>[number]
+  type ProductOption = NonNullable<typeof product.options>[number]
+  type ProductOptionValue = NonNullable<ProductOption["values"]>[number]
+
   const pricedVariants = (product.variants ?? []).filter(
-    (variant) => variant.calculated_price?.calculated_amount != null
+    (variant: ProductVariant) =>
+      variant.calculated_price?.calculated_amount != null
   )
   const displayVariant = [...pricedVariants].sort(
-    (left, right) =>
+    (left: ProductVariant, right: ProductVariant) =>
       Number(left.calculated_price?.calculated_amount ?? 0) -
       Number(right.calculated_price?.calculated_amount ?? 0)
   )[0]
@@ -78,8 +89,9 @@ export default async function ProductPage({
     Number(originalAmount) > Number(amount)
   const variants = product.variants ?? []
   const isInStock = variants.some(
-    (variant) =>
-      variant.manage_inventory === false || Number(variant.inventory_quantity ?? 0) > 0
+    (variant: ProductVariant) =>
+      variant.manage_inventory === false ||
+      Number(variant.inventory_quantity ?? 0) > 0
   )
   const images = product.images ?? []
 
@@ -88,9 +100,11 @@ export default async function ProductPage({
       <section className="mx-auto grid max-w-[1440px] gap-10 px-5 py-12 lg:grid-cols-[1.15fr_.85fr] lg:px-8">
         <div className="grid grid-cols-2 gap-3">
           {images.length > 0 ? (
-            images.map((image) => (
-              <div className="aspect-[3/4] overflow-hidden bg-neutral-100" key={image.id}>
-                {/* Product media is served from the COQUETTE media bucket after migration. */}
+            images.map((image: ProductImage) => (
+              <div
+                className="aspect-[3/4] overflow-hidden bg-neutral-100"
+                key={image.id}
+              >
                 <img
                   alt={product.title}
                   className="h-full w-full object-cover"
@@ -122,14 +136,19 @@ export default async function ProductPage({
               ) : null}
             </div>
           ) : (
-            <p className="mt-5 text-sm text-neutral-500">Η τιμή δεν είναι ακόμη διαθέσιμη.</p>
+            <p className="mt-5 text-sm text-neutral-500">
+              Η τιμή δεν είναι ακόμη διαθέσιμη.
+            </p>
           )}
 
-          {(product.options ?? []).map((option) => (
-            <div className="mt-9 border-y border-neutral-300 py-6" key={option.id}>
+          {(product.options ?? []).map((option: ProductOption) => (
+            <div
+              className="mt-9 border-y border-neutral-300 py-6"
+              key={option.id}
+            >
               <p className="text-xs uppercase tracking-[0.14em]">{option.title}</p>
               <div className="mt-4 flex flex-wrap gap-2">
-                {(option.values ?? []).map((value) => (
+                {(option.values ?? []).map((value: ProductOptionValue) => (
                   <button
                     className="min-w-12 border border-neutral-300 px-3 py-2 text-xs"
                     disabled
@@ -164,7 +183,8 @@ export default async function ProductPage({
                 Περιγραφή
               </summary>
               <p className="whitespace-pre-line pt-4">
-                {product.description || "Δεν υπάρχει ακόμη περιγραφή για αυτό το προϊόν."}
+                {product.description ||
+                  "Δεν υπάρχει ακόμη περιγραφή για αυτό το προϊόν."}
               </p>
             </details>
             <details className="border-t border-neutral-300 py-4">
