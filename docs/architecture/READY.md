@@ -1,3 +1,0 @@
-# Ready
-
-Workspace bootstrap prepared.
