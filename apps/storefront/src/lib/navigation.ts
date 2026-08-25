@@ -58,3 +58,11 @@ export const primaryNavigation: NavigationItem[] = [
   { label: "Σε Προσφορά", href: "/sale" },
   { label: "Η ιστορία μας", href: "/our-story" },
 ]
+
+export const englishPrimaryNavigation: NavigationItem[] = [
+  { label: "Clothing", href: "/en/clothing" },
+  { label: "Designers", href: "/en/designers" },
+  { label: "Accessories", href: "/en/accessories" },
+  { label: "Sale", href: "/en/sale" },
+  { label: "Our Story", href: "/en/our-story" },
+]
