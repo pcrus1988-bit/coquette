@@ -16,13 +16,29 @@ const categories: Record<string, string> = {
   swimwear: "Μαγιώ",
 }
 
-export default async function ClothingCategoryPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+export default async function ClothingCategoryPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ page?: string }>
+}) {
+  const [{ slug }, { page }] = await Promise.all([params, searchParams])
   const title = categories[slug]
 
   if (!title) {
     notFound()
   }
 
-  return <ProductListingShell eyebrow="Ρούχα · Κατηγορία" title={title} />
+  const pageNumber = Math.max(1, Number.parseInt(page || "1", 10) || 1)
+
+  return (
+    <ProductListingShell
+      categoryHandle={slug}
+      eyebrow="Ρούχα · Κατηγορία"
+      hrefBase={`/clothing/${slug}`}
+      page={pageNumber}
+      title={title}
+    />
+  )
 }
