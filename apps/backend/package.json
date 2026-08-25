@@ -10,6 +10,7 @@
     "dev": "medusa develop",
     "lint": "medusa lint",
     "test": "node -e \"console.log('backend tests pending')\"",
+    "predeploy": "medusa db:migrate",
     "db:migrate": "medusa db:migrate",
     "db:generate:brand": "medusa db:generate brand",
     "db:generate:content": "medusa db:generate content",
