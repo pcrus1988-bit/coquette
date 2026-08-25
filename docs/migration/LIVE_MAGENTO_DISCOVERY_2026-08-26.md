@@ -37,6 +37,30 @@ Observed through the public storefront/search index on 2026-08-26:
 
 These counts can change at any time. They are regression/reconciliation signals only and must not replace Magento database/export counts.
 
+## Product-detail signals
+
+Sample public product pages confirm that the migration/parity model must handle visible fields and states including:
+
+- SKU
+- regular price and sale price
+- percentage-sale presentation
+- in-stock / out-of-stock state
+- low-stock messaging such as "only 1 left"
+- delivery message
+- quantity selector
+- color
+- size / one-size values
+- designer
+- country of manufacture where present
+- long-form descriptions and bullet details
+- size-guide surface on applicable products
+- reviews/review form surface
+- image gallery
+
+Examples also show mixed localization quality: an English product page can contain a Greek product description. Content must therefore be migrated according to actual Magento store-view values rather than assuming that every English store-view field is translated.
+
+One indexed English product was observed using Magento's internal catalog route (`/en/catalog/product/view/id/.../category/.../`) instead of only the pretty URL. URL-rewrite extraction and redirect coverage must include such indexable fallback routes where they appear in the source URL inventory.
+
 ## URL patterns observed
 
 Examples show Magento-style locale and `.html` routes such as:
@@ -57,6 +81,7 @@ The migration redirect manifest therefore needs explicit handling for:
 - `/default/` Greek prefixes
 - `/en/` English prefixes
 - legacy `.html` category/designer/product URLs
+- Magento internal `catalog/product/view/...` URLs if indexed
 - pagination/filter query parameters and their canonical/indexing behavior
 
 ## Shipping/returns content observed
