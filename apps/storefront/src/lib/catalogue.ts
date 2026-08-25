@@ -15,7 +15,7 @@ export type CatalogueProductResult = {
 }
 
 const defaultCountryCode = (
-  process.env.NEXT_PUBLIC_DEFAULT_REGION || "gr"
+  process.env.NEXT_PUBLIC_DEFAULT_COUNTRY_CODE || "gr"
 ).toLowerCase()
 
 export async function getCatalogueProducts(
