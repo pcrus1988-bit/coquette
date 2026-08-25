@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   lockfile:
-    if: ${{ !contains(github.event.head_commit.message, 'chore: commit generated pnpm lockfile') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
