@@ -1,17 +1,19 @@
-import type { HttpTypes } from "@medusajs/types"
 import { isMedusaStoreConfigured, medusa } from "./medusa"
 
 export type CatalogueState = "ready" | "unconfigured" | "unavailable"
 
+type ProductListResponse = Awaited<ReturnType<typeof medusa.store.product.list>>
+export type CatalogueProduct = ProductListResponse["products"][number]
+
 export type CatalogueProductsResult = {
   state: CatalogueState
-  products: HttpTypes.StoreProduct[]
+  products: CatalogueProduct[]
   count: number
 }
 
 export type CatalogueProductResult = {
   state: CatalogueState | "not_found"
-  product: HttpTypes.StoreProduct | null
+  product: CatalogueProduct | null
 }
 
 const defaultCountryCode = (
