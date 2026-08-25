@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate local Docker Compose
+        run: docker compose -f infra/local/docker-compose.yml config --quiet
+
       - name: Type-check backend
         run: pnpm --filter @coquette/backend exec tsc --noEmit
 

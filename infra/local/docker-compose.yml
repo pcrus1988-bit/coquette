@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: coquette-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coquette
+      POSTGRES_PASSWORD: coquette_local_only
+      POSTGRES_DB: coquette
+    ports:
+      - "55432:5432"
+    volumes:
+      - coquette_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coquette -d coquette"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - coquette-local
+
+  redis:
+    image: redis:7-alpine
+    container_name: coquette-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "56379:6379"
+    volumes:
+      - coquette_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - coquette-local
+
+volumes:
+  coquette_postgres_data:
+    name: coquette_postgres_data
+  coquette_redis_data:
+    name: coquette_redis_data
+
+networks:
+  coquette-local:
+    name: coquette-local
