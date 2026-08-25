@@ -16,7 +16,43 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coquette_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coquette_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/coquette_ci
+      REDIS_URL: redis://localhost:6379
+      STORE_CORS: http://localhost:8000
+      ADMIN_CORS: http://localhost:9000
+      AUTH_CORS: http://localhost:8000,http://localhost:9000
+      JWT_SECRET: ci-build-only-secret
+      COOKIE_SECRET: ci-build-only-secret
+      MEDUSA_BACKEND_URL: http://localhost:9000
+      MEDUSA_WORKER_MODE: server
+      DISABLE_MEDUSA_ADMIN: "false"
 
     steps:
       - name: Checkout
@@ -46,19 +82,12 @@ jobs:
       - name: Validate Magento migration contract
         run: pnpm --filter @coquette/backend migration:contract
 
+      - name: Run Medusa migrations on clean PostgreSQL
+        run: pnpm --filter @coquette/backend db:migrate
+
       - name: Build Medusa production artifact
         env:
           NODE_ENV: production
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/coquette_ci
-          REDIS_URL: redis://localhost:6379
-          STORE_CORS: http://localhost:8000
-          ADMIN_CORS: http://localhost:9000
-          AUTH_CORS: http://localhost:8000,http://localhost:9000
-          JWT_SECRET: ci-build-only-secret
-          COOKIE_SECRET: ci-build-only-secret
-          MEDUSA_BACKEND_URL: http://localhost:9000
-          MEDUSA_WORKER_MODE: server
-          DISABLE_MEDUSA_ADMIN: "false"
         run: |
           pnpm --filter @coquette/backend build
           test -f apps/backend/.medusa/server/medusa-config.js
