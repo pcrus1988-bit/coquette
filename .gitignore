@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+dist/
+build/
+coverage/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Vercel
+.vercel/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary and migration data
+.tmp/
+tmp/
+exports/
+imports/private/
+migration-data/
+
+# Credentials / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
