@@ -8,6 +8,9 @@ type CategoryListResponse = Awaited<ReturnType<typeof medusa.store.category.list
 
 export type CatalogueProduct = ProductListResponse["products"][number]
 export type CatalogueCategory = CategoryListResponse["product_categories"][number]
+type CatalogueCategoryTree = CatalogueCategory & {
+  category_children?: CatalogueCategoryTree[]
+}
 
 export type CatalogueProductsResult = {
   state: CatalogueState
@@ -33,6 +36,13 @@ const defaultCountryCode = (
 
 const productCardFields =
   "id,title,handle,thumbnail,*images,*variants.calculated_price,+variants.inventory_quantity,+variants.manage_inventory"
+
+function collectCategoryIds(category: CatalogueCategoryTree): string[] {
+  return [
+    category.id,
+    ...(category.category_children ?? []).flatMap(collectCategoryIds),
+  ]
+}
 
 export async function getCatalogueProducts(
   limit = 24,
@@ -96,6 +106,8 @@ export async function getCategoryProducts(
       {
         handle: categoryHandle,
         limit: 1,
+        include_descendants_tree: true,
+        fields: "*category_children",
       },
       {
         next: {
@@ -104,7 +116,7 @@ export async function getCategoryProducts(
       }
     )
 
-    const category = product_categories[0]
+    const category = product_categories[0] as CatalogueCategoryTree | undefined
 
     if (!category) {
       return {
@@ -115,9 +127,10 @@ export async function getCategoryProducts(
       }
     }
 
+    const categoryIds = collectCategoryIds(category)
     const { products, count } = await medusa.store.product.list(
       {
-        category_id: category.id,
+        category_id: categoryIds,
         limit,
         offset,
         country_code: defaultCountryCode,
@@ -125,7 +138,11 @@ export async function getCategoryProducts(
       },
       {
         next: {
-          tags: ["products", `category-products:${category.id}`],
+          tags: [
+            "products",
+            `category-products:${category.id}`,
+            ...categoryIds.map((id) => `category-products:${id}`),
+          ],
         },
       }
     )
