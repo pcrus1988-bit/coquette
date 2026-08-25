@@ -7,8 +7,7 @@
 - [x] Add secret-safe `.gitignore`
 - [x] Add `.env.example`
 - [x] Add public-repository security policy
-- [x] Prepare workspace bootstrap branch
-- [ ] Merge workspace bootstrap into `main`
+- [x] Prepare and merge the repository workspace bootstrap into `main`
 - [ ] Add CI and protect `main` once the application stack is finalized
 
 ## Vercel
@@ -22,8 +21,8 @@
 - [ ] Select database/storage stack in blueprint
 - [ ] Create dedicated COQUETTE database project
 - [ ] Create dedicated storage
-- [ ] Define backup policy
-- [ ] Create private migration/export area for Magento source data
+- [ ] Finalize backup/restore policy after stack selection
+- [ ] Create private migration/export area for Magento source data outside public GitHub
 
 ## Integrations
 - [ ] PayPal dedicated app/credentials
@@ -34,7 +33,8 @@
 
 ## Security
 - [x] Document no-shared-secrets rule
-- [ ] Separate production/staging credentials
+- [x] Add webhook ownership inventory
+- [x] Add credential ownership inventory
+- [ ] Separate production/staging credentials when provisioned
 - [ ] Add credential rotation record
-- [ ] Add webhook ownership inventory
 - [ ] Add automated secret scanning to CI
