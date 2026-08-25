@@ -1,6 +1,5 @@
 import { ProductDetailShell } from "../../../../components/product-detail-shell"
-
-const ENGLISH_LOCALE = "en-GB"
+import { ENGLISH_LOCALE } from "../../../../lib/localization"
 
 export default async function EnglishProductPage({
   params,
