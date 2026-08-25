@@ -1,0 +1,31 @@
+import { notFound } from "next/navigation"
+
+const pages: Record<string, { title: string; body: string }> = {
+  search: { title: "Αναζήτηση", body: "Η νέα αναζήτηση θα συνδεθεί με το Medusa catalogue και θα υποστηρίζει προϊόντα, designers, κατηγορίες και βασικά χαρακτηριστικά." },
+  account: { title: "Λογαριασμός", body: "Σύνδεση, εγγραφή, ανάκτηση κωδικού, διευθύνσεις, παραγγελίες και wishlist θα υλοποιηθούν χωρίς τα Magento account overlays." },
+  cart: { title: "Το καλάθι μου", body: "Το ενιαίο cart και checkout flow θα συνδεθεί με τις πραγματικές payment και shipping integrations στη φάση checkout." },
+  contact: { title: "Επικοινωνία", body: "Coquette Concept · Βρασίδου 119, ΤΚ 23100 · Αρχαία Σπάρτη · 2731 0 20404." },
+  shipping: { title: "Αποστολές", body: "Οι τελικοί courier κανόνες, χρεώσεις και δωρεάν μεταφορικά άνω των €100 θα μεταφερθούν μετά την επιβεβαίωση των εμπορικών ρυθμίσεων." },
+  payments: { title: "Τρόποι πληρωμής", body: "Η σελίδα θα ενημερώνεται από το merchant back office και θα αντικατοπτρίζει μόνο ενεργούς payment providers." },
+  terms: { title: "Όροι & Προϋποθέσεις", body: "Το υφιστάμενο νομικό περιεχόμενο θα μεταφερθεί και θα εκδοθεί ως διαχειρίσιμη Website Content σελίδα." },
+  privacy: { title: "Πολιτική Απορρήτου", body: "Το privacy content θα μεταφερθεί στο νέο content model και θα επανελεγχθεί πριν το production cutover." },
+}
+
+export default async function UtilityPage({ params }: { params: Promise<{ utility: string }> }) {
+  const { utility } = await params
+  const page = pages[utility]
+
+  if (!page) {
+    notFound()
+  }
+
+  return (
+    <main className="min-h-[55vh] bg-[#f7f5f2] px-5 py-16 text-neutral-950 lg:px-8">
+      <section className="mx-auto max-w-4xl">
+        <p className="text-xs uppercase tracking-[0.25em] text-neutral-500">Coquette Concept</p>
+        <h1 className="mt-4 font-serif text-5xl sm:text-6xl">{page.title}</h1>
+        <p className="mt-7 max-w-2xl text-sm leading-7 text-neutral-600">{page.body}</p>
+      </section>
+    </main>
+  )
+}
