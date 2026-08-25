@@ -32,20 +32,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.16.0
+          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Type-check backend
         run: pnpm --filter @coquette/backend exec tsc --noEmit
 
       - name: Build storefront
         run: pnpm --filter @coquette/storefront build
-
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: coquette-pnpm-lock
-          path: pnpm-lock.yaml
-          if-no-files-found: error
-          retention-days: 7
