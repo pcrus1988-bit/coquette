@@ -9,9 +9,15 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
 
-const designers = Object.fromEntries(designerNames.map((name) => [slugify(name), name]))
+const designers = Object.fromEntries(
+  designerNames.map((name) => [slugify(name), name])
+)
 
-export default async function DesignerPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function DesignerPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}) {
   const { slug } = await params
   const title = designers[slug]
 
@@ -19,5 +25,12 @@ export default async function DesignerPage({ params }: { params: Promise<{ slug:
     notFound()
   }
 
-  return <ProductListingShell eyebrow="Σχεδιαστής" title={title} />
+  return (
+    <ProductListingShell
+      eyebrow="Σχεδιαστής"
+      hrefBase={`/designers/${slug}`}
+      title={title}
+      pendingMessage="Τα προϊόντα του συγκεκριμένου designer θα συνδεθούν μέσω του πρώτης κλάσης COQUETTE Brand/Designer module. Δεν χρησιμοποιούμε προσωρινά μια γενική λίστα προϊόντων, ώστε να μην παρουσιαστεί λανθασμένο catalogue."
+    />
+  )
 }

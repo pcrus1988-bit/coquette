@@ -1,9 +1,16 @@
 import { isMedusaStoreConfigured, medusa } from "./medusa"
 
 export type CatalogueState = "ready" | "unconfigured" | "unavailable"
+export type CategoryCatalogueState = CatalogueState | "not_found"
 
 type ProductListResponse = Awaited<ReturnType<typeof medusa.store.product.list>>
+type CategoryListResponse = Awaited<ReturnType<typeof medusa.store.category.list>>
+
 export type CatalogueProduct = ProductListResponse["products"][number]
+export type CatalogueCategory = CategoryListResponse["product_categories"][number]
+type CatalogueCategoryTree = CatalogueCategory & {
+  category_children?: CatalogueCategoryTree[]
+}
 
 export type CatalogueProductsResult = {
   state: CatalogueState
@@ -16,12 +23,30 @@ export type CatalogueProductResult = {
   product: CatalogueProduct | null
 }
 
+export type CategoryProductsResult = {
+  state: CategoryCatalogueState
+  category: CatalogueCategory | null
+  products: CatalogueProduct[]
+  count: number
+}
+
 const defaultCountryCode = (
   process.env.NEXT_PUBLIC_DEFAULT_COUNTRY_CODE || "gr"
 ).toLowerCase()
 
+const productCardFields =
+  "id,title,handle,thumbnail,*images,*variants.calculated_price,+variants.inventory_quantity,+variants.manage_inventory"
+
+function collectCategoryIds(category: CatalogueCategoryTree): string[] {
+  return [
+    category.id,
+    ...(category.category_children ?? []).flatMap(collectCategoryIds),
+  ]
+}
+
 export async function getCatalogueProducts(
-  limit = 8
+  limit = 24,
+  offset = 0
 ): Promise<CatalogueProductsResult> {
   if (!isMedusaStoreConfigured) {
     return {
@@ -33,7 +58,12 @@ export async function getCatalogueProducts(
 
   try {
     const { products, count } = await medusa.store.product.list(
-      { limit },
+      {
+        limit,
+        offset,
+        country_code: defaultCountryCode,
+        fields: productCardFields,
+      },
       {
         next: {
           tags: ["products"],
@@ -51,6 +81,87 @@ export async function getCatalogueProducts(
 
     return {
       state: "unavailable",
+      products: [],
+      count: 0,
+    }
+  }
+}
+
+export async function getCategoryProducts(
+  categoryHandle: string,
+  limit = 24,
+  offset = 0
+): Promise<CategoryProductsResult> {
+  if (!isMedusaStoreConfigured) {
+    return {
+      state: "unconfigured",
+      category: null,
+      products: [],
+      count: 0,
+    }
+  }
+
+  try {
+    const { product_categories } = await medusa.store.category.list(
+      {
+        handle: categoryHandle,
+        limit: 1,
+        include_descendants_tree: true,
+        fields: "*category_children",
+      },
+      {
+        next: {
+          tags: ["categories", `category:${categoryHandle}`],
+        },
+      }
+    )
+
+    const category = product_categories[0] as CatalogueCategoryTree | undefined
+
+    if (!category) {
+      return {
+        state: "not_found",
+        category: null,
+        products: [],
+        count: 0,
+      }
+    }
+
+    const categoryIds = collectCategoryIds(category)
+    const { products, count } = await medusa.store.product.list(
+      {
+        category_id: categoryIds,
+        limit,
+        offset,
+        country_code: defaultCountryCode,
+        fields: productCardFields,
+      },
+      {
+        next: {
+          tags: [
+            "products",
+            `category-products:${category.id}`,
+            ...categoryIds.map((id) => `category-products:${id}`),
+          ],
+        },
+      }
+    )
+
+    return {
+      state: "ready",
+      category,
+      products,
+      count,
+    }
+  } catch (error) {
+    console.error(
+      `COQUETTE Store API category query failed for ${categoryHandle}`,
+      error
+    )
+
+    return {
+      state: "unavailable",
+      category: null,
       products: [],
       count: 0,
     }
