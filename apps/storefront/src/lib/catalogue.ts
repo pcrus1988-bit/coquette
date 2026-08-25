@@ -36,7 +36,6 @@ export async function getCatalogueProducts(
       { limit },
       {
         next: {
-          revalidate: 60,
           tags: ["products"],
         },
       }
@@ -78,7 +77,6 @@ export async function getProductByHandle(
       },
       {
         next: {
-          revalidate: 60,
           tags: ["products", `product:${handle}`],
         },
       }
