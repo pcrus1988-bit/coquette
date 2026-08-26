@@ -292,23 +292,6 @@ function optionGroups(html: string) {
     if (values.length) result.push({ name, values })
   }
 
-  const swatchAttributes = /<div\b([^>]*)class=["'][^"']*swatch-attribute[^"']*["']([^>]*)>/gi
-  let swatch: RegExpExecArray | null
-  while ((swatch = swatchAttributes.exec(html))) {
-    const openingTag = `<div ${swatch[1]} ${swatch[2]}>`
-    const name =
-      attribute(openingTag, "data-attribute-code") ??
-      attribute(openingTag, "attribute-code")
-    if (!name) continue
-    const slice = html.slice(swatch.index, Math.min(html.length, swatch.index + 12000))
-    const values = unique(
-      [...slice.matchAll(/data-option-label\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)]
-        .map((match) => decodeHtml(match[1] ?? match[2]).trim())
-        .filter(Boolean)
-    )
-    if (values.length) result.push({ name, values })
-  }
-
   const merged = new Map<string, string[]>()
   for (const group of result) {
     const key = group.name.trim().toLowerCase()
