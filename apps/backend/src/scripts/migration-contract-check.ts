@@ -5,7 +5,18 @@ import {
   findDuplicateManifestKeys,
   shouldReimport,
 } from "../migration/manifest"
+import {
+  buildImportedTargetMap,
+  requireImportedTargetId,
+  resolveImportedTargetId,
+} from "../migration/mapping"
 import { reconcileMigration } from "../migration/reconciliation"
+import {
+  createMigrationRun,
+  finalizeMigrationRun,
+  privateMigrationArtifactPath,
+} from "../migration/run"
+import { createNormalizedSourceRecord } from "../migration/source-record"
 import { validateNormalizedProduct } from "../migration/validation"
 import type {
   MigrationManifestEntry,
@@ -59,5 +70,80 @@ const sampleProduct: NormalizedMagentoProduct = {
 }
 
 assert.deepEqual(validateNormalizedProduct(sampleProduct), [])
+
+const normalizedRecord = createNormalizedSourceRecord(
+  { entityType: "product", sourceId: sampleProduct.sourceId, locale: "el" },
+  sampleProduct,
+  "2026-08-26T12:00:00.000Z"
+)
+assert.equal(normalizedRecord.sourceChecksum, sourceChecksum(sampleProduct))
+assert.equal(normalizedRecord.data.sku, "COQ-42")
+
+const targetMap = buildImportedTargetMap([imported])
+assert.equal(targetMap.size, 1)
+assert.equal(
+  resolveImportedTargetId([imported], {
+    entityType: "product",
+    sourceId: "42",
+    locale: "el",
+  }),
+  "prod_test"
+)
+assert.equal(
+  requireImportedTargetId([imported], {
+    entityType: "product",
+    sourceId: "42",
+    locale: "el",
+  }),
+  "prod_test"
+)
+assert.throws(() =>
+  requireImportedTargetId([imported], {
+    entityType: "brand",
+    sourceId: "missing",
+  })
+)
+assert.throws(() =>
+  buildImportedTargetMap([
+    imported,
+    { ...imported, targetId: "prod_conflict" },
+  ])
+)
+
+const run = createMigrationRun(
+  "rehearsal-001",
+  {
+    source: "magento",
+    snapshotId: "snapshot-001",
+    capturedAt: "2026-08-26T12:00:00.000Z",
+    importerCommitSha: "0123456789abcdef",
+    magentoVersion: "2.4.8-p3",
+    databaseSha256: "a".repeat(64),
+    mediaSha256: "b".repeat(64),
+  },
+  "2026-08-26T12:05:00.000Z"
+)
+assert.equal(run.status, "running")
+assert.equal(
+  privateMigrationArtifactPath(run.runId, "manifest.json"),
+  "migration-runs/rehearsal-001/manifest.json"
+)
+assert.throws(() => privateMigrationArtifactPath("../escape", "manifest.json"))
+
+const completedRun = finalizeMigrationRun(
+  run,
+  [reconciliation],
+  "2026-08-26T12:10:00.000Z"
+)
+assert.equal(completedRun.status, "completed")
+
+const reviewRun = finalizeMigrationRun(
+  run,
+  [{ ...reconciliation, pending: 1, isReconciled: false }],
+  "2026-08-26T12:10:00.000Z",
+  ["Synthetic pending record"]
+)
+assert.equal(reviewRun.status, "needs_review")
+assert.equal(reviewRun.warnings.length, 1)
 
 console.log("COQUETTE Magento migration contract checks passed")
