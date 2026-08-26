@@ -5,6 +5,7 @@ export type CatalogueSearchParams = {
   q?: string
   sort?: string
   option?: string | string[]
+  designer?: string
 }
 
 const allowedSorts = new Set<CatalogueSort>([
@@ -30,11 +31,16 @@ export function parseCatalogueSearchParams(params: CatalogueSearchParams) {
   const optionValueIds = [...new Set(rawOptions.map((value) => value.trim()))].filter(
     (value) => /^optval_[A-Za-z0-9_-]+$/.test(value)
   )
+  const designerCandidate = params.designer?.trim() || ""
+  const designer = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(designerCandidate)
+    ? designerCandidate
+    : ""
 
   return {
     page,
     query,
     sort,
     optionValueIds,
+    designer,
   }
 }
