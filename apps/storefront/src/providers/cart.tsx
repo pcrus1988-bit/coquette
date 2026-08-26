@@ -10,7 +10,7 @@ import {
   useMemo,
   useState,
 } from "react"
-import { ENGLISH_LOCALE } from "../lib/localization"
+import { ENGLISH_LOCALE, GREEK_LOCALE } from "../lib/localization"
 import { isMedusaStoreConfigured, medusa } from "../lib/medusa"
 import { useRegion } from "./region"
 
@@ -40,7 +40,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const locale = pathname === "/en" || pathname.startsWith("/en/")
     ? ENGLISH_LOCALE
-    : undefined
+    : GREEK_LOCALE
 
   const createCart = useCallback(async () => {
     if (!isMedusaStoreConfigured || !region) {
@@ -50,7 +50,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const { cart: created } = await medusa.store.cart.create(
       {
         region_id: region.id,
-        ...(locale ? { locale } : {}),
+        locale,
       },
       { fields: cartFields }
     )
@@ -101,22 +101,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        const needsRegionUpdate = saved.region_id !== region.id
-        const needsLocaleUpdate = Boolean(locale && saved.locale !== locale)
+        // Medusa supports mutating a cart's locale, but the StoreCart response type
+        // doesn't currently expose a locale property. Apply the desired locale
+        // idempotently whenever a persisted cart is restored or language changes.
+        const { cart: updated } = await medusa.store.cart.update(
+          saved.id,
+          {
+            ...(saved.region_id !== region.id ? { region_id: region.id } : {}),
+            locale,
+          },
+          { fields: cartFields }
+        )
 
-        if (needsRegionUpdate || needsLocaleUpdate) {
-          const { cart: updated } = await medusa.store.cart.update(
-            saved.id,
-            {
-              ...(needsRegionUpdate ? { region_id: region.id } : {}),
-              ...(needsLocaleUpdate ? { locale } : {}),
-            },
-            { fields: cartFields }
-          )
-
-          if (active) {
-            setCart(updated)
-          }
+        if (active) {
+          setCart(updated)
         }
       } catch (reason) {
         if (!active) {
