@@ -2,12 +2,23 @@ import { isMedusaStoreConfigured, medusa } from "./medusa"
 
 export type CatalogueState = "ready" | "unconfigured" | "unavailable"
 export type CategoryCatalogueState = CatalogueState | "not_found"
+export type CatalogueSort = "" | "-created_at" | "created_at" | "title" | "-title"
+
+export type CatalogueQuery = {
+  q?: string
+  order?: CatalogueSort
+  optionValueIds?: string[]
+}
 
 type ProductListResponse = Awaited<ReturnType<typeof medusa.store.product.list>>
 type CategoryListResponse = Awaited<ReturnType<typeof medusa.store.category.list>>
+type ProductOptionListResponse = Awaited<
+  ReturnType<typeof medusa.store.productOption.list>
+>
 
 export type CatalogueProduct = ProductListResponse["products"][number]
 export type CatalogueCategory = CategoryListResponse["product_categories"][number]
+export type CatalogueProductOption = ProductOptionListResponse["product_options"][number]
 type CatalogueCategoryTree = CatalogueCategory & {
   category_children?: CatalogueCategoryTree[]
 }
@@ -28,6 +39,11 @@ export type CategoryProductsResult = {
   category: CatalogueCategory | null
   products: CatalogueProduct[]
   count: number
+}
+
+export type ProductFilterOptionsResult = {
+  state: CatalogueState
+  options: CatalogueProductOption[]
 }
 
 const defaultCountryCode = (
@@ -52,10 +68,71 @@ function localeTag(locale?: string) {
   return locale ? `locale:${locale}` : "locale:default"
 }
 
+function normalizeQuery(query?: CatalogueQuery) {
+  const q = query?.q?.trim()
+  const optionValueIds = [...new Set(query?.optionValueIds ?? [])].filter(Boolean)
+
+  return {
+    ...(q ? { q } : {}),
+    ...(query?.order ? { order: query.order } : {}),
+    ...(optionValueIds.length > 0
+      ? { option_value_id: optionValueIds }
+      : {}),
+  }
+}
+
+function queryTags(query?: CatalogueQuery) {
+  const q = query?.q?.trim() || "all"
+  const order = query?.order || "default"
+  const options = [...new Set(query?.optionValueIds ?? [])].sort().join(",") || "all"
+
+  return [`query:${q}`, `order:${order}`, `options:${options}`]
+}
+
+export async function getProductFilterOptions(
+  locale?: string
+): Promise<ProductFilterOptionsResult> {
+  if (!isMedusaStoreConfigured) {
+    return {
+      state: "unconfigured",
+      options: [],
+    }
+  }
+
+  try {
+    const { product_options } = await medusa.store.productOption.list(
+      {
+        limit: 100,
+        offset: 0,
+        is_exclusive: false,
+        ...localeParams(locale),
+      },
+      {
+        next: {
+          tags: ["product-options", localeTag(locale)],
+        },
+      }
+    )
+
+    return {
+      state: "ready",
+      options: product_options,
+    }
+  } catch (error) {
+    console.error("COQUETTE Store API product-option query failed", error)
+
+    return {
+      state: "unavailable",
+      options: [],
+    }
+  }
+}
+
 export async function getCatalogueProducts(
   limit = 24,
   offset = 0,
-  locale?: string
+  locale?: string,
+  query?: CatalogueQuery
 ): Promise<CatalogueProductsResult> {
   if (!isMedusaStoreConfigured) {
     return {
@@ -72,11 +149,12 @@ export async function getCatalogueProducts(
         offset,
         country_code: defaultCountryCode,
         fields: productCardFields,
+        ...normalizeQuery(query),
         ...localeParams(locale),
       },
       {
         next: {
-          tags: ["products", localeTag(locale)],
+          tags: ["products", localeTag(locale), ...queryTags(query)],
         },
       }
     )
@@ -164,7 +242,8 @@ export async function getCategoryProducts(
   categoryHandle: string,
   limit = 24,
   offset = 0,
-  locale?: string
+  locale?: string,
+  query?: CatalogueQuery
 ): Promise<CategoryProductsResult> {
   if (!isMedusaStoreConfigured) {
     return {
@@ -210,6 +289,7 @@ export async function getCategoryProducts(
         offset,
         country_code: defaultCountryCode,
         fields: productCardFields,
+        ...normalizeQuery(query),
         ...localeParams(locale),
       },
       {
@@ -219,6 +299,7 @@ export async function getCategoryProducts(
             localeTag(locale),
             `category-products:${category.id}`,
             ...categoryIds.map((id) => `category-products:${id}`),
+            ...queryTags(query),
           ],
         },
       }
