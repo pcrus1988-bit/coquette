@@ -14,6 +14,7 @@ export default async function ClothingPage({
   return (
     <ProductListingShell
       categoryHandle="clothing"
+      designer={parsed.designer}
       eyebrow="Ρούχα"
       hrefBase="/clothing"
       optionValueIds={parsed.optionValueIds}
