@@ -220,6 +220,7 @@ export class BrowserTransport {
       "--no-default-browser-check",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      "--disable-extensions",
       "--no-sandbox",
       "--window-size=1440,1200",
       "about:blank",
@@ -229,7 +230,7 @@ export class BrowserTransport {
     let args = chromeArgs
     if (mode === "headless") {
       args = ["--headless=new", ...chromeArgs]
-    } else {
+    } else if (!process.env.DISPLAY) {
       command = process.env.COQUETTE_XVFB_PATH ?? "/usr/bin/xvfb-run"
       args = ["-a", chrome, ...chromeArgs]
     }
@@ -237,6 +238,7 @@ export class BrowserTransport {
     const child = spawn(command, args, {
       stdio: "ignore",
       detached: false,
+      env: process.env,
     })
 
     const versionUrl = `http://127.0.0.1:${port}/json/version`
@@ -392,6 +394,26 @@ export class BrowserTransport {
   async close() {
     this.client.close()
     this.process.kill("SIGTERM")
-    await rm(this.profileDir, { recursive: true, force: true })
+
+    if (this.process.exitCode === null) {
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          this.process.once("exit", () => resolve())
+        }),
+        sleep(2_000),
+      ])
+    }
+
+    if (this.process.exitCode === null) {
+      this.process.kill("SIGKILL")
+      await sleep(250)
+    }
+
+    await rm(this.profileDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 150,
+    }).catch(() => undefined)
   }
 }
