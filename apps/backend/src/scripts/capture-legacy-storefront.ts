@@ -1,4 +1,5 @@
-import { resolve } from "node:path"
+import { writeFile } from "node:fs/promises"
+import { join, resolve } from "node:path"
 import { captureStorefront } from "../reconstruction/capture-storefront"
 
 function integerEnv(name: string, fallback: number) {
@@ -37,13 +38,30 @@ async function main() {
     browser: booleanEnv("COQUETTE_CAPTURE_BROWSER", true),
   })
 
-  console.log(JSON.stringify({ outputDir, manifest }, null, 2))
+  const zeroPageCapture = manifest.pages.captured === 0
+  const finalManifest = zeroPageCapture
+    ? {
+        ...manifest,
+        complete: false,
+        failureReason: "zero_public_html_pages_captured",
+      }
+    : manifest
 
-  if (!manifest.complete) {
+  if (zeroPageCapture) {
+    await writeFile(
+      join(outputDir, "manifest.json"),
+      `${JSON.stringify(finalManifest, null, 2)}\n`,
+      "utf8"
+    )
+  }
+
+  console.log(JSON.stringify({ outputDir, manifest: finalManifest }, null, 2))
+
+  if (!finalManifest.complete) {
     process.exitCode = 2
   }
 
-  if (manifest.pages.captured === 0) {
+  if (zeroPageCapture) {
     console.error("Capture completed without preserving any public HTML pages")
     process.exitCode = 3
   }
