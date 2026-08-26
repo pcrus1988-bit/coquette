@@ -12,7 +12,7 @@ export type PublicProductStructureEvidence = {
   galleryMedia: string[]
   categoryReferences: ProductCategoryReference[]
   optionGroups: ProductOptionGroupEvidence[]
-  typeHint?: "simple" | "configurable"
+  typeHint?: "configurable"
   typeEvidence?: string
 }
 
@@ -280,7 +280,7 @@ function optionGroups(html: string) {
   return [...merged.entries()].map(([name, values]) => ({ name, values }))
 }
 
-function directTypeEvidence(html: string, groups: ProductOptionGroupEvidence[]) {
+function directTypeEvidence(html: string) {
   const explicitConfigurable =
     /spConfig|configurable\.js|Magento_ConfigurableProduct|data-role=["']swatch-options["']/i.test(
       html
@@ -289,14 +289,6 @@ function directTypeEvidence(html: string, groups: ProductOptionGroupEvidence[]) 
     return {
       typeHint: "configurable" as const,
       typeEvidence: "Public Magento configurable-product client configuration present",
-    }
-  }
-
-  if (groups.length === 0 && /catalog-product-view/i.test(html)) {
-    return {
-      typeHint: "simple" as const,
-      typeEvidence:
-        "Public product page exposes no configurable-product client structure",
     }
   }
 
@@ -323,7 +315,7 @@ export function extractPublicProductStructure(
     htmlBreadcrumbs(html, pageUrl)
   )
   const groups = optionGroups(html)
-  const type = directTypeEvidence(html, groups)
+  const type = directTypeEvidence(html)
 
   return {
     galleryMedia,
