@@ -6,7 +6,7 @@
 
 ## Shipped to `main`
 
-Through merge `e957a831908ac3ad2d27a68a01442e2737c76dec`:
+Through merge `d0cb5cb046cd0933703f896cdbc2e9bcd792c24d`:
 
 - isolated COQUETTE repository/workspace
 - pnpm/Turbo monorepo
@@ -19,37 +19,43 @@ Through merge `e957a831908ac3ad2d27a68a01442e2737c76dec`:
 - bilingual Website Content module and generated migration
 - Magento migration contract, checksums, validation and reconciliation foundation
 - live Magento discovery record and controlled-access checklist
-- CI with frozen install, Compose validation, backend type-check, migration-contract check, Medusa production build verification and storefront production build
 - Medusa production server/worker process contract
 - migration predeploy command
 - Admin backend URL configuration
 - guarded Medusa JS SDK Store API client
-- real Store API-backed product detail route for product content, gallery, options, calculated prices and inventory state
+- real Store API-backed product detail route for content, gallery, options, calculated prices and inventory state
 - real Store API category product-listing surfaces for Greek Clothing and Accessories
 - descendant-category aggregation so top-level categories include products assigned to nested categories
 - reusable product cards with media, stock state and calculated/sale pricing
 - server-side catalogue pagination
+- Medusa Translation Module enabled
+- locale-aware Store API product/category queries
+- shared Greek/English product cards and product-detail surface
+- `/en/products/<handle>` using the same product record with Medusa translations
+- localized English Clothing and Accessories PLPs and nested category routes
+- configurable English BCP-47 locale (`NEXT_PUBLIC_ENGLISH_LOCALE`, default `en-GB`)
+- CI with PostgreSQL 17 + Redis service containers, clean `medusa db:migrate`, backend type-check, migration-contract check, Medusa production build and storefront production build
+- CI concurrency cancelling superseded branch validations
+- localization architecture documented in `docs/architecture/LOCALIZATION.md`
 - deployment runbook
 
 ## Active implementation
 
-Branch: `feature/commerce-localization-foundation`
+Branch: `feature/designer-brand-store-api`
 
-In progress / implemented on branch:
+Implemented on branch and green in branch CI:
 
-- Medusa Translation Module enabled behind the required `translation` feature flag
-- Store API catalogue/product helpers accept BCP-47 locale context
-- English commerce locale configurable through `NEXT_PUBLIC_ENGLISH_LOCALE` (default `en-GB`)
-- shared Greek/English product cards and product-detail surface
-- `/en/products/<handle>` retrieves translated commerce fields from the same product record
-- `/en/clothing` and nested Clothing routes use localized Store API category/product queries
-- `/en/accessories` and nested Accessories routes use localized Store API category/product queries
-- English Sale remains source-specific until the real sale/promotion rule exists
-- English Designer grids remain bound to the Brand/Designer workstream rather than showing generic catalogue data
-- CI now boots clean PostgreSQL 17 + Redis and runs all Medusa migrations before production builds
-- clean-database migration test has passed with Translation + Brand + Website Content + core Medusa migrations together
-- branch CI concurrency cancels superseded push validations
-- localization architecture documented in `docs/architecture/LOCALIZATION.md`
+- public `/store/brands` Brand directory endpoint exposing only safe storefront fields
+- public `/store/brands/<handle>` endpoint returning Brand metadata plus paginated linked product IDs/count
+- Brand-product pagination uses the Medusa module-link entry point rather than filtering products by metadata
+- storefront Brand client uses `sdk.client.fetch` for custom Store API routes
+- linked product IDs are rehydrated through the normal Medusa Store Product API so calculated pricing, inventory context and translations remain authoritative
+- Greek `/designers` directory uses live Brand records when staging is connected
+- Greek `/designers/<handle>` product grids are Brand-backed and paginated
+- English `/en/designers` directory uses the same Brand records
+- English `/en/designers/<handle>` uses the same Brand-product relation and localized product Store API queries
+- audited designer navigation remains only a temporary unconfigured-backend fallback and is not authoritative migration data
+- branch CI passes clean PostgreSQL migrations, backend production build and storefront production build
 
 ## Phase status correction
 
@@ -77,8 +83,8 @@ Already complete relative to the older roadmap wording:
 - Supabase security/performance advisors clean after infrastructure setup
 - Medusa production artifact verified by CI
 - server/worker deployment contract documented
-- clean PostgreSQL migration smoke test added to CI
-- Translation Module migrations validated together with custom/core migrations
+- clean PostgreSQL migration smoke test in CI
+- Translation Module migrations validated together with Brand, Website Content and core Medusa migrations
 
 Still outstanding:
 
@@ -109,12 +115,13 @@ Already complete:
 - public-site discovery inventory
 - access/export checklist
 - localization architecture ready for mapping Magento English store-view overrides to Medusa translations
+- first-class Brand/Designer target model and storefront query boundary ready for migrated designer assignments
 
 Blocked on controlled Magento administrative/database/export/media access. Public HTML is not accepted as authoritative migration data.
 
 ### Phase 5 — Merchant back office
 
-**Foundation started.** Medusa Admin plus Designer and Website Content extensions exist. Translation management is enabled in the active localization branch. Full Magento-equivalent daily-operation parity is not complete.
+**Foundation started.** Medusa Admin plus Designer, Website Content and Translation management foundations exist. Full Magento-equivalent daily-operation parity is not complete.
 
 ### Phase 6 — Storefront parity
 
@@ -123,12 +130,13 @@ Blocked on controlled Magento administrative/database/export/media access. Publi
 Implemented or active:
 
 - Store API product detail
-- Greek Clothing/Accessories PLPs
+- Greek and English Clothing/Accessories PLPs
 - nested category PLPs
 - product cards
 - pricing/inventory/media
 - pagination
-- English locale-aware commerce routes on active branch
+- localized commerce records
+- Brand/Designer directories and Brand-backed PLPs on the active branch
 
 Still incomplete:
 
@@ -136,7 +144,6 @@ Still incomplete:
 - cart interaction
 - wishlist
 - final Sale query semantics
-- Designer product grids
 - full editorial English route parity
 - final visual parity and responsive UAT
 
@@ -158,7 +165,7 @@ Tracked in GitHub issue #9:
 8. create Admin account and publishable Store API key
 9. configure supported store locales / translation settings in staging
 10. connect storefront to staging backend
-11. verify `/health`, Admin, Store API, translations, media upload and worker operation
+11. verify `/health`, Admin, Store API, Brand queries, translations, media upload and worker operation
 
 ## Production boundary
 
