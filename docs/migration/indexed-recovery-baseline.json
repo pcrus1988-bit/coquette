@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-26T15:00:00Z",
+  "purpose": "Secondary reconciliation and disaster-recovery evidence for the legacy COQUETTE Magento storefront. This is not authoritative Magento source data and must never override a fresher direct/store/database observation without review.",
+  "provenance": {
+    "kind": "public_search_index",
+    "sourceHost": "coquetteconcept.gr",
+    "confidence": "derived",
+    "freshnessWarning": "Individual indexed pages have different crawl dates. Counts and values are point-in-time observations, not guaranteed current inventory state."
+  },
+  "catalogSignals": [
+    {
+      "url": "https://coquetteconcept.gr/en/clothing.html",
+      "observedCount": 509,
+      "unit": "items",
+      "indexFreshness": "last week",
+      "notes": "English clothing listing reported Items 1-12 of 509."
+    },
+    {
+      "url": "https://coquetteconcept.gr/en/clothing/clothing-categories/new-in.html?p=2",
+      "observedCount": 499,
+      "unit": "items",
+      "indexFreshness": "2 weeks ago",
+      "notes": "Indexed New In pagination reported Items 13-24 of 499; useful only as an independent reconciliation signal because category semantics may include broad/legacy membership."
+    },
+    {
+      "url": "https://coquetteconcept.gr/en/designers/ciel-concept.html",
+      "observedCount": 17,
+      "unit": "items",
+      "indexFreshness": "today"
+    },
+    {
+      "url": "https://coquetteconcept.gr/en/designers/individual-art-leather.html",
+      "observedCount": 37,
+      "unit": "items",
+      "indexFreshness": "3 weeks ago"
+    },
+    {
+      "url": "https://coquetteconcept.gr/default/accessories/accessories-category/bags.html",
+      "observedCount": 18,
+      "unit": "items",
+      "indexFreshness": "4 weeks ago"
+    },
+    {
+      "url": "https://coquetteconcept.gr/en/clothing/clothing-categories/sweemwear.html",
+      "observedCount": 27,
+      "unit": "items",
+      "indexFreshness": "last week",
+      "notes": "Legacy URL intentionally preserves the source spelling `sweemwear`."
+    },
+    {
+      "url": "https://coquetteconcept.gr/default/clothing/clothing-categories/knitwear.html",
+      "observedCount": 27,
+      "unit": "items",
+      "indexFreshness": "2 weeks ago"
+    }
+  ],
+  "currentDesignerSeeds": [
+    "Arpyes",
+    "Combos Knitwear",
+    "Cutcuutur",
+    "Individual Art Leather",
+    "Mallory the Label",
+    "Milkwhite",
+    "Nashbyna",
+    "Nazezhda",
+    "Salt & Pepper Jeans",
+    "Sun.Set.Go!",
+    "Urban Owl",
+    "4Tailors",
+    "Zografos Concept",
+    "Elena Athanasiou bags",
+    "AV Sunglasses",
+    "Ciel Concept",
+    "Mind Matter"
+  ],
+  "categorySeeds": {
+    "clothing": [
+      "New In",
+      "Dresses",
+      "Tops",
+      "Bottoms",
+      "Outerwear",
+      "Denim",
+      "Leggings",
+      "Skirts",
+      "Activewear",
+      "Jumpsuits",
+      "Knitwear",
+      "Swimwear"
+    ],
+    "accessories": [
+      "Bags",
+      "Belts",
+      "Jewelry",
+      "Hats",
+      "Sunglasses",
+      "Scrunchies & Bows"
+    ]
+  },
+  "recentProductSpotChecks": [
+    {
+      "name": "SYLIA MINI DRESS",
+      "priceEur": 139,
+      "status": "new",
+      "sourceUrl": "https://coquetteconcept.gr/",
+      "indexFreshness": "3 days ago"
+    },
+    {
+      "name": "SUNKISSED BACKLESS DRESS",
+      "priceEur": 169,
+      "status": "new",
+      "sourceUrl": "https://coquetteconcept.gr/",
+      "indexFreshness": "3 days ago"
+    },
+    {
+      "name": "FABBIA TOP CIEL",
+      "regularPriceEur": 78,
+      "salePriceEur": 62.4,
+      "status": "sale",
+      "sourceUrl": "https://coquetteconcept.gr/",
+      "indexFreshness": "3 days ago"
+    },
+    {
+      "name": "KISS OF LIFE SHOULDER BAG/BLACK",
+      "priceEur": 183,
+      "status": "new",
+      "sourceUrl": "https://coquetteconcept.gr/en/designers/individual-art-leather.html",
+      "indexFreshness": "3 weeks ago"
+    }
+  ],
+  "rules": [
+    "Treat all records in this file as recovery/reconciliation evidence, not authoritative inventory.",
+    "Preserve legacy URL spelling exactly for redirect mapping.",
+    "Never infer stock from presence in an indexed category page unless an explicit stock state is present.",
+    "If Magento DB/media export becomes available, Magento source IDs and direct source values win unless an explicit later storefront observation proves otherwise.",
+    "Do not merge values from observations with different crawl dates without retaining provenance."
+  ]
+}
