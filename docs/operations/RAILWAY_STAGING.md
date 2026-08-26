@@ -44,6 +44,19 @@ pnpm --filter @coquette/backend start:deploy
 
 The deploy build first runs Medusa through the repository pnpm workspace. Medusa recreates `apps/backend/.medusa/server` as a standalone application. The deployment script then installs only the standalone runtime's production dependencies with npm inside that generated directory. This deliberately avoids pnpm walking back up into the parent monorepo workspace during the second installation step. The start command launches the generated server from that directory.
 
+## Redis production infrastructure
+
+A single dedicated COQUETTE `REDIS_URL` is shared by Medusa's Redis-backed infrastructure modules. When the variable is present, the backend registers:
+
+- Redis Caching Module Provider
+- Redis Event Bus Module
+- Redis Workflow Engine Module
+- Redis Locking Module Provider
+
+This is required for the separate server + worker topology. Do not create separate local/in-memory event or locking state on either service, and do not reuse a Redis instance from another project.
+
+The application enables Medusa's caching feature flag automatically when `REDIS_URL` is configured. Event jobs are retained for up to one hour or 1,000 completed/failed jobs to keep the staging queue inspectable without unbounded growth.
+
 ## Server-only Railway settings
 
 Service:
@@ -99,6 +112,8 @@ S3_ACCESS_KEY_ID=<secret>
 S3_SECRET_ACCESS_KEY=<secret>
 ```
 
+Supabase S3 access keys are server-side credentials with broad Storage access and must never be added to the storefront or Git history.
+
 ## Worker-only Railway settings
 
 Service:
@@ -134,7 +149,7 @@ Do not proceed to storefront connection until all of these pass:
 4. `https://<railway-backend-domain>/app` loads Medusa Admin.
 5. Worker remains running without a public endpoint.
 6. PostgreSQL logs show normal connectivity to the dedicated COQUETTE Supabase project.
-7. Redis connectivity is healthy.
+7. Logs confirm Redis-backed event bus, workflow engine, caching and locking modules connected successfully.
 
 After this, create the first Medusa Admin user and a publishable Store API key, then configure the Vercel storefront with the public backend URL and publishable key.
 
