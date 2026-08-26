@@ -1,19 +1,26 @@
 import { ProductListingShell } from "../../components/product-listing-shell"
+import {
+  parseCatalogueSearchParams,
+  type CatalogueSearchParams,
+} from "../../lib/catalogue-search-params"
 
 export default async function ClothingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<CatalogueSearchParams>
 }) {
-  const { page } = await searchParams
-  const pageNumber = Math.max(1, Number.parseInt(page || "1", 10) || 1)
+  const parsed = parseCatalogueSearchParams(await searchParams)
 
   return (
     <ProductListingShell
       categoryHandle="clothing"
+      designer={parsed.designer}
       eyebrow="Ρούχα"
       hrefBase="/clothing"
-      page={pageNumber}
+      optionValueIds={parsed.optionValueIds}
+      page={parsed.page}
+      query={parsed.query}
+      sort={parsed.sort}
       title="Γυναικεία Ρούχα"
       description="Νέες παραλαβές, φορέματα, tops, παντελόνια, denim, πλεκτά, μαγιώ και οι υπόλοιπες βασικές κατηγορίες του Coquette Concept."
     />

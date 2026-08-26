@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation"
 import { ProductListingShell } from "../../../components/product-listing-shell"
+import {
+  parseCatalogueSearchParams,
+  type CatalogueSearchParams,
+} from "../../../lib/catalogue-search-params"
 
 const categories: Record<string, string> = {
   bags: "Τσάντες",
@@ -15,23 +19,27 @@ export default async function AccessoriesCategoryPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<CatalogueSearchParams>
 }) {
-  const [{ slug }, { page }] = await Promise.all([params, searchParams])
+  const [{ slug }, rawSearchParams] = await Promise.all([params, searchParams])
   const title = categories[slug]
 
   if (!title) {
     notFound()
   }
 
-  const pageNumber = Math.max(1, Number.parseInt(page || "1", 10) || 1)
+  const parsed = parseCatalogueSearchParams(rawSearchParams)
 
   return (
     <ProductListingShell
       categoryHandle={slug}
+      designer={parsed.designer}
       eyebrow="Αξεσουάρ · Κατηγορία"
       hrefBase={`/accessories/${slug}`}
-      page={pageNumber}
+      optionValueIds={parsed.optionValueIds}
+      page={parsed.page}
+      query={parsed.query}
+      sort={parsed.sort}
       title={title}
     />
   )

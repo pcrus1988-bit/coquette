@@ -2,6 +2,10 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ProductListingShell } from "../../../components/product-listing-shell"
 import { getBrands } from "../../../lib/brands"
+import {
+  parseCatalogueSearchParams,
+  type CatalogueSearchParams,
+} from "../../../lib/catalogue-search-params"
 import { ENGLISH_LOCALE } from "../../../lib/localization"
 import { designerNames } from "../../../lib/navigation"
 
@@ -46,7 +50,6 @@ const humanizeHandle = (handle: string) =>
 const placeholderTitles: Record<string, string> = {
   "": "Women Clothes",
   "our-story": "Our Story",
-  search: "Search",
   account: "Account",
   cart: "Cart",
 }
@@ -138,10 +141,10 @@ export default async function EnglishStorefrontPage({
   searchParams,
 }: {
   params: Promise<{ segments?: string[] }>
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<CatalogueSearchParams>
 }) {
-  const [{ segments = [] }, { page }] = await Promise.all([params, searchParams])
-  const pageNumber = Math.max(1, Number.parseInt(page || "1", 10) || 1)
+  const [{ segments = [] }, rawSearchParams] = await Promise.all([params, searchParams])
+  const parsed = parseCatalogueSearchParams(rawSearchParams)
   const [root = "", child, ...rest] = segments
 
   if (rest.length > 0) {
@@ -154,11 +157,15 @@ export default async function EnglishStorefrontPage({
         <ProductListingShell
           categoryHandle="clothing"
           description="New arrivals, dresses, tops, trousers, denim, knitwear, swimwear and the core Coquette Concept clothing edit."
+          designer={parsed.designer}
           eyebrow="Clothing"
           hrefBase="/en/clothing"
           language="en"
           locale={ENGLISH_LOCALE}
-          page={pageNumber}
+          optionValueIds={parsed.optionValueIds}
+          page={parsed.page}
+          query={parsed.query}
+          sort={parsed.sort}
           title="Women's Clothing"
         />
       )
@@ -172,11 +179,15 @@ export default async function EnglishStorefrontPage({
     return (
       <ProductListingShell
         categoryHandle={child}
+        designer={parsed.designer}
         eyebrow="Clothing · Category"
         hrefBase={`/en/clothing/${child}`}
         language="en"
         locale={ENGLISH_LOCALE}
-        page={pageNumber}
+        optionValueIds={parsed.optionValueIds}
+        page={parsed.page}
+        query={parsed.query}
+        sort={parsed.sort}
         title={title}
       />
     )
@@ -188,11 +199,15 @@ export default async function EnglishStorefrontPage({
         <ProductListingShell
           categoryHandle="accessories"
           description="Bags, belts, jewellery, hats, sunglasses and hair accessories from the selected Coquette Concept designer portfolio."
+          designer={parsed.designer}
           eyebrow="Accessories"
           hrefBase="/en/accessories"
           language="en"
           locale={ENGLISH_LOCALE}
-          page={pageNumber}
+          optionValueIds={parsed.optionValueIds}
+          page={parsed.page}
+          query={parsed.query}
+          sort={parsed.sort}
           title="Accessories"
         />
       )
@@ -206,12 +221,39 @@ export default async function EnglishStorefrontPage({
     return (
       <ProductListingShell
         categoryHandle={child}
+        designer={parsed.designer}
         eyebrow="Accessories · Category"
         hrefBase={`/en/accessories/${child}`}
         language="en"
         locale={ENGLISH_LOCALE}
-        page={pageNumber}
+        optionValueIds={parsed.optionValueIds}
+        page={parsed.page}
+        query={parsed.query}
+        sort={parsed.sort}
         title={title}
+      />
+    )
+  }
+
+  if (root === "search") {
+    if (child) {
+      notFound()
+    }
+
+    return (
+      <ProductListingShell
+        description="Search the live product catalogue and narrow results by designer and migrated global colour and size options."
+        designer={parsed.designer}
+        eyebrow="Search"
+        hrefBase="/en/search"
+        language="en"
+        loadAll
+        locale={ENGLISH_LOCALE}
+        optionValueIds={parsed.optionValueIds}
+        page={parsed.page}
+        query={parsed.query}
+        sort={parsed.sort}
+        title={parsed.query ? `Results for “${parsed.query}”` : "Product Search"}
       />
     )
   }
@@ -228,7 +270,7 @@ export default async function EnglishStorefrontPage({
         hrefBase="/en/sale"
         language="en"
         locale={ENGLISH_LOCALE}
-        page={pageNumber}
+        page={parsed.page}
         saleOnly
         title="Sale"
       />
@@ -247,7 +289,7 @@ export default async function EnglishStorefrontPage({
         hrefBase={`/en/designers/${child}`}
         language="en"
         locale={ENGLISH_LOCALE}
-        page={pageNumber}
+        page={parsed.page}
         title={humanizeHandle(child)}
       />
     )
