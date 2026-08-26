@@ -4,9 +4,11 @@
 
 Phase 4 recovery evidence must become useful without becoming falsely authoritative. A **recovery product candidate** is therefore an intermediate object between raw evidence and a normalized Medusa-importable product.
 
+Issue #39 records the active source decision: Magento Admin/database/filesystem/API access is no longer available, so direct public-storefront evidence is the canonical recoverable source. Indexed evidence supports discovery and reconciliation where infrastructure-hosted capture is blocked.
+
 A candidate can be:
 
-- `ready` — sufficient direct/authoritative, timestamped evidence exists and all required product fields are present with no unresolved conflicts;
+- `ready` — sufficient direct, timestamped evidence exists and all required product fields are present with no unresolved conflicts;
 - `needs_review` — useful evidence exists, but identity, structure, provenance, or conflicting values still require resolution;
 - `rejected` — the candidate has no usable key/evidence and cannot participate in reconciliation.
 
@@ -14,16 +16,18 @@ A candidate can be:
 
 ## Evidence authority
 
-The candidate resolver uses this ordering:
+The resolver understands these evidence classes:
 
-1. `authoritative_magento`
-2. `direct_storefront`
-3. `public_search_index`
-4. `derived`
+1. `authoritative_magento` — compatibility class only if a legitimate historical Magento snapshot is unexpectedly recovered later;
+2. `direct_storefront` — the current canonical recoverable Phase 4 source;
+3. `public_search_index` — secondary recovery/reconciliation evidence;
+4. `derived` — reconstruction from relationships or surrounding evidence.
+
+No Magento package is currently expected or required. The compatibility class remains so a later legitimate recovery can be compared without redesigning the migration model.
 
 A lower-ranked value never silently replaces a higher-ranked value. If values differ, the stronger value can be selected for the candidate but the disagreement is retained as a conflict and the candidate becomes `needs_review`.
 
-This is intentionally conservative. A newer live storefront observation can prove that an older Magento snapshot changed later, but that chronology must be reviewed rather than flattened into one invented source of truth.
+This is intentionally conservative. A newer live storefront observation can prove that an older recovered snapshot changed later, but that chronology must be reviewed rather than flattened into one invented source of truth.
 
 ## Required product structure
 
@@ -39,13 +43,13 @@ A product cannot become `ready` without explicit values for:
 - option-value structure, even when explicitly empty;
 - media-source relationships, even when explicitly empty.
 
-If price evidence is present, currency is also required. `type: unknown` remains review-blocking.
+If price evidence is present, currency is also required. `type: unknown` remains review-blocking. At least one direct/authoritative observation must carry a valid timestamp before the candidate can become ready.
 
 ## Stock safety
 
 Stock is special. `public_search_index` and `derived` observations are never permitted to set stock automatically. If indexed/derived evidence appears to claim stock, the value is withheld and an `unsafe_field_authority` conflict is emitted.
 
-A search result, category page, designer listing, cached page, or product mention is not inventory proof.
+A search result, category page, designer listing, cached page, or product mention is not inventory proof. Exact stock quantities remain unavailable unless they are actually exposed publicly.
 
 ## Indexed baseline behavior
 
@@ -73,6 +77,8 @@ Identity and pricing conflicts are critical. Non-critical disagreements still re
 
 ## Next integration point
 
-When the authoritative Magento source package becomes available, its product observations should be fed through this same candidate layer. Direct storefront evidence can then be attached to the same candidate key/source identity, producing explicit conflicts where the live storefront and snapshot differ.
+The next active integration point is **successful direct public-storefront capture from an accepted operator/browser network**. Captured product evidence should be attached to matching recovery candidates, filling public SKU, type/options, categories, media, direct stock state and other recoverable fields while surfacing explicit conflicts with older indexed observations.
 
-Only conflict-free, complete candidates proceed to `NormalizedStorefrontProduct`, source-record checksumming, manifest import tracking, and final source/imported/skipped/error reconciliation.
+If a legitimate historical Magento snapshot unexpectedly becomes available later, it can enter through the retained compatibility evidence class and be compared rather than silently replacing newer public evidence.
+
+Only conflict-free, complete candidates proceed to `NormalizedStorefrontProduct`, source-record checksumming, manifest import tracking, and final source/imported/skipped/error reconciliation. Private Magento-only domains that are no longer legitimately recoverable remain explicitly unavailable rather than inferred.
