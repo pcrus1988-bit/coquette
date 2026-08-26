@@ -71,6 +71,50 @@ function unique(values: string[]) {
   return [...new Set(values)]
 }
 
+function extractJsonLd(html: string) {
+  const values: unknown[] = []
+  const pattern = /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(html))) {
+    const raw = decodeHtml(match[1]).trim()
+    if (!raw) continue
+    try {
+      values.push(JSON.parse(raw))
+    } catch {
+      // Raw HTML remains preserved, so malformed JSON-LD can stay reviewable.
+    }
+  }
+
+  return values
+}
+
+function findSchemaByType(
+  value: unknown,
+  wanted: "Product" | "BreadcrumbList"
+): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") return undefined
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const found = findSchemaByType(entry, wanted)
+      if (found) return found
+    }
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  const type = record["@type"]
+  if (type === wanted || (Array.isArray(type) && type.includes(wanted))) {
+    return record
+  }
+
+  for (const key of ["@graph", "mainEntity", "itemListElement", "breadcrumb"]) {
+    const found = findSchemaByType(record[key], wanted)
+    if (found) return found
+  }
+  return undefined
+}
+
 function schemaImageUrls(productSchema: Record<string, unknown> | undefined, pageUrl: string) {
   const result: string[] = []
 
@@ -137,34 +181,18 @@ function metaImage(html: string, pageUrl: string) {
   return undefined
 }
 
-function findBreadcrumbSchema(value: unknown): Record<string, unknown> | undefined {
-  if (!value || typeof value !== "object") return undefined
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      const found = findBreadcrumbSchema(entry)
-      if (found) return found
-    }
-    return undefined
-  }
-
-  const record = value as Record<string, unknown>
-  const type = record["@type"]
-  if (
-    type === "BreadcrumbList" ||
-    (Array.isArray(type) && type.includes("BreadcrumbList"))
-  ) {
-    return record
-  }
-
-  for (const key of ["@graph", "mainEntity", "breadcrumb"]) {
-    const found = findBreadcrumbSchema(record[key])
-    if (found) return found
-  }
-  return undefined
+function isCategoryReference(url: string, pageUrl: string) {
+  const parsed = new URL(url)
+  const page = new URL(pageUrl)
+  if (parsed.hostname !== page.hostname || url === pageUrl) return false
+  const path = parsed.pathname.replace(/\/+$/, "") || "/"
+  return path !== "/" && path !== "/default" && path !== "/en"
 }
 
 function schemaBreadcrumbs(jsonLd: unknown[], pageUrl: string) {
-  const breadcrumb = jsonLd.map(findBreadcrumbSchema).find(Boolean)
+  const breadcrumb = jsonLd
+    .map((value) => findSchemaByType(value, "BreadcrumbList"))
+    .find(Boolean)
   const items = breadcrumb?.itemListElement
   if (!Array.isArray(items)) return []
 
@@ -184,7 +212,7 @@ function schemaBreadcrumbs(jsonLd: unknown[], pageUrl: string) {
             ? (nested.url as string)
             : undefined
     const url = safeUrl(rawUrl, pageUrl)
-    if (!url || url === pageUrl) return []
+    if (!url || !isCategoryReference(url, pageUrl)) return []
     const rawName =
       typeof record.name === "string"
         ? record.name
@@ -209,7 +237,7 @@ function htmlBreadcrumbs(html: string, pageUrl: string) {
     let anchor: RegExpExecArray | null
     while ((anchor = anchorPattern.exec(block[1]))) {
       const url = safeUrl(anchor[1] ?? anchor[2] ?? anchor[3], pageUrl)
-      if (!url || url === pageUrl) continue
+      if (!url || !isCategoryReference(url, pageUrl)) continue
       const name = textContent(anchor[4])
       result.push({ url, ...(name ? { name } : {}) })
     }
@@ -297,10 +325,12 @@ function directTypeEvidence(html: string) {
 
 export function extractPublicProductStructure(
   html: string,
-  pageUrl: string,
-  productSchema: Record<string, unknown> | undefined,
-  jsonLd: unknown[]
+  pageUrl: string
 ): PublicProductStructureEvidence {
+  const jsonLd = extractJsonLd(html)
+  const productSchema = jsonLd
+    .map((value) => findSchemaByType(value, "Product"))
+    .find(Boolean)
   const schemaMedia = schemaImageUrls(productSchema, pageUrl)
   const ogImage = metaImage(html, pageUrl)
   const catalogMedia = productCatalogMedia(html, pageUrl)
