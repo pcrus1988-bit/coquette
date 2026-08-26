@@ -1,5 +1,6 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import { readFile, realpath } from "node:fs/promises"
-import { isAbsolute, join, relative, resolve, sep } from "node:path"
+import { isAbsolute, relative, resolve, sep } from "node:path"
 import { discoverMedia } from "../reconstruction/html-evidence"
 import {
   buildRecoveryProductCandidate,
@@ -273,6 +274,16 @@ async function resolveArchiveFile(captureDir: string, archivePath?: string) {
   }
 }
 
+async function requireArchiveFile(captureDir: string, archivePath: string) {
+  const path = await resolveArchiveFile(captureDir, archivePath)
+  if (path) return path
+
+  throw new MedusaError(
+    MedusaError.Types.INVALID_DATA,
+    `Capture artifact file is missing, unsafe, or resolves outside the capture directory: ${archivePath}`
+  )
+}
+
 async function reconstructPageMedia(
   captureDir: string,
   pages: CapturePageRecord[],
@@ -318,14 +329,15 @@ export async function readCaptureArtifactBundle(
   captureDir: string,
   expectedHost = COQUETTE_LEGACY_HOST
 ): Promise<CaptureArtifactBundle> {
-  const manifest = JSON.parse(
-    await readFile(join(captureDir, "manifest.json"), "utf8")
-  ) as CaptureManifest
-  const products = await readJsonl<CapturedProductRecord>(
-    join(captureDir, "products.jsonl")
-  )
-  const pages = await readJsonl<CapturePageRecord>(join(captureDir, "pages.jsonl"))
-  const media = await readJsonl<CaptureMediaRecord>(join(captureDir, "media.jsonl"))
+  const manifestPath = await requireArchiveFile(captureDir, "manifest.json")
+  const productsPath = await requireArchiveFile(captureDir, "products.jsonl")
+  const pagesPath = await requireArchiveFile(captureDir, "pages.jsonl")
+  const mediaPath = await requireArchiveFile(captureDir, "media.jsonl")
+
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as CaptureManifest
+  const products = await readJsonl<CapturedProductRecord>(productsPath)
+  const pages = await readJsonl<CapturePageRecord>(pagesPath)
+  const media = await readJsonl<CaptureMediaRecord>(mediaPath)
 
   return {
     manifest,
