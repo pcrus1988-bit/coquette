@@ -87,8 +87,11 @@ jobs:
       - name: Enforce Medusa lint rules
         run: pnpm --filter @coquette/backend lint
 
-      - name: Validate Magento migration contract
+      - name: Validate storefront reconstruction migration contract
         run: pnpm --filter @coquette/backend migration:contract
+
+      - name: Validate storefront capture parser contract
+        run: pnpm --filter @coquette/backend storefront:capture:contract
 
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
