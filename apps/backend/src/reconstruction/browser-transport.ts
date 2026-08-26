@@ -1,3 +1,4 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import { access, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -45,6 +46,10 @@ async function executableExists(path: string) {
   }
 }
 
+function unexpected(message: string) {
+  return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
+}
+
 async function findChrome() {
   const configured = process.env.COQUETTE_CHROME_PATH
   const candidates = [
@@ -59,7 +64,7 @@ async function findChrome() {
     if (await executableExists(candidate)) return candidate
   }
 
-  throw new Error(
+  throw unexpected(
     "Browser capture requested but Chrome/Chromium was not found. Set COQUETTE_CHROME_PATH."
   )
 }
@@ -110,7 +115,10 @@ class CdpClient {
   static async connect(url: string) {
     const ws = new WebSocket(url)
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("CDP WebSocket open timeout")), 10_000)
+      const timeout = setTimeout(
+        () => reject(new Error("CDP WebSocket open timeout")),
+        10_000
+      )
       ws.addEventListener("open", () => {
         clearTimeout(timeout)
         resolve()
@@ -123,7 +131,10 @@ class CdpClient {
     return new CdpClient(ws)
   }
 
-  async send<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}) {
+  async send<T = Record<string, unknown>>(
+    method: string,
+    params: Record<string, unknown> = {}
+  ) {
     const id = this.nextId++
     const result = new Promise<unknown>((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
@@ -194,7 +205,10 @@ export class BrowserTransport {
   static async launch() {
     const chrome = await findChrome()
     const profileDir = await mkdtemp(join(tmpdir(), "coquette-capture-chrome-"))
-    const port = Number.parseInt(process.env.COQUETTE_CHROME_DEBUG_PORT ?? "9222", 10)
+    const port = Number.parseInt(
+      process.env.COQUETTE_CHROME_DEBUG_PORT ?? "9222",
+      10
+    )
     const mode = process.env.COQUETTE_CAPTURE_BROWSER_MODE ?? "headed"
 
     const chromeArgs = [
@@ -229,7 +243,9 @@ export class BrowserTransport {
     let browserReady = false
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if (child.exitCode !== null) {
-        throw new Error(`Chrome exited before CDP became ready (code ${child.exitCode})`)
+        throw unexpected(
+          `Chrome exited before CDP became ready (code ${child.exitCode})`
+        )
       }
       try {
         const response = await fetch(versionUrl)
@@ -245,7 +261,7 @@ export class BrowserTransport {
 
     if (!browserReady) {
       child.kill("SIGTERM")
-      throw new Error("Chrome CDP endpoint did not become ready")
+      throw unexpected("Chrome CDP endpoint did not become ready")
     }
 
     const targetsResponse = await fetch(`http://127.0.0.1:${port}/json/list`)
@@ -258,7 +274,7 @@ export class BrowserTransport {
     )
     if (!target?.webSocketDebuggerUrl) {
       child.kill("SIGTERM")
-      throw new Error("Chrome did not expose a page CDP target")
+      throw unexpected("Chrome did not expose a page CDP target")
     }
 
     const client = await CdpClient.connect(target.webSocketDebuggerUrl)
@@ -272,7 +288,8 @@ export class BrowserTransport {
       expression: "({ userAgent: navigator.userAgent })",
       returnByValue: true,
     })
-    const userAgent = navigator.result?.value?.userAgent ??
+    const userAgent =
+      navigator.result?.value?.userAgent ??
       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome Safari/537.36"
 
     return new BrowserTransport(child, profileDir, client, userAgent)
@@ -315,7 +332,9 @@ export class BrowserTransport {
       }
     )
 
-    const load = this.client.waitFor("Page.loadEventFired", 45_000).catch(() => undefined)
+    const load = this.client
+      .waitFor("Page.loadEventFired", 45_000)
+      .catch(() => undefined)
     await this.client.send("Page.navigate", { url })
     await load
 
@@ -341,7 +360,9 @@ export class BrowserTransport {
 
     removeResponseListener()
 
-    const challenged = CHALLENGE_PATTERN.test(`${snapshot.title}\n${snapshot.html}`)
+    const challenged = CHALLENGE_PATTERN.test(
+      `${snapshot.title}\n${snapshot.html}`
+    )
     const status = challenged ? latestStatus || 403 : latestStatus || 200
 
     return {
