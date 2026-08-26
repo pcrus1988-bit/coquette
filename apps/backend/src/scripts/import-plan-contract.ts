@@ -220,6 +220,33 @@ assert.ok(
   )
 )
 
+const configurableCandidate = buildRecoveryProductCandidate("configurable-parent", [
+  {
+    ...readyObservation(
+      "https://coquetteconcept.gr/default/configurable-parent.html",
+      "CONFIG-1"
+    ),
+    fields: {
+      ...readyObservation(
+        "https://coquetteconcept.gr/default/configurable-parent.html",
+        "CONFIG-1"
+      ).fields,
+      type: "configurable",
+      optionValues: {},
+    },
+  },
+])
+assert.equal(configurableCandidate.disposition, "ready")
+const configurablePlan = buildProductImportPlan([configurableCandidate])
+assert.equal(configurablePlan.totals.ready, 0)
+assert.equal(configurablePlan.totals.blocked, 1)
+assert.equal(configurablePlan.runtimeManifestEntries.length, 0)
+assert.ok(
+  configurablePlan.entries[0].validationIssues.some(
+    (issue) => issue.field === "type" && /child variant identity/i.test(issue.message)
+  )
+)
+
 const executablePlan = buildProductImportPlan([readyCandidate])
 assert.equal(executablePlan.isExecutable, true)
 assert.equal(executablePlan.runtimeManifestEntries.length, 1)
