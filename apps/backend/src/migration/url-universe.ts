@@ -1,4 +1,7 @@
-import type { CapturePageRecord } from "./capture-ingestion"
+import {
+  COQUETTE_LEGACY_HOST,
+  type CapturePageRecord,
+} from "./capture-ingestion"
 import type { IndexedRecoveryBaseline } from "./indexed-recovery"
 
 export const reconstructionUrlStatuses = [
@@ -37,10 +40,11 @@ export type ReconstructionUrlUniverse = {
   isFullyClassified: boolean
 }
 
-function normalize(value: string) {
+function normalize(value: string, expectedHost: string) {
   try {
     const url = new URL(value)
     if (url.protocol !== "http:" && url.protocol !== "https:") return undefined
+    if (url.hostname !== expectedHost) return undefined
     url.hash = ""
     return url.toString()
   } catch {
@@ -48,19 +52,22 @@ function normalize(value: string) {
   }
 }
 
-function indexedUrls(baseline: IndexedRecoveryBaseline) {
+function indexedUrls(
+  baseline: IndexedRecoveryBaseline,
+  expectedHost: string
+) {
   const values = new Set<string>()
 
   for (const signal of baseline.catalogSignals ?? []) {
     if (signal.url) {
-      const normalized = normalize(signal.url)
+      const normalized = normalize(signal.url, expectedHost)
       if (normalized) values.add(normalized)
     }
   }
 
   for (const product of baseline.recentProductSpotChecks ?? []) {
     if (product.sourceUrl) {
-      const normalized = normalize(product.sourceUrl)
+      const normalized = normalize(product.sourceUrl, expectedHost)
       if (normalized) values.add(normalized)
     }
   }
@@ -88,7 +95,8 @@ function statusRank(status: ReconstructionUrlStatus) {
 export function buildReconstructionUrlUniverse(
   pages: CapturePageRecord[],
   baseline: IndexedRecoveryBaseline,
-  manualUnavailable: Array<{ url: string; note: string }> = []
+  manualUnavailable: Array<{ url: string; note: string }> = [],
+  expectedHost = COQUETTE_LEGACY_HOST
 ): ReconstructionUrlUniverse {
   const byUrl = new Map<string, ReconstructionUrlEntry>()
 
@@ -98,14 +106,17 @@ export function buildReconstructionUrlUniverse(
     evidence: ReconstructionUrlEvidence,
     canonicalUrl?: string
   ) {
-    const normalized = normalize(url)
+    const normalized = normalize(url, expectedHost)
     if (!normalized) return
+    const normalizedCanonical = canonicalUrl
+      ? normalize(canonicalUrl, expectedHost)
+      : undefined
     const existing = byUrl.get(normalized)
     if (!existing) {
       byUrl.set(normalized, {
         url: normalized,
         status,
-        canonicalUrl: canonicalUrl ? normalize(canonicalUrl) : undefined,
+        canonicalUrl: normalizedCanonical,
         evidence: [evidence],
       })
       return
@@ -113,8 +124,8 @@ export function buildReconstructionUrlUniverse(
 
     existing.evidence.push(evidence)
     if (statusRank(status) > statusRank(existing.status)) existing.status = status
-    if (!existing.canonicalUrl && canonicalUrl) {
-      existing.canonicalUrl = normalize(canonicalUrl)
+    if (!existing.canonicalUrl && normalizedCanonical) {
+      existing.canonicalUrl = normalizedCanonical
     }
   }
 
@@ -154,7 +165,7 @@ export function buildReconstructionUrlUniverse(
     }
   }
 
-  for (const url of indexedUrls(baseline)) {
+  for (const url of indexedUrls(baseline, expectedHost)) {
     upsert(url, "indexed_only", {
       source: "public_search_index",
       observedAt: baseline.observedAt,
@@ -163,7 +174,7 @@ export function buildReconstructionUrlUniverse(
   }
 
   for (const item of manualUnavailable) {
-    const normalized = normalize(item.url)
+    const normalized = normalize(item.url, expectedHost)
     if (!normalized) continue
     const existing = byUrl.get(normalized)
     const evidence: ReconstructionUrlEvidence = {
