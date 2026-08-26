@@ -4,8 +4,8 @@ import {
   findDuplicateManifestKeys,
 } from "./manifest"
 import type {
+  RecoveryCandidateConflict,
   RecoveryProductCandidate,
-  RecoveryProductCandidateConflict,
 } from "./recovery-candidates"
 import type {
   MigrationManifestEntry,
@@ -31,7 +31,7 @@ export type ProductImportPlanEntry = {
   normalizedProduct?: NormalizedStorefrontProduct
   missingRequiredFields: string[]
   blockers: string[]
-  conflicts: RecoveryProductCandidateConflict[]
+  conflicts: RecoveryCandidateConflict[]
   validationIssues: ValidationIssue[]
   warnings: string[]
   errors: string[]
