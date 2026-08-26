@@ -15,7 +15,10 @@ import {
   prepareMedusaSimpleProductInput,
   type MigrationDependencyMapping,
 } from "../migration/staging-product-execution"
-import type { MigrationManifestEntry } from "../migration/types"
+import type {
+  MigrationManifestEntry,
+  MigrationSourceKey,
+} from "../migration/types"
 
 type CaptureIngestionReport = {
   schemaVersion?: number
@@ -70,7 +73,7 @@ function upsertManifestEntry(
 
 function matchingRuntimeManifestEntry(
   importPlan: ProductImportPlan,
-  sourceKey: MigrationManifestEntry,
+  sourceKey: MigrationSourceKey,
   sourceChecksum: string
 ) {
   return importPlan.runtimeManifestEntries.find(
