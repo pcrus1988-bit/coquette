@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
-import { buildKlarnaAuthorizationData } from "../lib/klarna"
 import { useCart, type StoreCart } from "../providers/cart"
 
 type StorefrontLanguage = "el" | "en"
@@ -161,7 +160,7 @@ export function KlarnaAuthorization({
     try {
       window.Klarna.Payments.authorize(
         {},
-        buildKlarnaAuthorizationData(cart),
+        {},
         (result) => {
           if (result.finalize_required) {
             setPhase("idle")
