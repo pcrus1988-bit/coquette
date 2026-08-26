@@ -1,3 +1,4 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import { sourceChecksum } from "./checksum"
 import { manifestKey } from "./manifest"
 import type {
@@ -324,6 +325,10 @@ export function buildStagingProductExecutionPlan(
   }
 }
 
+function executionError(message: string) {
+  return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
+}
+
 export function prepareMedusaSimpleProductInput(
   entry: StagingProductExecutionEntry,
   runtime: {
@@ -332,16 +337,18 @@ export function prepareMedusaSimpleProductInput(
   }
 ): PreparedMedusaSimpleProductInput {
   if (entry.action !== "create" || !entry.normalizedProduct) {
-    throw new Error("Only executable create entries can be prepared for Medusa")
+    throw executionError("Only executable create entries can be prepared for Medusa")
   }
   if (entry.normalizedProduct.type !== "simple") {
-    throw new Error("Only explicitly simple products can be prepared by Phase 4G")
+    throw executionError("Only explicitly simple products can be prepared by Phase 4G")
   }
   if (entry.blockers.length > 0) {
-    throw new Error("Blocked product execution entries cannot be prepared")
+    throw executionError("Blocked product execution entries cannot be prepared")
   }
   if (entry.brandTargetId) {
-    throw new Error("Brand-bearing products require the product-brand link execution path")
+    throw executionError(
+      "Brand-bearing products require the product-brand link execution path"
+    )
   }
 
   const product = entry.normalizedProduct
@@ -392,10 +399,10 @@ export function prepareMedusaSimpleProductInput(
 
 export function assertStagingMigrationWriteGuard(env: NodeJS.ProcessEnv) {
   if (env.COQUETTE_MIGRATION_TARGET !== "staging") {
-    throw new Error("COQUETTE_MIGRATION_TARGET must be exactly 'staging'")
+    throw executionError("COQUETTE_MIGRATION_TARGET must be exactly 'staging'")
   }
   if (env.COQUETTE_MIGRATION_ALLOW_WRITE !== "COQUETTE_STAGING_WRITE_CONFIRMED") {
-    throw new Error(
+    throw executionError(
       "COQUETTE_MIGRATION_ALLOW_WRITE must equal COQUETTE_STAGING_WRITE_CONFIRMED"
     )
   }
@@ -404,7 +411,7 @@ export function assertStagingMigrationWriteGuard(env: NodeJS.ProcessEnv) {
   const expectedHost = env.COQUETTE_MIGRATION_EXPECTED_DATABASE_HOST?.trim()
   const expectedDatabase = env.COQUETTE_MIGRATION_EXPECTED_DATABASE_NAME?.trim()
   if (!databaseUrl || !expectedHost || !expectedDatabase) {
-    throw new Error(
+    throw executionError(
       "DATABASE_URL, COQUETTE_MIGRATION_EXPECTED_DATABASE_HOST and COQUETTE_MIGRATION_EXPECTED_DATABASE_NAME are required for write mode"
     )
   }
@@ -412,12 +419,12 @@ export function assertStagingMigrationWriteGuard(env: NodeJS.ProcessEnv) {
   const parsed = new URL(databaseUrl)
   const databaseName = parsed.pathname.replace(/^\//, "")
   if (parsed.hostname !== expectedHost) {
-    throw new Error(
+    throw executionError(
       `Database host mismatch: expected ${expectedHost}, received ${parsed.hostname}`
     )
   }
   if (databaseName !== expectedDatabase) {
-    throw new Error(
+    throw executionError(
       `Database name mismatch: expected ${expectedDatabase}, received ${databaseName}`
     )
   }
