@@ -20,12 +20,12 @@ type KlarnaResult = {
 type KlarnaPayments = {
   init: (options: { client_token: string }) => void
   load: (
-    options: { container: string },
+    options: { container: string; payment_method_category: string },
     data: Record<string, unknown>,
     callback: (result: KlarnaResult) => void
   ) => void
   authorize: (
-    options: Record<string, unknown>,
+    options: { payment_method_category: string },
     data: Record<string, unknown>,
     callback: (result: KlarnaResult) => void
   ) => void
@@ -46,6 +46,8 @@ const copy = {
     loading: "Φόρτωση ασφαλούς Klarna checkout…",
     unavailable:
       "Η Klarna δεν είναι διαθέσιμη για αυτό το checkout. Επίλεξε άλλο τρόπο πληρωμής.",
+    categoryMissing:
+      "Η Klarna συνεδρία δεν επέστρεψε διαθέσιμη κατηγορία πληρωμής. Δεν δημιουργήθηκε παραγγελία.",
     authorize: "Πληρωμή με Klarna",
     authorizing: "Έγκριση μέσω Klarna…",
     synchronizing: "Η Klarna ενέκρινε την πληρωμή. Επιβεβαίωση με το COQUETTE backend…",
@@ -66,6 +68,8 @@ const copy = {
     loading: "Loading secure Klarna checkout…",
     unavailable:
       "Klarna is not available for this checkout. Choose another payment method.",
+    categoryMissing:
+      "The Klarna session did not return an available payment category. No order was created.",
     authorize: "Pay with Klarna",
     authorizing: "Authorizing with Klarna…",
     synchronizing: "Klarna approved the payment. Confirming with the COQUETTE backend…",
@@ -100,6 +104,10 @@ export function KlarnaAuthorization({
     () => `klarna-payments-container-${paymentSessionId.replace(/[^a-zA-Z0-9_-]/g, "")}`,
     [paymentSessionId]
   )
+  const paymentMethodCategory = useMemo(
+    () => klarnaPaymentMethodCategory(cart, paymentSessionId),
+    [cart, paymentSessionId]
+  )
   const [ready, setReady] = useState(false)
   const [available, setAvailable] = useState(true)
   const [phase, setPhase] = useState<"idle" | "authorizing" | "synchronizing">("idle")
@@ -111,6 +119,14 @@ export function KlarnaAuthorization({
     setAvailable(true)
     setLocalError(null)
 
+    if (!paymentMethodCategory) {
+      setAvailable(false)
+      setLocalError(labels.categoryMissing)
+      return () => {
+        active = false
+      }
+    }
+
     loadKlarnaScript()
       .then(() => {
         if (!active || !window.Klarna?.Payments) {
@@ -119,7 +135,10 @@ export function KlarnaAuthorization({
 
         window.Klarna.Payments.init({ client_token: clientToken })
         window.Klarna.Payments.load(
-          { container: `#${containerId}` },
+          {
+            container: `#${containerId}`,
+            payment_method_category: paymentMethodCategory,
+          },
           {},
           (result) => {
             if (!active) {
@@ -145,10 +164,24 @@ export function KlarnaAuthorization({
     return () => {
       active = false
     }
-  }, [clientToken, containerId, labels.sdkError, labels.unavailable])
+  }, [
+    clientToken,
+    containerId,
+    paymentMethodCategory,
+    labels.categoryMissing,
+    labels.sdkError,
+    labels.unavailable,
+  ])
 
   const authorize = () => {
-    if (!ready || !available || !cart || !window.Klarna?.Payments || phase !== "idle") {
+    if (
+      !ready ||
+      !available ||
+      !cart ||
+      !paymentMethodCategory ||
+      !window.Klarna?.Payments ||
+      phase !== "idle"
+    ) {
       return
     }
 
@@ -159,7 +192,7 @@ export function KlarnaAuthorization({
     // may open a purchase-flow window and browsers can block it after async gaps.
     try {
       window.Klarna.Payments.authorize(
-        {},
+        { payment_method_category: paymentMethodCategory },
         {},
         (result) => {
           if (result.finalize_required) {
@@ -277,6 +310,33 @@ async function waitForServerAuthorization({
   }
 
   return undefined
+}
+
+function klarnaPaymentMethodCategory(
+  cart: StoreCart | undefined,
+  paymentSessionId: string
+) {
+  const session = cart?.payment_collection?.payment_sessions?.find(
+    (candidate) => candidate.id === paymentSessionId
+  )
+  const data = session?.data as Record<string, unknown> | undefined
+  const categories = data?.payment_method_categories
+
+  if (!Array.isArray(categories)) {
+    return null
+  }
+
+  const identifiers = categories
+    .map((category) => {
+      if (!category || typeof category !== "object") {
+        return null
+      }
+      const identifier = (category as Record<string, unknown>).identifier
+      return typeof identifier === "string" && identifier ? identifier : null
+    })
+    .filter((identifier): identifier is string => Boolean(identifier))
+
+  return identifiers.find((identifier) => identifier === "klarna") || identifiers[0] || null
 }
 
 function delay(milliseconds: number) {
