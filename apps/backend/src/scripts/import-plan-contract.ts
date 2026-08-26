@@ -159,6 +159,48 @@ assert.ok(
 )
 assert.equal(incompleteMediaPlan.runtimeManifestEntries.length, 0)
 
+const foreignMediaCandidate = buildRecoveryProductCandidate("foreign-media", [
+  {
+    ...readyObservation(
+      "https://coquetteconcept.gr/default/foreign-media.html",
+      "FOREIGN-MEDIA-1"
+    ),
+    fields: {
+      ...readyObservation(
+        "https://coquetteconcept.gr/default/foreign-media.html",
+        "FOREIGN-MEDIA-1"
+      ).fields,
+      mediaSourceIds: ["https://example.com/product.jpg"],
+    },
+  },
+])
+assert.equal(foreignMediaCandidate.disposition, "ready")
+const foreignMediaPlan = buildProductImportPlan([foreignMediaCandidate])
+assert.equal(foreignMediaPlan.totals.blocked, 1)
+assert.ok(
+  foreignMediaPlan.entries[0].validationIssues.some(
+    (issue) => issue.field === "mediaSourceIds"
+  )
+)
+
+const duplicateKeyPlan = buildProductImportPlan([
+  buildRecoveryProductCandidate("same-key", [
+    readyObservation(
+      "https://coquetteconcept.gr/default/key-a.html",
+      "KEY-A"
+    ),
+  ]),
+  buildRecoveryProductCandidate("same-key", [
+    readyObservation(
+      "https://coquetteconcept.gr/default/key-b.html",
+      "KEY-B"
+    ),
+  ]),
+])
+assert.deepEqual(duplicateKeyPlan.duplicateCandidateKeys, ["same-key"])
+assert.equal(duplicateKeyPlan.totals.blocked, 2)
+assert.equal(duplicateKeyPlan.runtimeManifestEntries.length, 0)
+
 const executablePlan = buildProductImportPlan([readyCandidate])
 assert.equal(executablePlan.isExecutable, true)
 assert.equal(executablePlan.runtimeManifestEntries.length, 1)
