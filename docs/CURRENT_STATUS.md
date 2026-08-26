@@ -11,7 +11,7 @@ Magento Admin/database/filesystem/API access is no longer available. Phase 4 rec
 
 ## Shipped to `main`
 
-Through Phase 4D merge `095c7913c7731fc595d07d9d677605be3b3f96bc`:
+Through Phase 4E merge `b914d78d1ff3ba3d6cb9b97594f804a1ba22b6c8`:
 
 ### Platform / managed infrastructure
 
@@ -61,41 +61,54 @@ Through Phase 4D merge `095c7913c7731fc595d07d9d677605be3b3f96bc`:
 ### Phase 4D — capture ingestion and URL universe
 
 - merged PR #47
-- reads validated Phase 4A capture archives
+- validated Phase 4A archive ingestion
 - host/evidence/timestamp/archive-path provenance validation
-- symlink-aware real-path containment before every archived file read
-- direct captured products feed Phase 4C candidates
-- archived HTML reparsing reconstructs page→media relationships
-- direct + indexed URL universe with `captured`, `skipped`, `error`, `indexed_only`, `unavailable`
-- `error` / `indexed_only` remain unresolved until recovered or explicitly documented unavailable
-- off-domain direct/indexed/manual URLs excluded
-- `capture:ingest` reconciliation report
-- actual filesystem traversal/symlink rejection contract in CI
-- operator headed-browser capture runbook without challenge-bypass techniques
-
-## Active implementation
+- symlink-aware real-path containment before archived file reads
+- direct + indexed URL universe with explicit unresolved/unavailable states
+- off-domain URL exclusion
+- operator ingestion/reconciliation report and headed-browser runbook
+- traversal/symlink filesystem contract in CI
 
 ### Phase 4E — public product structure evidence
 
-Branch: `phase4/product-structure-evidence`.
+- merged PR #48
+- archive-native PDP reparsing; existing Phase 4A archives gain structure without recapture
+- general page media separated from actual product-gallery evidence
+- product gallery restricted to Product JSON-LD, same-product OpenGraph evidence and explicit Magento gallery/product-media regions
+- gallery media must also exist as successfully captured media before satisfying `mediaSourceIds`
+- logo/footer/editorial/related-product media cannot become product gallery automatically
+- category relationships recovered from public BreadcrumbList/visible breadcrumbs using legacy URLs as source keys
+- explicit select option groups recovered without flattening multi-value options
+- explicit Magento configurable-product client evidence may set `type=configurable`; absence never infers `simple`
+- public reachability still does not infer private Magento `status` or exact `visibility`
+- archive-native end-to-end product-structure contract in CI
+
+Canonical detail: `docs/migration/PRODUCT_STRUCTURE_EVIDENCE.md`.
+
+## Active implementation
+
+### Phase 4F — deterministic product import planning
+
+Branch: `phase4/import-manifest-generation`.
 
 Current implementation:
 
-- reparses preserved raw PDP HTML during ingestion, so existing Phase 4A archives gain the new evidence without recapture
-- separates general page media from product-gallery evidence
-- product gallery accepts Product JSON-LD images, product-path OpenGraph image and explicit Magento gallery-region media only
-- gallery URLs must also exist as successfully captured media before satisfying `mediaSourceIds`
-- related-product, logo, footer and generic page media do not satisfy product gallery
-- recovers category relationships from public BreadcrumbList/visible breadcrumbs using legacy category URLs as source keys
-- recovers explicit `<select>` option groups; singleton values may map to product-level option values while multi-value groups remain structural evidence
-- explicit Magento configurable-product client signals may set `type=configurable`
-- absence of configurable signals does not infer `simple`
-- public reachability still does not infer Magento `status` or exact `visibility`
-- visible brand/designer names do not become fabricated source IDs
-- ingestion report adds structure-coverage counts
-- dedicated product-structure contract is wired into CI
+- introduces a separate import-plan layer before runtime migration state
+- every recovery candidate is accounted as `ready`, `blocked`, or `rejected`
+- runtime `pending` manifest entries are generated only for fully validated, identity-safe candidates
+- semantic source checksum excludes evidence timestamps/provenance so a newer capture alone does not force product re-import
+- planning checksum separately tracks evidence/review-state changes
+- `/default/` and `/en/` locale markers may be derived only from explicit public routes
+- duplicate SKU candidates are blocked until product/localization identity is explicitly resolved, preventing EL/EN duplicate product creation
+- duplicate candidate keys and duplicate runtime source keys block execution
+- automatic import requires at least one recovered category relationship and captured product-media source
+- import-boundary validation rejects foreign-host source/category/media URLs
+- configurable parent option flattening and invalid sale pricing remain blocked
+- `capture:ingest` report now includes the import plan
+- an optional executable runtime manifest file is written only when the **entire** product plan is executable; partial reconstruction cannot masquerade as a complete batch
+- dedicated deterministic import-plan contract is wired into CI
 
-Canonical detail: `docs/migration/PRODUCT_STRUCTURE_EVIDENCE.md`.
+Canonical detail: `docs/migration/PRODUCT_IMPORT_PLAN.md`.
 
 ## Phase status
 
@@ -103,7 +116,7 @@ Canonical detail: `docs/migration/PRODUCT_STRUCTURE_EVIDENCE.md`.
 - **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
 - **Phase 2 — Executable foundation:** Complete.
 - **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
-- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4D shipped, Phase 4E active.
+- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4E shipped, Phase 4F active.
 - **Phase 5 — Merchant back office parity:** Foundation started.
 - **Phase 6 — Storefront parity:** Materially advanced.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of sequence.
@@ -112,13 +125,14 @@ Canonical detail: `docs/migration/PRODUCT_STRUCTURE_EVIDENCE.md`.
 
 ## Next Phase 4 source milestone
 
-After Phase 4E validates and merges:
+After Phase 4F validates and merges:
 
-1. run a useful direct capture from an accepted legitimate operator/browser network;
-2. ingest the archive and inspect structure/candidate/URL-universe reports;
-3. reconcile categories, designers/brands, options/variants and media ownership;
-4. create idempotent staging import mappings only from conflict-free/review-approved evidence;
-5. drive unresolved URLs and unexplained critical variance to zero within the captured public universe.
+1. add explicit merchant/reviewer decisions for non-public fields such as publication status/visibility and unresolved product identity;
+2. run a useful direct capture from an accepted legitimate operator/browser network;
+3. ingest the archive and inspect structure/candidate/import-plan/URL-universe reports;
+4. reconcile category, Designer/Brand, localization, option/variant and media mappings;
+5. generate an executable idempotent runtime manifest only after the captured product plan is fully clean;
+6. proceed to staging import without weakening evidence or reconciliation gates.
 
 ## Phase 4 exit boundary
 
