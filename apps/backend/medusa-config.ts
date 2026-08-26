@@ -38,6 +38,37 @@ const s3FileModule = hasS3Configuration
     ]
   : []
 
+const hasPayPalConfiguration = Boolean(
+  process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET
+)
+
+const paypalPaymentModule = hasPayPalConfiguration
+  ? [
+      {
+        resolve: "@medusajs/medusa/payment",
+        options: {
+          providers: [
+            {
+              resolve: "./src/modules/paypal",
+              id: "paypal",
+              options: {
+                client_id: process.env.PAYPAL_CLIENT_ID!,
+                client_secret: process.env.PAYPAL_CLIENT_SECRET!,
+                environment:
+                  process.env.PAYPAL_ENVIRONMENT === "production"
+                    ? "production"
+                    : "sandbox",
+                autoCapture: process.env.PAYPAL_AUTO_CAPTURE === "true",
+                webhook_id: process.env.PAYPAL_WEBHOOK_ID,
+                brand_name: process.env.PAYPAL_BRAND_NAME || "COQUETTE",
+              },
+            },
+          ],
+        },
+      },
+    ]
+  : []
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -70,6 +101,7 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/content",
     },
+    ...paypalPaymentModule,
     ...s3FileModule,
   ],
 })
