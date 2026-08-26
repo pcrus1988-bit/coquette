@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "@medusajs/framework/zod"
 import { BRAND_MODULE } from "../../../modules/brand"
 import type BrandModuleService from "../../../modules/brand/service"
+import createDesignerWorkflow from "../../../workflows/create-designer"
 
 const DesignerPayload = z.object({
   name: z.string().trim().min(1),
@@ -47,11 +48,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   }
 
-  const brandService = req.scope.resolve<BrandModuleService>(BRAND_MODULE)
-  const designer = await brandService.createBrands({
-    ...parsed.data,
-    description: parsed.data.description || null,
-    logo_url: parsed.data.logo_url || null,
+  const { result: designer } = await createDesignerWorkflow(req.scope).run({
+    input: {
+      ...parsed.data,
+      description: parsed.data.description || null,
+      logo_url: parsed.data.logo_url || null,
+    },
   })
 
   return res.status(201).json({ designer })
