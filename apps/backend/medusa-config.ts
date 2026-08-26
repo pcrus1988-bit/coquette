@@ -38,32 +38,61 @@ const s3FileModule = hasS3Configuration
     ]
   : []
 
-const hasPayPalConfiguration = Boolean(
-  process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET
-)
+const paymentProviders: Array<Record<string, unknown>> = []
 
-const paypalPaymentModule = hasPayPalConfiguration
+if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET) {
+  paymentProviders.push({
+    resolve: "./src/modules/paypal",
+    id: "paypal",
+    options: {
+      client_id: process.env.PAYPAL_CLIENT_ID,
+      client_secret: process.env.PAYPAL_CLIENT_SECRET,
+      environment:
+        process.env.PAYPAL_ENVIRONMENT === "production"
+          ? "production"
+          : "sandbox",
+      autoCapture: process.env.PAYPAL_AUTO_CAPTURE === "true",
+      webhook_id: process.env.PAYPAL_WEBHOOK_ID,
+      brand_name: process.env.PAYPAL_BRAND_NAME || "COQUETTE",
+    },
+  })
+}
+
+if (
+  process.env.KLARNA_USERNAME &&
+  process.env.KLARNA_PASSWORD &&
+  process.env.KLARNA_CALLBACK_BASE_URL &&
+  process.env.KLARNA_CALLBACK_SECRET
+) {
+  paymentProviders.push({
+    resolve: "./src/modules/klarna",
+    id: "klarna",
+    options: {
+      username: process.env.KLARNA_USERNAME,
+      password: process.env.KLARNA_PASSWORD,
+      environment:
+        process.env.KLARNA_ENVIRONMENT === "production"
+          ? "production"
+          : "playground",
+      api_region:
+        process.env.KLARNA_API_REGION === "na" ||
+        process.env.KLARNA_API_REGION === "oc"
+          ? process.env.KLARNA_API_REGION
+          : "eu",
+      callback_base_url: process.env.KLARNA_CALLBACK_BASE_URL,
+      callback_secret: process.env.KLARNA_CALLBACK_SECRET,
+      purchase_country: process.env.KLARNA_PURCHASE_COUNTRY || "GR",
+      locale: process.env.KLARNA_LOCALE || "el-GR",
+    },
+  })
+}
+
+const paymentModule = paymentProviders.length
   ? [
       {
         resolve: "@medusajs/medusa/payment",
         options: {
-          providers: [
-            {
-              resolve: "./src/modules/paypal",
-              id: "paypal",
-              options: {
-                client_id: process.env.PAYPAL_CLIENT_ID!,
-                client_secret: process.env.PAYPAL_CLIENT_SECRET!,
-                environment:
-                  process.env.PAYPAL_ENVIRONMENT === "production"
-                    ? "production"
-                    : "sandbox",
-                autoCapture: process.env.PAYPAL_AUTO_CAPTURE === "true",
-                webhook_id: process.env.PAYPAL_WEBHOOK_ID,
-                brand_name: process.env.PAYPAL_BRAND_NAME || "COQUETTE",
-              },
-            },
-          ],
+          providers: paymentProviders,
         },
       },
     ]
@@ -101,7 +130,7 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/content",
     },
-    ...paypalPaymentModule,
+    ...paymentModule,
     ...s3FileModule,
   ],
 })

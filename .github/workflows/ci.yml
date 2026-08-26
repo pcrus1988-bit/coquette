@@ -89,12 +89,20 @@ jobs:
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
 
-      - name: Validate PayPal provider registration path
+      - name: Validate payment provider registration paths
         env:
           PAYPAL_CLIENT_ID: ci-paypal-client
           PAYPAL_CLIENT_SECRET: ci-paypal-secret
           PAYPAL_ENVIRONMENT: sandbox
           PAYPAL_AUTO_CAPTURE: "false"
+          KLARNA_USERNAME: ci-klarna-user
+          KLARNA_PASSWORD: ci-klarna-password
+          KLARNA_CALLBACK_BASE_URL: https://coquette-ci.example
+          KLARNA_CALLBACK_SECRET: ci-klarna-callback-secret
+          KLARNA_ENVIRONMENT: playground
+          KLARNA_API_REGION: eu
+          KLARNA_PURCHASE_COUNTRY: GR
+          KLARNA_LOCALE: el-GR
         run: pnpm --filter @coquette/backend db:migrate
 
       - name: Validate Sale pricing graph contract
