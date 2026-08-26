@@ -97,6 +97,69 @@ export async function getCatalogueProducts(
   }
 }
 
+export async function getProductsByIds(
+  productIds: string[],
+  locale?: string
+): Promise<CatalogueProductsResult> {
+  if (!isMedusaStoreConfigured) {
+    return {
+      state: "unconfigured",
+      products: [],
+      count: 0,
+    }
+  }
+
+  if (productIds.length === 0) {
+    return {
+      state: "ready",
+      products: [],
+      count: 0,
+    }
+  }
+
+  try {
+    const { products } = await medusa.store.product.list(
+      {
+        id: productIds,
+        limit: productIds.length,
+        country_code: defaultCountryCode,
+        fields: productCardFields,
+        ...localeParams(locale),
+      },
+      {
+        next: {
+          tags: [
+            "products",
+            localeTag(locale),
+            ...productIds.map((id) => `product-id:${id}`),
+          ],
+        },
+      }
+    )
+
+    const productOrder = new Map(productIds.map((id, index) => [id, index]))
+    const orderedProducts = [...products].sort(
+      (left, right) =>
+        (productOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+        (productOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+    )
+
+    return {
+      state: "ready",
+      products: orderedProducts,
+      count: orderedProducts.length,
+    }
+  } catch (error) {
+    console.error("COQUETTE Store API product ID query failed", error)
+
+    return {
+      state: "unavailable",
+      products: [],
+      count: 0,
+    }
+  }
+}
+
 export async function getCategoryProducts(
   categoryHandle: string,
   limit = 24,
