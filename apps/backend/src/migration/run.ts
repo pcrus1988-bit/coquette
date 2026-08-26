@@ -1,21 +1,22 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import type { ReconciliationResult } from "./types"
 
-export type MagentoSnapshotDescriptor = {
-  source: "magento"
-  snapshotId: string
+export type LegacyStorefrontCaptureDescriptor = {
+  source: "coquetteconcept.gr"
+  evidenceMode: "public_storefront"
+  captureId: string
+  baseUrl: "https://coquetteconcept.gr/"
   capturedAt: string
-  importerCommitSha: string
-  magentoVersion?: string
-  databaseSha256?: string
-  mediaSha256?: string
+  crawlerCommitSha: string
+  urlInventorySha256?: string
+  captureManifestSha256?: string
 }
 
 export type MigrationRunStatus = "running" | "completed" | "needs_review"
 
 export type MigrationRunManifest = {
   runId: string
-  snapshot: MagentoSnapshotDescriptor
+  sourceCapture: LegacyStorefrontCaptureDescriptor
   startedAt: string
   completedAt?: string
   status: MigrationRunStatus
@@ -36,15 +37,15 @@ function assertSafeArtifactSegment(value: string, label: string): void {
 
 export function createMigrationRun(
   runId: string,
-  snapshot: MagentoSnapshotDescriptor,
+  sourceCapture: LegacyStorefrontCaptureDescriptor,
   startedAt: string
 ): MigrationRunManifest {
   assertSafeArtifactSegment(runId, "runId")
-  assertSafeArtifactSegment(snapshot.snapshotId, "snapshotId")
+  assertSafeArtifactSegment(sourceCapture.captureId, "captureId")
 
   return {
     runId,
-    snapshot,
+    sourceCapture,
     startedAt,
     status: "running",
     reconciliation: [],
