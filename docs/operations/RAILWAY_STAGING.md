@@ -28,7 +28,7 @@ The worker must not receive a public domain.
 
 ## Shared monorepo settings
 
-Keep the Railway source root at the repository root. Do not set the service root to `apps/backend`, because pnpm workspace metadata and the root lockfile are required.
+Keep the Railway source root at the repository root. Do not set the service root to `apps/backend`, because pnpm workspace metadata and the root lockfile are required for the source build.
 
 Build command for both Medusa services:
 
@@ -42,7 +42,7 @@ Start command for both Medusa services:
 pnpm --filter @coquette/backend start:deploy
 ```
 
-The deploy build creates `apps/backend/.medusa/server`, installs its production dependencies, and the start command launches the compiled artifact from that directory.
+The deploy build first runs Medusa through the repository pnpm workspace. Medusa recreates `apps/backend/.medusa/server` as a standalone application. The deployment script then installs only the standalone runtime's production dependencies with npm inside that generated directory. This deliberately avoids pnpm walking back up into the parent monorepo workspace during the second installation step. The start command launches the generated server from that directory.
 
 ## Server-only Railway settings
 
