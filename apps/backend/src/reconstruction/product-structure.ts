@@ -138,12 +138,12 @@ function schemaImageUrls(productSchema: Record<string, unknown> | undefined, pag
   return unique(result)
 }
 
-function productCatalogMedia(html: string, pageUrl: string) {
+function mediaFromRegion(region: string, pageUrl: string) {
   const result: string[] = []
   const tagPattern = /<(?:img|source|a)\b[^>]*>/gi
   let match: RegExpExecArray | null
 
-  while ((match = tagPattern.exec(html))) {
+  while ((match = tagPattern.exec(region))) {
     const tag = match[0]
     const candidates = [
       attribute(tag, "src"),
@@ -151,22 +151,34 @@ function productCatalogMedia(html: string, pageUrl: string) {
       attribute(tag, "data-original"),
       attribute(tag, "href"),
     ]
-
     const srcset = attribute(tag, "srcset") ?? attribute(tag, "data-srcset")
     if (srcset) {
       for (const part of srcset.split(",")) {
         candidates.push(part.trim().split(/\s+/)[0])
       }
     }
-
     for (const candidate of candidates) {
       const url = safeUrl(candidate, pageUrl)
-      if (!url) continue
-      const pathname = new URL(url).pathname.toLowerCase()
-      if (pathname.includes("/media/catalog/product/")) result.push(url)
+      if (url) result.push(url)
     }
   }
 
+  const normalized = region.replace(/\\\//g, "/")
+  const embedded = /https?:\/\/[^\s"'<>]+?\.(?:avif|gif|jpe?g|png|webp)(?:\?[^\s"'<>]*)?/gi
+  for (const match of normalized.matchAll(embedded)) {
+    const url = safeUrl(match[0], pageUrl)
+    if (url) result.push(url)
+  }
+
+  return unique(result)
+}
+
+function explicitGalleryMedia(html: string, pageUrl: string) {
+  const result: string[] = []
+  const galleryBlock = /<div\b[^>]*(?:data-gallery-role=["']gallery-placeholder["']|class=["'][^"']*(?:gallery-placeholder|product\.media)[^"']*["'])[^>]*>([\s\S]*?)<\/div>/gi
+  for (const match of html.matchAll(galleryBlock)) {
+    result.push(...mediaFromRegion(match[0], pageUrl))
+  }
   return unique(result)
 }
 
@@ -176,7 +188,9 @@ function metaImage(html: string, pageUrl: string) {
     const property = attribute(tag, "property")?.toLowerCase()
     if (property !== "og:image" && property !== "og:image:url") continue
     const url = safeUrl(attribute(tag, "content"), pageUrl)
-    if (url) return url
+    if (!url) continue
+    const path = new URL(url).pathname.toLowerCase()
+    if (path.includes("/media/catalog/product/")) return url
   }
   return undefined
 }
@@ -260,27 +274,6 @@ function mergeCategoryReferences(
 
 function optionGroups(html: string) {
   const result: ProductOptionGroupEvidence[] = []
-  const swatchPattern = /<div\b([^>]*)class=["'][^"']*swatch-attribute[^"']*["']([^>]*)>([\s\S]*?)<\/div>\s*<\/div>?/gi
-  let swatch: RegExpExecArray | null
-
-  while ((swatch = swatchPattern.exec(html))) {
-    const openingTag = `<div ${swatch[1]} ${swatch[2]}>`
-    const name =
-      attribute(openingTag, "data-attribute-code") ??
-      attribute(openingTag, "attribute-code") ??
-      textContent(
-        swatch[3].match(
-          /<span\b[^>]*class=["'][^"']*swatch-attribute-label[^"']*["'][^>]*>([\s\S]*?)<\/span>/i
-        )?.[1] ?? ""
-      )
-    const values = unique(
-      [...swatch[3].matchAll(/data-option-label\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)]
-        .map((match) => decodeHtml(match[1] ?? match[2]).trim())
-        .filter(Boolean)
-    )
-    if (name && values.length) result.push({ name, values })
-  }
-
   const selectPattern = /<select\b([^>]*)>([\s\S]*?)<\/select>/gi
   let select: RegExpExecArray | null
   while ((select = selectPattern.exec(html))) {
@@ -294,6 +287,23 @@ function optionGroups(html: string) {
       [...select[2].matchAll(/<option\b[^>]*value=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)<\/option>/gi)]
         .filter((match) => Boolean((match[1] ?? match[2] ?? match[3])?.trim()))
         .map((match) => textContent(match[4]))
+        .filter(Boolean)
+    )
+    if (values.length) result.push({ name, values })
+  }
+
+  const swatchAttributes = /<div\b([^>]*)class=["'][^"']*swatch-attribute[^"']*["']([^>]*)>/gi
+  let swatch: RegExpExecArray | null
+  while ((swatch = swatchAttributes.exec(html))) {
+    const openingTag = `<div ${swatch[1]} ${swatch[2]}>`
+    const name =
+      attribute(openingTag, "data-attribute-code") ??
+      attribute(openingTag, "attribute-code")
+    if (!name) continue
+    const slice = html.slice(swatch.index, Math.min(html.length, swatch.index + 12000))
+    const values = unique(
+      [...slice.matchAll(/data-option-label\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)]
+        .map((match) => decodeHtml(match[1] ?? match[2]).trim())
         .filter(Boolean)
     )
     if (values.length) result.push({ name, values })
@@ -333,11 +343,11 @@ export function extractPublicProductStructure(
     .find(Boolean)
   const schemaMedia = schemaImageUrls(productSchema, pageUrl)
   const ogImage = metaImage(html, pageUrl)
-  const catalogMedia = productCatalogMedia(html, pageUrl)
+  const galleryMarkupMedia = explicitGalleryMedia(html, pageUrl)
   const galleryMedia = unique([
     ...schemaMedia,
     ...(ogImage ? [ogImage] : []),
-    ...catalogMedia,
+    ...galleryMarkupMedia,
   ])
 
   const categoryReferences = mergeCategoryReferences(
