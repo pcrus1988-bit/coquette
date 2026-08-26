@@ -78,7 +78,7 @@ export function PayPalApprovalButton({
       }
 
       const result = await completeCart()
-      if (result.type !== "order" || !result.order) {
+      if (result.type !== "order") {
         setLocalError(result.error?.message || labels.completionFailed)
         return
       }
