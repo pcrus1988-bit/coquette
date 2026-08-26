@@ -2,6 +2,68 @@ import { loadEnv, defineConfig } from "@medusajs/framework/utils"
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
+const redisUrl = process.env.REDIS_URL
+const redisInfrastructureModules: Array<Record<string, unknown>> = []
+
+if (redisUrl) {
+  redisInfrastructureModules.push(
+    {
+      resolve: "@medusajs/medusa/caching",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/caching-redis",
+            id: "caching-redis",
+            is_default: true,
+            options: {
+              redisUrl,
+            },
+          },
+        ],
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/event-bus-redis",
+      options: {
+        redisUrl,
+        jobOptions: {
+          removeOnComplete: {
+            age: 3600,
+            count: 1000,
+          },
+          removeOnFail: {
+            age: 3600,
+            count: 1000,
+          },
+        },
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/workflow-engine-redis",
+      options: {
+        redis: {
+          redisUrl,
+        },
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/locking",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/locking-redis",
+            id: "locking-redis",
+            is_default: true,
+            options: {
+              redisUrl,
+            },
+          },
+        ],
+      },
+    }
+  )
+}
+
 const hasS3Configuration = Boolean(
   process.env.S3_FILE_URL &&
     process.env.S3_ENDPOINT &&
@@ -101,7 +163,7 @@ const paymentModule = paymentProviders.length
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
-    redisUrl: process.env.REDIS_URL,
+    redisUrl,
     workerMode:
       (process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server") ||
       "shared",
@@ -119,8 +181,10 @@ module.exports = defineConfig({
   },
   featureFlags: {
     translation: true,
+    caching: Boolean(redisUrl),
   },
   modules: [
+    ...redisInfrastructureModules,
     {
       resolve: "@medusajs/medusa/translation",
     },
