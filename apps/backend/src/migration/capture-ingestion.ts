@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises"
-import { join } from "node:path"
+import { readFile, realpath } from "node:fs/promises"
+import { isAbsolute, join, relative, resolve, sep } from "node:path"
 import { discoverMedia } from "../reconstruction/html-evidence"
 import {
   buildRecoveryProductCandidate,
@@ -7,6 +7,8 @@ import {
   type RecoveryProductFields,
   type RecoveryProductObservation,
 } from "./recovery-candidates"
+
+export const COQUETTE_LEGACY_HOST = "coquetteconcept.gr"
 
 export type CapturedProductRecord = {
   sourceUrl?: string
@@ -80,10 +82,15 @@ function validHttpUrl(value?: string) {
     const url = new URL(value)
     if (url.protocol !== "http:" && url.protocol !== "https:") return undefined
     url.hash = ""
-    return url.toString()
+    return url
   } catch {
     return undefined
   }
+}
+
+function validHttpUrlOnHost(value: string | undefined, expectedHost: string) {
+  const url = validHttpUrl(value)
+  return url?.hostname === expectedHost ? url.toString() : undefined
 }
 
 function numeric(value: unknown): value is number {
@@ -113,8 +120,8 @@ function optionValues(product: CapturedProductRecord) {
   return result
 }
 
-function alternateLocaleUrl(product: CapturedProductRecord) {
-  const source = validHttpUrl(product.sourceUrl)
+function alternateLocaleUrl(product: CapturedProductRecord, expectedHost: string) {
+  const source = validHttpUrlOnHost(product.sourceUrl, expectedHost)
   if (!source) return undefined
   const sourceIsEnglish = /\/en\//i.test(new URL(source).pathname)
   const candidates = Array.isArray(product.hreflang) ? product.hreflang : []
@@ -128,9 +135,9 @@ function alternateLocaleUrl(product: CapturedProductRecord) {
       (candidate) =>
         nonEmptyString(candidate.lang) &&
         candidate.lang.toLowerCase() === language &&
-        Boolean(validHttpUrl(candidate.url))
+        Boolean(validHttpUrlOnHost(candidate.url, expectedHost))
     )
-    const url = validHttpUrl(match?.url)
+    const url = validHttpUrlOnHost(match?.url, expectedHost)
     if (url) return url
   }
   return undefined
@@ -138,17 +145,18 @@ function alternateLocaleUrl(product: CapturedProductRecord) {
 
 function productFields(
   product: CapturedProductRecord,
-  mediaSourceIds: string[] | undefined
+  mediaSourceIds: string[] | undefined,
+  expectedHost: string
 ): RecoveryProductFields {
   const fields: RecoveryProductFields = {}
-  const sourceUrl = validHttpUrl(product.sourceUrl)
-  const canonicalUrl = validHttpUrl(product.canonicalUrl)
+  const sourceUrl = validHttpUrlOnHost(product.sourceUrl, expectedHost)
+  const canonicalUrl = validHttpUrlOnHost(product.canonicalUrl, expectedHost)
 
   if (sourceUrl) fields.sourceId = sourceUrl
   if (canonicalUrl) fields.canonicalUrl = canonicalUrl
 
   if (sourceUrl) {
-    const alternate = alternateLocaleUrl(product)
+    const alternate = alternateLocaleUrl(product, expectedHost)
     if (alternate) fields.alternateLocaleUrl = alternate
   }
 
@@ -171,7 +179,11 @@ function productFields(
 
   const options = optionValues(product)
   if (Object.keys(options).length > 0) fields.optionValues = options
-  if (mediaSourceIds) fields.mediaSourceIds = mediaSourceIds
+  if (mediaSourceIds) {
+    fields.mediaSourceIds = mediaSourceIds.filter((url) =>
+      Boolean(validHttpUrlOnHost(url, expectedHost))
+    )
+  }
 
   return fields
 }
@@ -179,9 +191,10 @@ function productFields(
 function directObservation(
   product: CapturedProductRecord,
   capturedAt: string,
-  pageMedia: Record<string, string[]>
+  pageMedia: Record<string, string[]>,
+  expectedHost: string
 ): RecoveryProductObservation | undefined {
-  const sourceUrl = validHttpUrl(product.sourceUrl)
+  const sourceUrl = validHttpUrlOnHost(product.sourceUrl, expectedHost)
   if (!sourceUrl) return undefined
 
   return {
@@ -191,18 +204,28 @@ function directObservation(
     note: product.checksum
       ? `Phase 4A captured product checksum=${product.checksum}`
       : "Phase 4A direct public product capture",
-    fields: productFields({ ...product, sourceUrl }, pageMedia[sourceUrl]),
+    fields: productFields(
+      { ...product, sourceUrl },
+      pageMedia[sourceUrl],
+      expectedHost
+    ),
   }
 }
 
 export function buildDirectCaptureProductCandidates(
-  bundle: CaptureArtifactBundle
+  bundle: CaptureArtifactBundle,
+  expectedHost = COQUETTE_LEGACY_HOST
 ): RecoveryProductCandidate[] {
   const capturedAt = bundle.manifest.completedAt ?? bundle.manifest.startedAt
   if (!capturedAt || Number.isNaN(Date.parse(capturedAt))) return []
 
   return bundle.products.flatMap((product) => {
-    const observation = directObservation(product, capturedAt, bundle.pageMedia)
+    const observation = directObservation(
+      product,
+      capturedAt,
+      bundle.pageMedia,
+      expectedHost
+    )
     if (!observation) return []
     return [
       buildRecoveryProductCandidate(
@@ -222,26 +245,64 @@ async function readJsonl<T>(path: string): Promise<T[]> {
     .map((line) => JSON.parse(line) as T)
 }
 
+function safeRelativeArchivePath(value?: string) {
+  if (!value) return false
+  const normalized = value.replace(/\\/g, "/")
+  return (
+    !normalized.startsWith("/") &&
+    !normalized.split("/").includes("..") &&
+    !/^[a-zA-Z]:\//.test(normalized)
+  )
+}
+
+async function resolveArchiveFile(captureDir: string, archivePath?: string) {
+  if (!safeRelativeArchivePath(archivePath)) return undefined
+
+  try {
+    const root = await realpath(captureDir)
+    const candidate = await realpath(resolve(captureDir, archivePath!))
+    const relativePath = relative(root, candidate)
+    const escapesRoot =
+      relativePath === ".." ||
+      relativePath.startsWith(`..${sep}`) ||
+      isAbsolute(relativePath)
+
+    return escapesRoot ? undefined : candidate
+  } catch {
+    return undefined
+  }
+}
+
 async function reconstructPageMedia(
   captureDir: string,
   pages: CapturePageRecord[],
-  media: CaptureMediaRecord[]
+  media: CaptureMediaRecord[],
+  expectedHost: string
 ) {
   const availableMedia = new Set(
     media
-      .map((record) => validHttpUrl(record.sourceUrl))
+      .map((record) => validHttpUrlOnHost(record.sourceUrl, expectedHost))
       .filter((value): value is string => Boolean(value))
   )
   const relationships: Record<string, string[]> = {}
 
   for (const page of pages) {
-    const pageUrl = validHttpUrl(page.finalUrl ?? page.sourceUrl)
-    if (!pageUrl || page.status !== "captured" || !page.pageFile) continue
+    const pageUrl = validHttpUrlOnHost(
+      page.finalUrl ?? page.sourceUrl,
+      expectedHost
+    )
+    if (!pageUrl || page.status !== "captured") continue
+
+    const archiveFile = await resolveArchiveFile(captureDir, page.pageFile)
+    if (!archiveFile) {
+      relationships[pageUrl] = []
+      continue
+    }
 
     try {
-      const html = await readFile(join(captureDir, page.pageFile), "utf8")
+      const html = await readFile(archiveFile, "utf8")
       relationships[pageUrl] = discoverMedia(html, pageUrl)
-        .map((url) => validHttpUrl(url))
+        .map((url) => validHttpUrlOnHost(url, expectedHost))
         .filter(
           (url): url is string => Boolean(url) && availableMedia.has(url)
         )
@@ -254,7 +315,8 @@ async function reconstructPageMedia(
 }
 
 export async function readCaptureArtifactBundle(
-  captureDir: string
+  captureDir: string,
+  expectedHost = COQUETTE_LEGACY_HOST
 ): Promise<CaptureArtifactBundle> {
   const manifest = JSON.parse(
     await readFile(join(captureDir, "manifest.json"), "utf8")
@@ -270,6 +332,11 @@ export async function readCaptureArtifactBundle(
     products,
     pages,
     media,
-    pageMedia: await reconstructPageMedia(captureDir, pages, media),
+    pageMedia: await reconstructPageMedia(
+      captureDir,
+      pages,
+      media,
+      expectedHost
+    ),
   }
 }
