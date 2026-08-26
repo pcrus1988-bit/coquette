@@ -4,7 +4,7 @@
 **Last updated:** 2026-08-26  
 **Repository:** `pcrus1988-bit/coquette`
 
-This document is the canonical delivery blueprint for the COQUETTE Magento replacement. Future implementation decisions and project queries should be checked against this roadmap and the architecture decision records in `docs/architecture/`.
+This document is the canonical delivery blueprint for the COQUETTE replacement commerce platform. Future implementation decisions and project queries should be checked against this roadmap and the architecture decision records in `docs/architecture/`.
 
 ## 1. Non-negotiable principles
 
@@ -13,13 +13,14 @@ This document is the canonical delivery blueprint for the COQUETTE Magento repla
 3. Preserve the current shop's commercially important UX, content, catalogue semantics and indexed URLs before introducing redesign-only changes.
 4. The merchant must receive one understandable back office. Medusa Admin is the commerce/admin foundation and COQUETTE-specific content tools extend it.
 5. The storefront never talks directly to PostgreSQL. It consumes Medusa APIs.
-6. Medusa remains the system of record for customers, products, carts, orders, payments and fulfillment.
+6. Medusa remains the system of record for new customers, products, carts, orders, payments and fulfillment after reconstruction/cutover.
 7. Supabase is infrastructure: managed PostgreSQL plus COQUETTE-only object storage.
 8. Secrets never enter Git history. The public repository contains placeholders and safe resource coordinates only.
-9. Magento remains production until migration reconciliation, staging UAT and cutover gates pass.
-10. No big-bang data migration. Every migration domain must be countable, repeatable, idempotent and reconcilable.
-11. No production payment, AADE or courier action during development unless the environment and credential are explicitly production-approved.
-12. Every feature branch must pass frozen dependency install, backend type-check and storefront production build before merge. Infrastructure files receive their own validation where applicable.
+9. The legacy Magento storefront remains production until public-storefront reconstruction, staging UAT and cutover gates pass.
+10. No big-bang reconstruction. Every recoverable legacy domain must be countable, repeatable, idempotent and reconcilable against captured public evidence.
+11. Magento administrative/database/filesystem/API access is no longer available. Public values that cannot be recovered from `https://coquetteconcept.gr/` or another legitimate source are never invented.
+12. No production payment, AADE or courier action during development unless the environment and credential are explicitly production-approved.
+13. Every feature branch must pass frozen dependency install, backend type-check and storefront production build before merge. Infrastructure files receive their own validation where applicable.
 
 ---
 
@@ -50,7 +51,7 @@ Dedicated Supabase project:
 - region: `eu-central-1`
 - database: PostgreSQL 17
 - public media bucket: `coquette-media`
-- private migration bucket: `coquette-imports`
+- private reconstruction/import bucket: `coquette-imports`
 
 ### Integrations
 
@@ -83,7 +84,7 @@ Each provider receives dedicated COQUETTE credentials and webhook ownership.
 
 Purpose:
 
-- real migrated catalogue rehearsal
+- reconstructed catalogue rehearsal
 - merchant back-office UAT
 - checkout/payment sandbox testing
 - courier sandbox tests
@@ -97,7 +98,7 @@ No production customer traffic.
 
 - `coquetteconcept.gr`
 - production credentials only
-- Magento cutover only after all launch gates pass
+- legacy-storefront cutover only after all launch gates pass
 
 ---
 
@@ -115,14 +116,14 @@ Delivered:
 - project-boundary documentation
 - environment strategy
 - integration inventory
-- migration-data exclusion rules
+- reconstruction-data exclusion rules
 - public-repository security policy
 
 Exit gate: satisfied.
 
 ---
 
-## Phase 1 — Current Magento audit and architecture selection
+## Phase 1 — Current legacy storefront audit and architecture selection
 
 **Status: COMPLETE / AUDIT REMAINS CONTINUOUS**
 
@@ -132,12 +133,12 @@ Delivered:
 - Next.js selected as storefront
 - unified merchant experience through Medusa Admin extensions
 - PostgreSQL/Redis/S3-compatible infrastructure model
-- Magento migration strategy
+- public-storefront reconstruction strategy
 - current navigation/category/designer/filter audit
 - bilingual URL analysis
 - SEO preservation rules
 
-Continue auditing Magento throughout migration for hidden business rules, third-party modules and content not visible from the public storefront.
+Continue auditing the live public legacy storefront throughout reconstruction for presentation rules, discoverable catalogue relationships and content not obvious from the main navigation.
 
 Exit gate: architecture approved and executable scaffold available.
 
@@ -165,7 +166,7 @@ Exit gate: green reproducible builds.
 
 ## Phase 3 — COQUETTE domain model and managed infrastructure
 
-**Status: IN PROGRESS**
+**Status: TECHNICAL EXIT GATE COMPLETE**
 
 Delivered:
 
@@ -173,114 +174,227 @@ Delivered:
 - product-to-designer link definition
 - bilingual Website Content module
 - structured content/SEO fields
-- Medusa Admin routes for Designers and Website
+- workflow-backed Medusa Admin create/read/update for Designers
+- workflow-backed Medusa Admin create/read/update for Website Content
+- clean-database CI contract proving custom Admin CRUD
 - dedicated Supabase project
+- Medusa schema applied to managed PostgreSQL
 - public `coquette-media` bucket
 - private `coquette-imports` bucket
-- media file restrictions
-- optional Supabase S3 Medusa configuration
-- isolated local PostgreSQL/Redis runtime
+- media restrictions and Medusa S3 configuration
+- live S3 media verification
+- Railway Medusa server and separate worker
+- dedicated Redis runtime
+- Greece/EUR Medusa region
+- Greek/English locale links
+- Greece stock-location/fulfillment foundation
+- Vercel storefront connected to Railway Store API
+- Supabase Data API roles prevented from directly accessing Medusa commerce tables
 
-Remaining:
+Operational hardening remains tracked separately:
 
-- generate/commit custom module migration files
-- apply Medusa schema to managed PostgreSQL
-- create production-safe database connection secret in hosting environment
-- generate dedicated Supabase S3 access keys and store them only in backend hosting secrets
-- provision dedicated production Redis
-- run database/security/performance advisors after schema installation
-- establish backup/restore rehearsal
+- backup/restore rehearsal
+- repository branch-protection / secret-scanning verification
 
 Exit gate:
 
-- clean Medusa migrations run against an empty staging database
-- Admin can create/read/update Designer and Website Content records
-- file upload succeeds through the Medusa S3 provider
-- no database or storage secret is present in Git
+- [x] clean Medusa migrations run against an empty staging database
+- [x] Admin can create/read/update Designer and Website Content records
+- [x] file upload succeeds through the Medusa S3 provider
+- [x] no database or storage secret is present in Git
 
 ---
 
-## Phase 4 — Magento extraction and migration pipeline
+## Phase 4 — Public legacy storefront reconstruction
 
-**Status: PLANNED / PREPARATION STARTED**
+**Status: IN PROGRESS**
 
-### 4.1 Inventory Magento
+**Source boundary:** administrative/database/filesystem/API access to the Magento installation is unavailable. The public storefront at `https://coquetteconcept.gr/` is therefore the recoverable legacy evidence source.
 
-Capture:
+Canonical detailed contract:
 
-- Magento version and enabled modules
-- store views/languages
-- websites/stores
-- categories
-- products
-- configurable/simple product relationships
-- attributes and option values
-- media gallery
-- prices/special prices
-- tax classes
-- stock/inventory
-- CMS pages and blocks
-- navigation configuration
-- customers and addresses
-- orders/invoices/credit memos/shipments
-- coupons/cart rules
-- newsletter subscribers
-- redirects/URL rewrites
-- payment/shipping configuration
-- transactional email templates
-- cron/integration jobs
-- third-party extensions
+- `docs/migration/STOREFRONT_RECONSTRUCTION_PLAN.md`
 
-### 4.2 Build migration manifests
+### 4.1 Build immutable public URL inventory
 
-Every source record type gets:
+Discover and capture Greek/English in-scope URLs from:
 
-- Magento source ID
-- target Medusa ID
+- homepage and navigation
+- Clothing and nested categories
+- Accessories and nested categories
+- Designers/brands
+- Sale
+- New In
+- category/designer pagination
+- product links
+- public internal-search surfaces where useful
+- indexed/encountered Magento fallback routes
+- canonical/hreflang relationships
+- sitemap endpoints when present and usable
+
+Do not depend on a single sitemap being complete or available.
+
+### 4.2 Capture and reconstruct public commerce evidence
+
+Products must capture where directly exposed:
+
+- source URL and canonical URL
+- Greek/English URL pair
+- title/name
+- SKU
+- regular price
+- sale/special price
+- displayed discount state
+- public stock state
+- low-stock messaging
+- color
+- size and visible option values
+- designer/brand
+- categories and breadcrumbs
+- short/long descriptions
+- composition/materials
+- care instructions
+- model/fit details
+- country-of-manufacture text
+- delivery message
+- New/Sale/Out-of-Stock badges
+- public reviews where exposed
+- image gallery URLs
+- size-guide assets
+- SEO metadata and structured data where exposed
+
+No critical SKU, price, tax or exact stock quantity may be guessed.
+
+### 4.3 Capture media into COQUETTE-controlled storage
+
+For every discoverable public commerce/content asset:
+
+- retain source URL
+- follow safe same-site redirects
+- download the highest-resolution public form available
+- record MIME type and source filename
+- calculate SHA-256 checksum
+- preserve product/page relationships
+- deduplicate identical bytes by checksum while preserving relationships
+- copy recovered assets into COQUETTE-owned storage
+- never hotlink the production replacement to legacy Magento assets
+
+### 4.4 Capture categories, designers, navigation and content
+
+Reconstruct where publicly reachable:
+
+- category hierarchy
+- category names/content in both locales
+- designer/brand taxonomy
+- designer landing pages
+- visible navigation ordering
+- category/designer editorial copy
+- layered-filter dimensions and labels
+- visible sort options
+- homepage sections and banners
+- Our Story/About
+- contact
+- shipping/delivery/returns
+- payment-method content
+- terms/privacy/cookies
+- newsletter/service/footer content
+- public downloadable assets
+
+### 4.5 SEO and URL evidence
+
+Build an evidence-backed URL inventory containing:
+
+- legacy URL
+- locale
+- resource type
+- observed response/redirect state
+- canonical URL
+- alternate/hreflang URL where visible
+- target COQUETTE URL
+- planned redirect state
+
+Explicitly cover:
+
+- `/default/` Greek routes
+- `/en/` English routes
+- legacy `.html` URLs
+- publicly discoverable/indexed Magento internal routes
+- pagination/filter query behavior without crawling infinite parameter combinations
+
+### 4.6 Evidence-aware manifests
+
+Every normalized public source record gets:
+
+- stable source URL/source key
+- locale
 - source checksum
-- migration timestamp
-- migration status
+- evidence grade: `direct`, `derived`, `inferred`, or `unavailable`
+- target Medusa ID when imported
+- migration/reconstruction status
 - warnings/errors
 - retry count
+- capture timestamp
 
 Imports must be idempotent.
 
-### 4.3 Migration order
+### 4.7 Known unavailable private Magento domains
 
-1. regions/currencies/tax primitives
-2. sales channels/store defaults
-3. categories/collections
-4. designers/brands
-5. product attributes/options
-6. products
-7. variants
-8. prices
-9. inventory
-10. media
-11. CMS/content
-12. customers/addresses
-13. historical orders if required
-14. promotions/coupons
-15. URL redirect map
+Unless another legitimate source later becomes available, do not fabricate:
 
-### 4.4 Reconciliation
+- customer accounts or passwords
+- customer address books
+- historical orders
+- invoices / credit memos / shipments
+- payment transactions/tokens
+- private newsletter subscriber data
+- exact Magento numeric entity IDs
+- hidden/unpublished products/content
+- admin-only custom attributes
+- exact stock quantities where not public
+- reserved inventory
+- internal tax configuration
+- private promotion/cart-rule definitions
+- cron/integration secrets
+- extension configuration
 
-For each rehearsal compare:
+These are known source limitations, not unexplained migration failures.
 
-- source count
-- imported count
-- skipped count
-- error count
-- published count
-- product/variant price totals where meaningful
-- inventory totals
-- media counts
-- customer counts
-- order counts/statuses
+### 4.8 Reconstruction order
 
-No migration is accepted based only on a successful script exit code.
+1. URL inventory / locale relationships
+2. categories
+3. designers/brands
+4. public option/filter taxonomy
+5. products
+6. reconstructable variants/options
+7. displayed pricing/sale state
+8. public stock state
+9. media
+10. public CMS/content
+11. SEO metadata
+12. redirect map
 
-Exit gate: repeatable staging import with documented reconciliation and zero unexplained critical variance.
+### 4.9 Reconciliation
+
+For every capture/rehearsal compare:
+
+- discovered in-scope URLs
+- successfully fetched URLs
+- product URLs vs parsed product records
+- unique SKU count and SKU collisions
+- products without SKU
+- category URLs and parsed categories
+- designer URLs and parsed designers
+- media discovered/downloaded/failed/deduplicated
+- bilingual URL pairs/unpaired resources
+- content pages captured
+- redirect/canonical relationships
+- parse warnings/errors
+- URLs remaining unclassified
+
+No reconstruction is accepted based only on a successful crawler/script exit code.
+
+Exit gate: repeatable full public-storefront capture/import with all discovered in-scope URLs either reconstructed or explicitly classified, media copied to COQUETTE storage, idempotent rerun, and zero unexplained critical variance within the captured public universe.
 
 ---
 
@@ -363,7 +477,7 @@ Remaining:
 
 ### Homepage
 
-- migrate real hero/editorial media
+- reconstruct real hero/editorial media
 - current campaign sections
 - real product feeds
 - new arrivals
@@ -402,7 +516,7 @@ Remaining:
 
 Mobile parity is an explicit acceptance surface, not a desktop afterthought.
 
-Exit gate: visual/functional comparison against Magento approved for desktop and mobile.
+Exit gate: visual/functional comparison against the legacy public storefront approved for desktop and mobile.
 
 ---
 
@@ -425,7 +539,7 @@ Required:
 
 Start with PostgreSQL/Medusa capabilities where sufficient; introduce a dedicated search engine only when catalogue/UX requirements justify the operational cost.
 
-Exit gate: search and filters meet or exceed the existing Magento experience.
+Exit gate: search and filters meet or exceed the existing legacy storefront experience.
 
 ---
 
@@ -443,6 +557,8 @@ Exit gate: search and filters meet or exceed the existing Magento experience.
 - order history
 - order detail
 - privacy/account deletion workflow
+
+Legacy customer accounts/history cannot be reconstructed from the public storefront. New COQUETTE customer records begin in Medusa unless another legitimate private source later becomes available.
 
 ### Wishlist
 
@@ -576,20 +692,20 @@ Transactional templates:
 - refund
 - return
 
-Newsletter/subscriber migration must respect consent provenance and applicable privacy requirements.
+Legacy newsletter subscribers cannot be assumed recoverable. Any subscriber import must come from a legitimate source with consent provenance; otherwise build a fresh compliant COQUETTE list.
 
 Exit gate: templates approved in EL/EN and transactional delivery verified.
 
 ---
 
-## Phase 13 — SEO and URL migration
+## Phase 13 — SEO and URL reconstruction
 
 **Status: FOUNDATION STARTED**
 
 Rules:
 
-- crawl/export all indexable Magento URLs before cutover
-- preserve source URL, target URL, status and canonical target in a redirect manifest
+- crawl all discoverable/indexed legacy storefront URLs before cutover
+- preserve source URL, target URL, observed state and canonical target in a redirect manifest
 - one-to-one `301/308` mappings for changed URLs
 - avoid broad wildcard redirects that hide missing mappings
 - avoid redirect chains
@@ -602,9 +718,11 @@ Rules:
 - Product/Breadcrumb/Organization structured data where valid
 - Search Console validation after cutover
 
-Current Magento patterns observed include `/default/...` for Greek and `/en/...` for English. Legacy `.html` routes must be explicitly mapped.
+Observed legacy patterns include `/default/...` for Greek and `/en/...` for English. Legacy `.html` and discovered internal Magento routes must be explicitly mapped.
 
-Exit gate: every previously indexed high-value URL resolves directly to the correct live target or an explicitly justified retirement response.
+Search-engine indexes and public discovery can be used to find additional legacy URLs, but final mapping must retain evidence and must not invent content that cannot be recovered.
+
+Exit gate: every captured/indexed high-value legacy URL resolves directly to the correct live target or an explicitly justified retirement response.
 
 ---
 
@@ -623,7 +741,7 @@ Required:
 - payment webhook signature verification
 - provider webhook idempotency
 - least-privilege database/storage credentials
-- privacy/terms/cookie content migration
+- privacy/terms/cookie content reconstruction and legal review
 - consent manager review
 - data export/deletion workflows
 - backup access controls
@@ -646,7 +764,7 @@ Automated gates:
 - Docker Compose validation
 - unit/integration tests as implementation grows
 - checkout E2E
-- migration reconciliation tests
+- reconstruction reconciliation tests
 
 Manual/automated QA:
 
@@ -673,19 +791,20 @@ Rehearse:
 
 1. clean database
 2. run migrations
-3. import Magento snapshot
-4. reconcile
-5. upload/copy media
-6. smoke test storefront
-7. merchant back-office tasks
-8. place test orders
-9. payment sandbox lifecycle
-10. courier sandbox lifecycle
-11. fiscal test lifecycle
-12. refund/return
-13. redirect crawl
-14. backup
-15. restore rehearsal
+3. run a dated public-storefront capture from the immutable URL inventory
+4. import/reconstruct captured catalogue/content
+5. reconcile all discovered in-scope public URLs
+6. copy/checksum media into COQUETTE storage
+7. smoke test storefront
+8. merchant back-office tasks
+9. place test orders
+10. payment sandbox lifecycle
+11. courier sandbox lifecycle
+12. fiscal test lifecycle
+13. refund/return
+14. redirect crawl
+15. backup
+16. restore rehearsal
 
 Exit gate: written UAT sign-off and no P0/P1 issue.
 
@@ -697,10 +816,10 @@ Exit gate: written UAT sign-off and no P0/P1 issue.
 
 ### Pre-cutover
 
-- final Magento backup
-- final URL crawl
-- freeze window agreed
-- incremental/final data delta export
+- complete a fresh full public-storefront capture as close to cutover as practical
+- record immutable final legacy URL/product/media capture manifests
+- perform manual inventory/price verification for commercially critical live products
+- preserve current DNS configuration and legacy hosting coordinates where accessible
 - DNS TTL reduced in advance if necessary
 - production secrets validated
 - payment webhooks configured
@@ -708,24 +827,25 @@ Exit gate: written UAT sign-off and no P0/P1 issue.
 - AADE production mode explicitly approved
 - monitoring dashboards active
 
+Because Magento administrative access is unavailable, the cutover plan must not depend on a Magento maintenance/freeze mode or database delta export.
+
 ### Cutover sequence
 
-1. enter Magento maintenance/read-only window as required
-2. capture final delta
-3. run final import
-4. reconcile critical entities
-5. smoke test production backend
-6. smoke test production storefront using non-public route/domain where possible
-7. switch domain/routing
-8. verify TLS
-9. verify robots/canonicals/sitemap
-10. place controlled production order
-11. verify payment, order, email and fiscal pipeline
-12. monitor logs/errors/404s
+1. run final public legacy-storefront crawl/capture
+2. process only changed/new publicly observable records since the last accepted rehearsal
+3. reconcile critical catalogue/content/media/redirect evidence
+4. smoke test production backend
+5. smoke test production storefront using non-public route/domain where possible
+6. switch domain/routing
+7. verify TLS
+8. verify robots/canonicals/sitemap
+9. place controlled production order
+10. verify payment, order, email and fiscal pipeline
+11. monitor logs/errors/404s
 
 ### Rollback
 
-Magento must remain recoverable during the agreed rollback window. A rollback decision must not depend on reconstructing the previous system from scratch.
+Rollback must be possible without rebuilding the application. Preserve the previous stable COQUETTE deployment/configuration and a record of pre-cutover DNS. If the legacy Magento host remains technically reachable, retain its coordinates during the agreed rollback window, but do not make rollback depend solely on administrative control of Magento.
 
 Exit gate: production stability confirmed and rollback window closed deliberately.
 
@@ -745,7 +865,7 @@ First priorities:
 - site speed/Core Web Vitals
 - search quality
 - merchant workflow friction
-- product/media migration defects
+- product/media reconstruction defects
 - Search Console indexing
 
 Only after stabilization should broader UX redesigns, personalization or advanced merchandising move ahead of parity/operational defects.
@@ -760,39 +880,43 @@ Only after stabilization should broader UX redesigns, personalization or advance
 - architecture selection
 - executable Medusa/Next.js monorepo
 - CI/frozen lockfile
-- local isolated PostgreSQL/Redis
+- dedicated Supabase PostgreSQL/storage
+- Railway Medusa server + worker
+- dedicated Redis
+- Greece/EUR staging commerce foundation
+- Vercel storefront-to-Store-API runtime verification
+- live S3 media verification
 - Designer/Brand domain
 - Website Content domain
-- initial Admin extensions
-- dedicated Supabase project
-- public/private storage boundaries
-- first navigable storefront parity layer
-- Magento URL migration rules
+- real custom Admin CRUD + clean-database CI contract
+- initial navigable storefront parity layer
+- legacy URL preservation rules
+- Supabase Data API hardening around Medusa commerce tables
 
 ## Active now
 
-1. generate custom Medusa migration files
-2. finalize managed Supabase/Medusa configuration
-3. provision backend hosting/runtime secrets
-4. provision storefront Vercel project
-5. establish staging
-6. acquire Magento export/database/media access
-7. build repeatable migration importer and reconciliation reports
-8. connect real Medusa catalogue data to storefront listing/product pages
+1. Phase 4 public storefront reconstruction crawler/capture foundation
+2. immutable legacy URL inventory
+3. public product/category/designer/content extraction
+4. public image/media capture into COQUETTE storage
+5. evidence-aware source-to-Medusa mapping and reconciliation
+6. backup/restore operational rehearsal
+7. repository protection/security hardening
 
 ## Current external/manual dependencies
 
-The following require account-level access or credentials and cannot be placed in Git:
+The following require account-level access, credentials or external availability and cannot be placed in Git:
 
-- Supabase database connection secret
-- Supabase S3 access-key pair
+- continued public availability of `https://coquetteconcept.gr/` until reconstruction capture is accepted
+- Supabase database/storage credentials
 - dedicated hosted Redis credentials
-- Magento administrative/database/export access
 - payment-provider credentials
 - AADE credentials/configuration
 - courier credentials
 - email-provider credentials
 - domain/DNS cutover authority
+
+Magento administrative/database/export access is **not** an expected dependency anymore.
 
 ---
 
@@ -800,8 +924,10 @@ The following require account-level access or credentials and cannot be placed i
 
 COQUETTE is not launch-ready until all of the following are true:
 
-- migrated catalogue reconciles against Magento
-- product media is complete
+- the reconstructed public catalogue reconciles against the accepted immutable legacy URL/capture inventory
+- all discoverable in-scope legacy URLs are reconstructed or explicitly classified
+- public product media is copied to COQUETTE-controlled storage with no unexplained critical failures
+- known unrecoverable private Magento data is documented and not fabricated
 - daily merchant workflows work without developer intervention
 - account/cart/checkout paths are complete
 - every enabled payment method passes sandbox and controlled production verification
