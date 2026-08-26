@@ -80,23 +80,43 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
   const paymentModuleService = container.resolve(Modules.PAYMENT)
 
   const stores = await storeModuleService.listStores({}, { take: 2 })
-  if (stores.length !== 1) {
+  if (stores.length > 1) {
     throw unexpectedState(
-      `Expected exactly one COQUETTE store, found ${stores.length}. Refusing to guess.`
+      `Expected at most one COQUETTE store, found ${stores.length}. Refusing to guess.`
     )
   }
-  const store = stores[0]
+
+  let store = stores[0]
+  if (!store) {
+    logger.info("Creating COQUETTE store")
+    store = await storeModuleService.createStores({
+      name: "COQUETTE",
+      supported_currencies: [
+        {
+          currency_code: "eur",
+          is_default: true,
+        },
+      ],
+    })
+  }
 
   const salesChannels = await salesChannelModuleService.listSalesChannels(
     {},
     { take: 2 }
   )
-  if (salesChannels.length !== 1) {
+  if (salesChannels.length > 1) {
     throw unexpectedState(
-      `Expected exactly one COQUETTE sales channel, found ${salesChannels.length}. Refusing to guess.`
+      `Expected at most one COQUETTE sales channel, found ${salesChannels.length}. Refusing to guess.`
     )
   }
-  const salesChannel = salesChannels[0]
+
+  let salesChannel = salesChannels[0]
+  if (!salesChannel) {
+    logger.info("Creating default COQUETTE sales channel")
+    salesChannel = await salesChannelModuleService.createSalesChannels({
+      name: "Default Sales Channel",
+    })
+  }
 
   const paymentProviders = await paymentModuleService.listPaymentProviders({})
   const enabledPaymentProviderIds = paymentProviders
