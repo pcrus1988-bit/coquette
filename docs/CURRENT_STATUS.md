@@ -6,7 +6,7 @@
 
 ## Shipped to `main`
 
-Through merge `3baf8febcd5573de616f96449342b21eb7ff4eec`:
+Through merge `f94681f9e63052cc8766a1101e86b374c7813b55`:
 
 - isolated COQUETTE repository/workspace and dedicated Supabase project/storage
 - pnpm/Turbo monorepo, Medusa v2.19 backend/Admin and Next.js storefront
@@ -42,34 +42,48 @@ Through merge `3baf8febcd5573de616f96449342b21eb7ff4eec`:
 - customer-facing manual/system payment provider hidden by default
 - custom PayPal Medusa Payment Module Provider using `@paypal/paypal-server-sdk@2.5.0`
 - conditional PayPal provider registration only when backend credentials exist
-- PayPal Sandbox-safe runtime contract, authorize/capture/refund/void/update/retrieve/status methods and verified webhook handling
-- CI forcing the configured PayPal provider registration path with dummy Sandbox credentials
-- no customer order completion or fake paid state in the generic payment-session layer
-- CI with fresh PostgreSQL 17 + Redis, clean migrations, migration contract, PayPal registration contract, Sale pricing-graph contract, backend production build and storefront production build
+- PayPal Sandbox-safe authorize/capture/refund/void/update/retrieve/status methods and verified webhook handling
+- PayPal React SDK v6 storefront approval using `@paypal/react-paypal-js@10.3.0`
+- browser reuses the Medusa-created PayPal order and never creates a duplicate PayPal order
+- PayPal approval verifies the provider order ID before Medusa cart completion
+- only Medusa `type === "order"` clears the persisted COQUETTE cart
+- PayPal cancel/error/completion failure leaves the cart recoverable and never fabricates an order
+- Greek `/order-confirmation/[id]` and English `/en/order-confirmation/[id]` routes exposing only the opaque order identifier
+- PayPal storefront architecture documented in `docs/architecture/PAYPAL_STOREFRONT_APPROVAL.md`
+- CI with PostgreSQL 17 + Redis, clean migrations, migration contract, payment-provider registration contract, Sale pricing-graph contract, backend production build and storefront production build
+
+PayPal still requires a real end-to-end Sandbox test in the dedicated COQUETTE staging environment before any Live activation.
 
 ## Active implementation
 
-Branch: `feature/paypal-storefront-approval`
+Branch: `feature/klarna-provider-foundation`
 
 Implemented on branch:
 
-- pinned `@paypal/react-paypal-js@10.3.0` using the workspace lockfile
-- PayPal React SDK v6 integration (`@paypal/react-paypal-js/sdk-v6`), not the legacy v5 button API
-- storefront PayPal environment contract with public Client ID and explicit Sandbox/production selector
-- payment session reuses the PayPal order created by the COQUETTE Medusa backend; browser code never creates a duplicate PayPal order
-- PayPal v6 `PayPalOneTimePaymentButton` receives the authoritative payment-session `order_id`
-- approval callback verifies the PayPal order ID matches the Medusa session before attempting order placement
-- customer PayPal approval then calls Medusa `store.cart.complete(cart.id)`
-- only Medusa `type === "order"` is accepted as a completed COQUETTE order
-- persisted `coquette_cart_id` is removed only after successful Medusa order creation
-- PayPal cancel/error leaves the cart intact and creates no COQUETTE order
-- Medusa completion failure keeps the cart recoverable and relies on Medusa's completion rollback behavior rather than issuing a browser-side refund
-- Greek `/order-confirmation/[id]` and English `/en/order-confirmation/[id]` routes
-- public confirmation page intentionally exposes only the opaque order identifier, not customer/order details
-- architecture documented in `docs/architecture/PAYPAL_STOREFRONT_APPROVAL.md`
-- temporary storefront lockfile bootstrap workflow removed; normal frozen-lockfile CI remains authoritative
+- custom credential-gated Klarna Medusa Payment Module Provider
+- one shared Medusa Payment Module registration containing independently gated PayPal and Klarna providers
+- Klarna Playground as the default environment; no Live credentials in code or CI
+- EU API-region default, Greece purchase-country default and Greek locale default
+- Klarna Payments session creation with authoritative amount, currency, order lines and tax amount
+- explicit validation that payment totals/order lines come from checkout data; provider does not guess tax or line allocation
+- Klarna client token/session ID/payment categories stored in Medusa payment-session data
+- signed HMAC server authorization callback at `/hooks/klarna/authorization`
+- timing-safe callback signature validation
+- callback-to-payment-session lookup and Klarna session-ID match enforcement
+- at-least-once callback idempotency for repeated identical authorization tokens
+- rejection of conflicting authorization tokens
+- server-side persistence of Klarna authorization token before order creation
+- `authorizePayment` refuses cart completion without the stored authorization token
+- Klarna order creation uses a stable idempotency key and persists order/fraud/redirect/payment-method state
+- fraud status maps conservatively to Medusa authorized/pending or failure behavior
+- Medusa 2.19 full-capture contract honored by capturing the stored authorized order amount
+- refund, cancel/release, retrieve and payment-status operations
+- CI forces PayPal + Klarna provider registration together with inert dummy credentials and no external payment network calls
+- architecture documented in `docs/architecture/KLARNA_PAYMENT_PROVIDER.md`
 
-This branch still requires exact-head CI, protected PR CI and merge before PayPal browser approval/order completion is considered shipped. It also requires real PayPal Sandbox end-to-end testing in the dedicated COQUETTE staging environment before Live activation.
+The implementation branch has passed full branch CI at `4405968ec3dcac43124859383aed35ff632c1e7a`. Documentation-inclusive exact-head CI, protected PR CI and merge are still required before the Klarna backend foundation is considered shipped.
+
+Klarna browser authorization is intentionally not claimed complete. It requires dedicated COQUETTE Klarna Playground credentials, an externally reachable staging backend callback, the current Klarna storefront SDK/client-token flow, customer authorize/cancel/error handling, callback/browser race testing and real end-to-end order/capture/cancel/refund tests.
 
 ## Phase status
 
@@ -99,7 +113,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 6 — Storefront parity
 
-**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery, cart, address/shipping checkout and generic payment-session selection are shipped. PayPal browser approval/order completion is active on a feature branch. Wishlist, full editorial parity and final responsive/visual UAT remain.
+**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery, cart, address/shipping checkout and PayPal order completion are shipped. Klarna browser authorization, wishlist, full editorial parity and final responsive/visual UAT remain.
 
 ### Phase 7 — Search, discovery and merchandising
 
@@ -107,7 +121,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 8 — Cart / checkout foundation
 
-**Generic checkout/payment-session foundation and PayPal backend provider shipped.** PayPal browser approval/order completion is active on a feature branch. Klarna and the final card acquirer remain separate provider workstreams.
+**Generic checkout/payment-session foundation, PayPal backend provider and PayPal browser order-completion flow are shipped.** Klarna backend provider foundation is active on a feature branch. Klarna storefront authorization and the final card acquirer remain separate workstreams.
 
 ### Phases 9–18
 
@@ -125,16 +139,22 @@ Tracked in GitHub issue #9:
 6. place Supabase DB/S3 credentials only in backend hosting secrets
 7. migrate staging schema
 8. create Admin account and publishable Store API key
-9. configure supported `el-GR` and `en-GB` locales
+9. configure supported `el-GR` and `en-GB` commerce locales
 10. configure the Greece-serving Medusa region and sales-channel relationship
 11. configure real service zones, shipping profiles/options and any fulfillment provider needed for calculated rates
-12. provision the dedicated COQUETTE PayPal Sandbox merchant app and backend credentials
+12. provision dedicated COQUETTE PayPal Sandbox merchant app and backend credentials
 13. configure PayPal webhook and `PAYPAL_WEBHOOK_ID`
 14. enable `pp_paypal_paypal` on the intended Medusa region
-15. configure the storefront with the matching public Sandbox Client ID
+15. configure storefront with the matching public PayPal Sandbox Client ID
 16. test PayPal approval, cancel, failed completion, successful order creation, capture, void, refund and webhook behavior end-to-end
-17. connect storefront to staging backend
-18. verify `/health`, Admin, Store API, catalogue flows, translations, cart, address/shipping checkout, payment sessions, PayPal flow, media upload and worker operation
+17. provision dedicated COQUETTE Klarna Playground merchant credentials
+18. confirm Klarna merchant agreement enables Greece/EUR and intended payment categories
+19. configure externally reachable Klarna authorization callback URL and independent callback secret
+20. enable the Klarna provider on the intended Medusa region
+21. implement/test Klarna storefront client-token authorization flow
+22. test Klarna callback retries/races, accepted/pending/rejected authorization, successful Medusa order creation, capture, cancel and refund
+23. connect storefront to staging backend
+24. verify `/health`, Admin, Store API, catalogue flows, translations, cart, address/shipping checkout, payment sessions, PayPal flow, Klarna flow, media upload and worker operation
 
 ## Production boundary
 
