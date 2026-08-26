@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { CartPage } from "../../../components/cart-page"
 import { ProductListingShell } from "../../../components/product-listing-shell"
 import { getBrands } from "../../../lib/brands"
 import {
@@ -51,7 +52,6 @@ const placeholderTitles: Record<string, string> = {
   "": "Women Clothes",
   "our-story": "Our Story",
   account: "Account",
-  cart: "Cart",
 }
 
 function EnglishPlaceholder({ title }: { title: string }) {
@@ -293,6 +293,14 @@ export default async function EnglishStorefrontPage({
         title={humanizeHandle(child)}
       />
     )
+  }
+
+  if (root === "cart") {
+    if (child) {
+      notFound()
+    }
+
+    return <CartPage language="en" />
   }
 
   if (child) {

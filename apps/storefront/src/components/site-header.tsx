@@ -3,9 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { englishPrimaryNavigation, primaryNavigation } from "../lib/navigation"
+import { useCart } from "../providers/cart"
 
 export function SiteHeader() {
   const pathname = usePathname()
+  const { itemCount } = useCart()
   const isEnglish = pathname === "/en" || pathname.startsWith("/en/")
   const navigation = isEnglish ? englishPrimaryNavigation : primaryNavigation
   const prefix = isEnglish ? "/en" : ""
@@ -14,12 +16,12 @@ export function SiteHeader() {
     ? [
         { label: "Search", href: `${prefix}/search` },
         { label: "Account", href: `${prefix}/account` },
-        { label: "Cart", href: `${prefix}/cart` },
+        { label: `Cart${itemCount > 0 ? ` (${itemCount})` : ""}`, href: `${prefix}/cart` },
       ]
     : [
         { label: "Αναζήτηση", href: "/search" },
         { label: "Λογαριασμός", href: "/account" },
-        { label: "Καλάθι", href: "/cart" },
+        { label: `Καλάθι${itemCount > 0 ? ` (${itemCount})` : ""}`, href: "/cart" },
       ]
 
   return (
