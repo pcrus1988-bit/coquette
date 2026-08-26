@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "@medusajs/framework/zod"
 import { CONTENT_MODULE } from "../../../modules/content"
 import type ContentModuleService from "../../../modules/content/service"
+import createWebsiteContentWorkflow from "../../../workflows/create-website-content"
 
 const ContentSectionPayload = z.object({
   id: z.string().trim().min(1),
@@ -68,11 +69,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   }
 
-  const contentService = req.scope.resolve<ContentModuleService>(CONTENT_MODULE)
-  const page = await contentService.createContentPages({
-    ...parsed.data,
-    seo_title: parsed.data.seo_title || null,
-    seo_description: parsed.data.seo_description || null,
+  const { result: page } = await createWebsiteContentWorkflow(req.scope).run({
+    input: {
+      ...parsed.data,
+      seo_title: parsed.data.seo_title || null,
+      seo_description: parsed.data.seo_description || null,
+    },
   })
 
   return res.status(201).json({ page })
