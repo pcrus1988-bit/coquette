@@ -27,14 +27,16 @@ A product may produce a runtime `pending` manifest entry only when all of the fo
 3. Legacy source URL is an absolute public URL on `coquetteconcept.gr`.
 4. SKU and name are present.
 5. Product type is explicitly resolved and not `unknown`.
-6. At least one recovered category source relationship exists.
-7. At least one product-media source backed by captured archive evidence exists.
-8. Category/media source URLs remain on the legacy COQUETTE host.
-9. Configurable parents are not flattened into purchasable option values.
-10. Sale price does not exceed regular price.
-11. Candidate key is unique.
-12. SKU identity is unique within the current import plan.
-13. Runtime migration source key is unique.
+6. A configurable parent is blocked until child variant identity, option combinations, prices and inventory can be reconstructed explicitly.
+7. At least one recovered category source relationship exists.
+8. At least one product-media source backed by captured archive evidence exists.
+9. Category/media source URLs remain on the legacy COQUETTE host.
+10. Configurable parents are not flattened into purchasable option values.
+11. Sale price does not exceed regular price.
+12. Candidate key is unique.
+13. SKU identity is unique within the current import plan.
+14. Legacy product source key is unique within the current import plan.
+15. Runtime migration source key is unique.
 
 ## EL/EN identity rule
 
@@ -51,7 +53,9 @@ However, two otherwise-ready pages sharing the same SKU are **not** automaticall
 
 This deliberately prevents an EL and EN representation of one physical product from becoming duplicate catalogue products before localization identity is explicitly resolved.
 
-## Checksums / idempotency
+Two different candidate records that point to the same legacy product source key are also blocked. Source identity must be resolved rather than allowing two plan records to compete for the same runtime mapping.
+
+## Entity-specific checksums / idempotency
 
 Two distinct checksums are retained:
 
@@ -59,15 +63,26 @@ Two distinct checksums are retained:
 
 Includes candidate disposition, selected evidence, conflicts, blockers, missing fields and provenance.
 
-It changes when the evidence/review state changes.
+It changes when the evidence/review state changes, including when price or stock observations change.
 
-### Semantic source checksum
+### Product semantic source checksum
 
-Hashes only the importable normalized product payload and excludes evidence timestamps/provenance metadata.
+The runtime `product` manifest checksum represents only the **structural product domain** that the product import executor is allowed to apply.
 
-A newer capture of the same semantic product therefore does not force a re-import solely because `capturedAt` changed.
+It includes product/source identity, canonical/localization references, SKU/name/status/visibility/type, descriptions, categories, options, media relationships and related structural product fields.
 
-The semantic checksum is used by the runtime migration manifest and existing `shouldReimport` logic.
+It deliberately excludes:
+
+- `stockState`
+- `lowStockMessage`
+- `regularPrice`
+- `salePrice`
+- `currencyCode`
+- evidence timestamps/provenance metadata
+
+Price and inventory are separate migration domains and will receive their own manifests/execution gates. A newer capture, price change or stock-state change therefore does not falsely imply that the structural Medusa product entity itself needs re-import. The planning checksum still changes so the new evidence remains visible for later price/inventory processing.
+
+The product semantic checksum is used by the runtime product migration manifest and existing `shouldReimport` logic.
 
 ## Runtime manifest output
 
@@ -90,10 +105,11 @@ This prevents an operator from accidentally treating a partial reconstruction as
 Phase 4F does not:
 
 - write products into Medusa;
+- claim that product-manifest completion also means price or inventory completion;
 - guess Magento/private status or visibility;
 - create Designer/Brand IDs from labels;
 - resolve EL/EN product identity automatically merely from matching SKU;
-- invent variants from ambiguous swatch markup;
+- invent configurable child variants from ambiguous swatch markup;
 - upload media into serving storage;
 - mark the migration reconciled while blocked candidates remain.
 
