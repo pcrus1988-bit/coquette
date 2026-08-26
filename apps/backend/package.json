@@ -6,7 +6,9 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "medusa build",
+    "build:deploy": "medusa build && cd .medusa/server && npm install --omit=dev --no-package-lock",
     "start": "medusa start",
+    "start:deploy": "cd .medusa/server && npm run start",
     "dev": "medusa develop",
     "lint": "medusa lint",
     "test": "node -e \"console.log('backend tests pending')\"",
