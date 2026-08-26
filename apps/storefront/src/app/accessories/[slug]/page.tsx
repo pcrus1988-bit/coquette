@@ -33,6 +33,7 @@ export default async function AccessoriesCategoryPage({
   return (
     <ProductListingShell
       categoryHandle={slug}
+      designer={parsed.designer}
       eyebrow="Αξεσουάρ · Κατηγορία"
       hrefBase={`/accessories/${slug}`}
       optionValueIds={parsed.optionValueIds}
