@@ -36,6 +36,7 @@ export type StagingProductExecutionEntry = {
   mediaTargetUrls: string[]
   brandTargetId?: string
   existingTargetId?: string
+  previousManifestEntry?: MigrationManifestEntry
   blockers: string[]
 }
 
@@ -150,6 +151,7 @@ function buildEntry(
   const mediaTargetUrls: string[] = []
   let brandTargetId: string | undefined
   let existingTargetId: string | undefined
+  let previousManifestEntry: MigrationManifestEntry | undefined
 
   if (entry.state !== "ready") blockers.push("product_import_plan_entry_not_ready")
   if (!entry.sourceKey) blockers.push("product_source_key_missing")
@@ -195,6 +197,7 @@ function buildEntry(
     } else {
       brandTargetId = mapping.targetId.trim()
     }
+    blockers.push("brand_link_execution_not_implemented")
   }
 
   if (entry.sourceKey) {
@@ -203,6 +206,7 @@ function buildEntry(
       blockers.push("duplicate_previous_product_manifest_entries")
     } else if (previous.length === 1) {
       const prior = previous[0]
+      previousManifestEntry = prior
       if (prior.status === "imported") {
         if (!prior.targetId?.trim()) {
           blockers.push("imported_previous_manifest_missing_target_id")
@@ -211,8 +215,12 @@ function buildEntry(
         } else {
           blockers.push("existing_product_checksum_changed_requires_update_path")
         }
-      } else {
-        blockers.push(`previous_product_manifest_requires_reconciliation:${prior.status}`)
+      } else if (prior.status === "skipped") {
+        blockers.push("previous_product_manifest_requires_reconciliation:skipped")
+      } else if (prior.sourceChecksum !== entry.sourceChecksum) {
+        blockers.push(
+          `previous_product_manifest_checksum_changed:${prior.status}`
+        )
       }
     }
   }
@@ -230,6 +238,7 @@ function buildEntry(
     mediaTargetUrls: [...mediaTargetUrls].sort(),
     brandTargetId,
     existingTargetId,
+    previousManifestStatus: previousManifestEntry?.status,
     blockers: uniqueBlockers,
   })
 
@@ -244,6 +253,7 @@ function buildEntry(
     mediaTargetUrls: [...new Set(mediaTargetUrls)],
     brandTargetId,
     existingTargetId,
+    previousManifestEntry,
     blockers: uniqueBlockers,
   }
 }
@@ -330,6 +340,9 @@ export function prepareMedusaSimpleProductInput(
   if (entry.blockers.length > 0) {
     throw new Error("Blocked product execution entries cannot be prepared")
   }
+  if (entry.brandTargetId) {
+    throw new Error("Brand-bearing products require the product-brand link execution path")
+  }
 
   const product = entry.normalizedProduct
   const optionEntries = Object.entries(product.optionValues)
@@ -354,7 +367,6 @@ export function prepareMedusaSimpleProductInput(
   if (product.alternateLocaleUrl) {
     metadata.coquette_legacy_alternate_locale_url = product.alternateLocaleUrl
   }
-  if (entry.brandTargetId) metadata.coquette_pending_brand_target_id = entry.brandTargetId
 
   return {
     title: product.name,
