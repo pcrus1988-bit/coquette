@@ -5,6 +5,7 @@ import {
   type CatalogueState,
   type CategoryCatalogueState,
 } from "../lib/catalogue"
+import { getBrandProducts } from "../lib/brands"
 import { ProductCard } from "./product-card"
 
 type StorefrontLanguage = "el" | "en"
@@ -14,6 +15,7 @@ type ProductListingShellProps = {
   title: string
   description?: string
   categoryHandle?: string
+  brandHandle?: string
   loadAll?: boolean
   pendingMessage?: string
   page?: number
@@ -35,11 +37,14 @@ const copy = {
     categoryMissingPrefix: "Η κατηγορία",
     categoryMissingSuffix:
       "δεν έχει μεταφερθεί ακόμη στο Medusa catalogue. Η σελίδα παραμένει διαθέσιμη για migration/UAT έλεγχο.",
+    brandMissingPrefix: "Ο σχεδιαστής",
+    brandMissingSuffix:
+      "δεν έχει μεταφερθεί ακόμη στο COQUETTE Brand catalogue. Η σελίδα παραμένει διαθέσιμη για migration/UAT έλεγχο.",
     unavailable:
       "Το commerce backend δεν είναι προσωρινά διαθέσιμο. Δεν εμφανίζονται πλασματικά προϊόντα ή τιμές.",
     pending:
       "Η συγκεκριμένη εμπορική επιφάνεια θα συνδεθεί με το κατάλληλο Medusa query όταν ολοκληρωθεί το αντίστοιχο migration/merchandising workstream.",
-    empty: "Δεν υπάρχουν δημοσιευμένα προϊόντα σε αυτή την κατηγορία ακόμη.",
+    empty: "Δεν υπάρχουν δημοσιευμένα προϊόντα σε αυτή την επιλογή ακόμη.",
     pagination: "Σελιδοποίηση προϊόντων",
     previous: "← Προηγούμενα",
     next: "Επόμενα →",
@@ -55,11 +60,14 @@ const copy = {
     categoryMissingPrefix: "Category",
     categoryMissingSuffix:
       "has not been migrated to the Medusa catalogue yet. This route remains available for migration and UAT checks.",
+    brandMissingPrefix: "Designer",
+    brandMissingSuffix:
+      "has not been migrated to the COQUETTE Brand catalogue yet. This route remains available for migration and UAT checks.",
     unavailable:
       "The commerce backend is temporarily unavailable. The storefront will not invent products or prices.",
     pending:
       "This merchandising surface will be connected to its dedicated Medusa query when the related migration/merchandising workstream is complete.",
-    empty: "There are no published products in this category yet.",
+    empty: "There are no published products in this selection yet.",
     pagination: "Product pagination",
     previous: "← Previous",
     next: "Next →",
@@ -71,16 +79,27 @@ const pageSize = 24
 function ConnectionMessage({
   state,
   categoryHandle,
+  brandHandle,
   language,
 }: {
-  state: CatalogueState | CategoryCatalogueState
+  state: CatalogueState | CategoryCatalogueState | "not_found"
   categoryHandle?: string
+  brandHandle?: string
   language: StorefrontLanguage
 }) {
   const labels = copy[language]
 
   if (state === "unconfigured") {
     return <p>{labels.unconfigured}</p>
+  }
+
+  if (state === "not_found" && brandHandle) {
+    return (
+      <p>
+        {labels.brandMissingPrefix} <strong>{brandHandle}</strong>{" "}
+        {labels.brandMissingSuffix}
+      </p>
+    )
   }
 
   if (state === "not_found" && categoryHandle) {
@@ -100,6 +119,7 @@ export async function ProductListingShell({
   title,
   description,
   categoryHandle,
+  brandHandle,
   loadAll = false,
   pendingMessage,
   page = 1,
@@ -111,11 +131,13 @@ export async function ProductListingShell({
   const labels = copy[language]
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
   const offset = (safePage - 1) * pageSize
-  const result = categoryHandle
-    ? await getCategoryProducts(categoryHandle, pageSize, offset, locale)
-    : loadAll
-      ? await getCatalogueProducts(pageSize, offset, locale)
-      : null
+  const result = brandHandle
+    ? await getBrandProducts(brandHandle, pageSize, offset, locale)
+    : categoryHandle
+      ? await getCategoryProducts(categoryHandle, pageSize, offset, locale)
+      : loadAll
+        ? await getCatalogueProducts(pageSize, offset, locale)
+        : null
   const totalPages = result
     ? Math.max(1, Math.ceil(result.count / pageSize))
     : 1
@@ -123,6 +145,10 @@ export async function ProductListingShell({
   const hasNext = result ? safePage < totalPages : false
   const resolvedProductHrefPrefix =
     productHrefPrefix || (language === "en" ? "/en/products" : "/products")
+  const brandResult =
+    brandHandle && result && "brand" in result ? result : null
+  const resolvedTitle = brandResult?.brand?.name || title
+  const resolvedDescription = brandResult?.brand?.description || description
 
   return (
     <main className="bg-[#f7f5f2] text-neutral-950">
@@ -132,10 +158,10 @@ export async function ProductListingShell({
         </p>
         <div className="mt-3 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
           <div>
-            <h1 className="font-serif text-5xl sm:text-6xl">{title}</h1>
-            {description ? (
+            <h1 className="font-serif text-5xl sm:text-6xl">{resolvedTitle}</h1>
+            {resolvedDescription ? (
               <p className="mt-5 max-w-2xl text-sm leading-7 text-neutral-600">
-                {description}
+                {resolvedDescription}
               </p>
             ) : null}
           </div>
@@ -181,6 +207,7 @@ export async function ProductListingShell({
         ) : result.state !== "ready" ? (
           <div className="border border-neutral-200 bg-white p-8 text-sm leading-7 text-neutral-600">
             <ConnectionMessage
+              brandHandle={brandHandle}
               categoryHandle={categoryHandle}
               language={language}
               state={result.state}

@@ -1,36 +1,29 @@
-import { notFound } from "next/navigation"
 import { ProductListingShell } from "../../../components/product-listing-shell"
-import { designerNames } from "../../../lib/navigation"
 
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-
-const designers = Object.fromEntries(
-  designerNames.map((name) => [slugify(name), name])
-)
+const humanizeHandle = (handle: string) =>
+  handle
+    .split("-")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ")
 
 export default async function DesignerPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ page?: string }>
 }) {
-  const { slug } = await params
-  const title = designers[slug]
-
-  if (!title) {
-    notFound()
-  }
+  const [{ slug }, { page }] = await Promise.all([params, searchParams])
+  const pageNumber = Math.max(1, Number.parseInt(page || "1", 10) || 1)
 
   return (
     <ProductListingShell
+      brandHandle={slug}
       eyebrow="Σχεδιαστής"
       hrefBase={`/designers/${slug}`}
-      title={title}
-      pendingMessage="Τα προϊόντα του συγκεκριμένου designer θα συνδεθούν μέσω του πρώτης κλάσης COQUETTE Brand/Designer module. Δεν χρησιμοποιούμε προσωρινά μια γενική λίστα προϊόντων, ώστε να μην παρουσιαστεί λανθασμένο catalogue."
+      page={pageNumber}
+      title={humanizeHandle(slug)}
     />
   )
 }
