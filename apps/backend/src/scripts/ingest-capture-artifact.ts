@@ -5,6 +5,7 @@ import {
   readCaptureArtifactBundle,
 } from "../migration/capture-ingestion"
 import { validateCaptureArtifactBundle } from "../migration/capture-validation"
+import { buildProductImportPlan } from "../migration/import-plan"
 import type { IndexedRecoveryBaseline } from "../migration/indexed-recovery"
 import { buildReconstructionUrlUniverse } from "../migration/url-universe"
 
@@ -21,6 +22,11 @@ async function optionalManualUnavailable(path?: string): Promise<ManualUnavailab
     if (!record.url.trim() || !record.note.trim()) return []
     return [{ url: record.url, note: record.note }]
   })
+}
+
+function raiseExitCode(code: number) {
+  const current = typeof process.exitCode === "number" ? process.exitCode : 0
+  process.exitCode = Math.max(current, code)
 }
 
 async function main() {
@@ -45,6 +51,7 @@ async function main() {
     process.env.COQUETTE_UNAVAILABLE_URLS_FILE
   )
   const candidates = buildDirectCaptureProductCandidates(bundle)
+  const importPlan = buildProductImportPlan(candidates)
   const urlUniverse = buildReconstructionUrlUniverse(
     bundle.pages,
     baseline,
@@ -54,7 +61,7 @@ async function main() {
   const structures = Object.values(productStructures)
 
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: new Date().toISOString(),
     capture: {
       captureId: bundle.manifest.captureId,
@@ -95,15 +102,35 @@ async function main() {
         .length,
       records: candidates,
     },
+    importPlan,
     urlUniverse,
   }
 
   const output = `${JSON.stringify(report, null, 2)}\n`
   const outputPath = process.env.COQUETTE_CAPTURE_INGESTION_REPORT
   if (outputPath) await writeFile(resolve(outputPath), output, "utf8")
+
+  const runtimeManifestPath = process.env.COQUETTE_RUNTIME_IMPORT_MANIFEST
+  if (runtimeManifestPath) {
+    if (!importPlan.isExecutable) {
+      console.error(
+        "Runtime import manifest was requested, but the product import plan is not fully executable. No runtime manifest was written."
+      )
+      raiseExitCode(3)
+    } else {
+      await writeFile(
+        resolve(runtimeManifestPath),
+        `${JSON.stringify(importPlan.runtimeManifestEntries, null, 2)}\n`,
+        "utf8"
+      )
+    }
+  }
+
   console.log(output)
 
-  if (!validation.isValid) process.exitCode = 2
+  if (!validation.isValid) {
+    raiseExitCode(2)
+  }
 }
 
 main().catch((error) => {
