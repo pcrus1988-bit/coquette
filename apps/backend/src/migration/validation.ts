@@ -48,6 +48,14 @@ export function validateNormalizedProduct(
     })
   }
 
+  if (product.type === "configurable") {
+    issues.push({
+      field: "type",
+      message:
+        "Configurable products cannot be imported automatically until child variant identity, option combinations, pricing and inventory are reconstructed explicitly.",
+    })
+  }
+
   if (product.categorySourceIds.length === 0) {
     issues.push({
       field: "categorySourceIds",
