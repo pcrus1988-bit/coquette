@@ -6,7 +6,7 @@
 
 ## Shipped to `main`
 
-Through merge `8bc13b4a3e456cab094a1357f05873551c22c943`:
+Through merge `6f918059efd0668a0cb8558f297831dc26a6a1a3`:
 
 - isolated COQUETTE repository/workspace and dedicated Supabase project/storage
 - pnpm/Turbo monorepo, Medusa v2.19 backend/Admin and Next.js storefront
@@ -36,31 +36,38 @@ Through merge `8bc13b4a3e456cab094a1357f05873551c22c943`:
 - live Store API shipping-option discovery
 - calculated shipping-rate retrieval without guessed fallback prices
 - real Medusa shipping-method selection and authoritative cart totals
-- CI with fresh PostgreSQL 17 + Redis, clean migrations, migration contract, Sale pricing-graph contract, backend production build and storefront production build
+- provider-agnostic payment-provider discovery by Medusa region
+- typed Medusa payment-session initialization
+- authoritative payment collection/session state reloaded into the cart
+- customer-facing manual/system payment provider hidden by default
+- no order completion or fake paid state in generic checkout
+- CI with fresh PostgreSQL 17 + Redis, clean migrations, migration contract, PayPal registration contract, Sale pricing-graph contract, backend production build and storefront production build
 
 ## Active implementation
 
-Branch: `feature/payment-session-foundation`
+Branch: `feature/paypal-provider-foundation`
 
-Implemented on branch and green on functional head `8242db8c1e9a9b0604fdd9df8740ff105d05243c`:
+Implemented on branch:
 
-- checkout payment step is provider-agnostic and remains inside the existing Medusa cart flow
-- payment providers are discovered using the cart `region_id`
-- payment selection activates only after address + shipping method are present
-- zero-total carts do not initialize an online payment session
-- Medusa's `pp_system_default` manual provider is hidden from customers by default
-- manual payment can only be surfaced with explicit `NEXT_PUBLIC_ALLOW_MANUAL_PAYMENT=true`
-- typed `initiatePaymentSession` operation is derived from the installed Medusa SDK signature
-- Medusa creates/updates the payment collection/session; storefront does not fabricate payment state
-- cart is re-fetched with `payment_collection.payment_sessions` after initialization
-- active provider/session is rendered from authoritative cart state
-- no `completeCart` call exists in this branch
-- no PayPal/Klarna/card credentials are stored or required
-- provider-specific authorization/redirect UI remains deliberately unimplemented
-- no payment authorization, capture, refund or successful-order state can be triggered from the new step
-- architecture documented in `docs/architecture/PAYMENT_SESSION.md`
+- pinned `@paypal/paypal-server-sdk@2.5.0` using the workspace lockfile
+- custom Medusa PayPal Payment Module Provider under `apps/backend/src/modules/paypal`
+- provider identifier `paypal`; runtime Medusa provider ID `pp_paypal_paypal`
+- provider is registered only when both `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` exist
+- absence of PayPal credentials leaves local development and normal backend startup provider-free
+- Sandbox is the safe/default environment; Live requires explicit `PAYPAL_ENVIRONMENT=production`
+- authorize-only is the default; `PAYPAL_AUTO_CAPTURE=true` enables immediate capture behavior
+- PayPal order creation stores Medusa session ID as PayPal `custom_id`
+- provider methods implemented for initiate, authorize, capture, refund, update, retrieve, cancel, delete/no-op and payment-status mapping
+- PayPal webhook signature verification implemented using the configured PayPal webhook ID
+- supported webhook actions include authorization-created, authorization-voided, capture-completed and capture-denied
+- backend environment template documents PayPal runtime variables without credentials
+- CI now forces the PayPal registration path with dummy sandbox credentials after clean migrations
+- backend TypeScript compatibility with PayPal SDK 2.5.0 passed
+- conditional Medusa provider registration/constructor path passed with dummy sandbox credentials
+- architecture documented in `docs/architecture/PAYPAL_PROVIDER.md`
+- temporary dependency-lock bootstrap workflow has been removed; normal frozen-lockfile CI remains authoritative
 
-The payment-session branch still requires documentation-inclusive exact-head CI, protected PR CI and merge before this foundation is considered shipped.
+The branch still requires final documentation-inclusive exact-head CI, protected PR CI and merge before the PayPal backend provider is considered shipped.
 
 ## Phase status
 
@@ -78,7 +85,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 3 — Domain model / managed infrastructure
 
-**Code and managed-resource foundation substantially complete.** Remaining work is staging runtime provisioning: backend, worker, Redis, runtime-only DB/S3 secrets, real staging migrations, Admin user, publishable key, media-upload verification and backup/restore rehearsal.
+**Code and managed-resource foundation substantially complete.** Remaining work is staging runtime provisioning: backend, worker, Redis, runtime-only DB/S3/payment secrets, real staging migrations, Admin user, publishable key, media-upload verification and backup/restore rehearsal.
 
 ### Phase 4 — Magento extraction / migration
 
@@ -90,7 +97,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 6 — Storefront parity
 
-**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery, cart and address/shipping checkout are shipped. Wishlist, full editorial parity and final responsive/visual UAT remain.
+**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery, cart, address/shipping checkout and generic payment-session selection are shipped. Wishlist, full editorial parity, provider-specific payment authorization and final responsive/visual UAT remain.
 
 ### Phase 7 — Search, discovery and merchandising
 
@@ -98,7 +105,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 8 — Cart / checkout foundation
 
-**Cart + address/shipping shipped; payment-session foundation active on feature branch.** Generic provider discovery and session initialization are implemented without order completion. Provider-specific PayPal/Klarna/card authorization is not implemented yet.
+**Generic checkout/payment-session foundation shipped.** The PayPal backend provider is active on a feature branch. PayPal browser approval/order completion, Klarna and the final card acquirer remain separate provider workstreams.
 
 ### Phases 9–18
 
@@ -119,9 +126,12 @@ Tracked in GitHub issue #9:
 9. configure supported `el-GR` and `en-GB` locales
 10. configure the Greece-serving Medusa region and sales-channel relationship
 11. configure real service zones, shipping profiles/options and any fulfillment provider needed for calculated rates
-12. install and enable real payment providers on the intended region using sandbox/test credentials
-13. connect storefront to staging backend
-14. verify `/health`, Admin, Store API, catalogue flows, translations, cart, address/shipping checkout, payment-provider discovery/session initialization, media upload and worker operation
+12. provision PayPal Sandbox merchant app and backend credentials
+13. configure PayPal webhook and `PAYPAL_WEBHOOK_ID`
+14. enable `pp_paypal_paypal` on the intended Medusa region
+15. add/test the provider-specific PayPal browser approval flow before enabling order completion
+16. connect storefront to staging backend
+17. verify `/health`, Admin, Store API, catalogue flows, translations, cart, address/shipping checkout, payment sessions, PayPal authorization/webhooks, media upload and worker operation
 
 ## Production boundary
 
