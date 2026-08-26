@@ -322,7 +322,7 @@ class KlarnaPaymentProviderService extends AbstractPaymentProvider<Options> {
     try {
       const data = this.sessionData(input.data)
       const orderId = this.requiredString(data.order_id, "Klarna order ID")
-      const capturedAmount = this.toMinorUnits(input.amount)
+      const capturedAmount = this.requiredNumber(data.order_amount, "order_amount")
       const response = await this.request<KlarnaCaptureResponse>(
         `/ordermanagement/v1/orders/${encodeURIComponent(orderId)}/captures`,
         {
