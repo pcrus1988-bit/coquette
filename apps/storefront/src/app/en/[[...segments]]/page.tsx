@@ -157,6 +157,7 @@ export default async function EnglishStorefrontPage({
         <ProductListingShell
           categoryHandle="clothing"
           description="New arrivals, dresses, tops, trousers, denim, knitwear, swimwear and the core Coquette Concept clothing edit."
+          designer={parsed.designer}
           eyebrow="Clothing"
           hrefBase="/en/clothing"
           language="en"
@@ -178,6 +179,7 @@ export default async function EnglishStorefrontPage({
     return (
       <ProductListingShell
         categoryHandle={child}
+        designer={parsed.designer}
         eyebrow="Clothing · Category"
         hrefBase={`/en/clothing/${child}`}
         language="en"
@@ -197,6 +199,7 @@ export default async function EnglishStorefrontPage({
         <ProductListingShell
           categoryHandle="accessories"
           description="Bags, belts, jewellery, hats, sunglasses and hair accessories from the selected Coquette Concept designer portfolio."
+          designer={parsed.designer}
           eyebrow="Accessories"
           hrefBase="/en/accessories"
           language="en"
@@ -218,6 +221,7 @@ export default async function EnglishStorefrontPage({
     return (
       <ProductListingShell
         categoryHandle={child}
+        designer={parsed.designer}
         eyebrow="Accessories · Category"
         hrefBase={`/en/accessories/${child}`}
         language="en"
@@ -238,7 +242,8 @@ export default async function EnglishStorefrontPage({
 
     return (
       <ProductListingShell
-        description="Search the live product catalogue and narrow results using migrated global colour and size options."
+        description="Search the live product catalogue and narrow results by designer and migrated global colour and size options."
+        designer={parsed.designer}
         eyebrow="Search"
         hrefBase="/en/search"
         language="en"
