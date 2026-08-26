@@ -17,6 +17,8 @@
     "db:generate:brand": "medusa db:generate brand",
     "db:generate:content": "medusa db:generate content",
     "migration:contract": "ts-node src/scripts/migration-contract-check.ts",
+    "storefront:capture:contract": "ts-node src/scripts/storefront-capture-contract.ts",
+    "storefront:capture": "ts-node src/scripts/capture-legacy-storefront.ts",
     "admin:crud:contract": "medusa exec ./src/scripts/admin-crud-contract.ts",
     "sale:contract": "medusa exec ./src/scripts/sale-query-contract.ts",
     "staging:bootstrap": "medusa exec ./src/scripts/staging-commerce-bootstrap.ts",
