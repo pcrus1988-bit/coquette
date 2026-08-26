@@ -15,7 +15,7 @@
     "storefront:dev": "turbo dev --filter=@coquette/storefront",
     "railway-build-backend": "pnpm --filter @coquette/backend build:deploy",
     "railway-start-backend": "pnpm --filter @coquette/backend start:deploy",
-    "railway-predeploy-backend": "pnpm --filter @coquette/backend predeploy && pnpm --filter @coquette/backend staging:bootstrap",
+    "railway-predeploy-backend": "pnpm --filter @coquette/backend predeploy",
     "infra:up": "docker compose -f infra/local/docker-compose.yml up -d",
     "infra:down": "docker compose -f infra/local/docker-compose.yml down",
     "infra:logs": "docker compose -f infra/local/docker-compose.yml logs -f",
