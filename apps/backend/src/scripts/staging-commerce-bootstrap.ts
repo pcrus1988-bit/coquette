@@ -51,22 +51,21 @@ const isExistingLinkError = (error: unknown) => {
   )
 }
 
-const createLinkIfMissing = async (
-  link: { create: (definition: Record<string, unknown>) => Promise<unknown> },
-  definition: Record<string, unknown>
-) => {
-  try {
-    await link.create(definition)
-  } catch (error) {
-    if (!isExistingLinkError(error)) {
-      throw error
-    }
-  }
-}
-
 export default async function stagingCommerceBootstrap({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const link = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const createLinkIfMissing = async (
+    definition: Parameters<typeof link.create>[0]
+  ) => {
+    try {
+      await link.create(definition)
+    } catch (error) {
+      if (!isExistingLinkError(error)) {
+        throw error
+      }
+    }
+  }
 
   const storeModuleService = container.resolve(Modules.STORE)
   const regionModuleService = container.resolve(Modules.REGION)
@@ -126,17 +125,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
     })
     region = result[0]
   } else {
-    const countries = await regionModuleService.listCountries({
-      region_id: region.id,
-    })
-    const hasGreece = countries.some(
-      (country) => country.iso_2.toLowerCase() === COUNTRY_CODE
-    )
-
-    if (!hasGreece || providerIds.length > 1) {
-      logger.info("Updating Greece region country/payment-provider links")
-    }
-
+    logger.info("Ensuring Greece region country/payment-provider links")
     await updateRegionsWorkflow(container).run({
       input: {
         selector: { id: region.id },
@@ -227,7 +216,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
     )
   }
 
-  await createLinkIfMissing(link, {
+  await createLinkIfMissing({
     [Modules.STOCK_LOCATION]: {
       stock_location_id: stockLocation.id,
     },
@@ -286,7 +275,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
     throw new Error("Fulfillment set was not available after bootstrap")
   }
 
-  await createLinkIfMissing(link, {
+  await createLinkIfMissing({
     [Modules.STOCK_LOCATION]: {
       stock_location_id: stockLocation.id,
     },
