@@ -109,6 +109,25 @@ jobs:
           KLARNA_LOCALE: el-GR
         run: pnpm --filter @coquette/backend db:migrate
 
+      - name: Validate idempotent staging commerce bootstrap
+        env:
+          PAYPAL_CLIENT_ID: ci-paypal-client
+          PAYPAL_CLIENT_SECRET: ci-paypal-secret
+          PAYPAL_ENVIRONMENT: sandbox
+          PAYPAL_AUTO_CAPTURE: "false"
+          KLARNA_USERNAME: ci-klarna-user
+          KLARNA_PASSWORD: ci-klarna-password
+          KLARNA_CALLBACK_BASE_URL: https://coquette-ci.example
+          KLARNA_CALLBACK_SECRET: ci-klarna-callback-secret
+          KLARNA_ENVIRONMENT: playground
+          KLARNA_API_REGION: eu
+          KLARNA_PURCHASE_COUNTRY: GR
+          KLARNA_LOCALE: el-GR
+          COQUETTE_STANDARD_SHIPPING_EUR: "4.90"
+        run: |
+          pnpm --filter @coquette/backend staging:bootstrap
+          pnpm --filter @coquette/backend staging:bootstrap
+
       - name: Validate Sale pricing graph contract
         run: pnpm --filter @coquette/backend sale:contract
 
