@@ -2,6 +2,7 @@ import { sourceChecksum } from "./checksum"
 import {
   createPendingManifestEntry,
   findDuplicateManifestKeys,
+  manifestKey,
 } from "./manifest"
 import type {
   RecoveryCandidateConflict,
@@ -43,6 +44,7 @@ export type ProductImportPlan = {
   totals: Record<ProductImportPlanState, number>
   runtimeManifestEntries: MigrationManifestEntry[]
   duplicateCandidateKeys: string[]
+  duplicateSourceKeys: string[]
   duplicateRuntimeManifestKeys: string[]
   duplicateSkus: string[]
   isExecutable: boolean
@@ -60,7 +62,9 @@ export function explicitLegacyLocale(sourceId: string): "el" | "en" | undefined 
 }
 
 function semanticProductPayload(product: NormalizedStorefrontProduct) {
-  const { evidence: _evidence, capturedAt: _capturedAt, ...payload } = product
+  const { evidence, capturedAt, ...payload } = product
+  void evidence
+  void capturedAt
   return payload
 }
 
@@ -112,7 +116,11 @@ function initialEntry(candidate: RecoveryProductCandidate): ProductImportPlanEnt
 
   let state: ProductImportPlanState = "blocked"
   if (candidate.disposition === "rejected") state = "rejected"
-  else if (candidate.disposition === "ready" && normalizedProduct && validationIssues.length === 0) {
+  else if (
+    candidate.disposition === "ready" &&
+    normalizedProduct &&
+    validationIssues.length === 0
+  ) {
     state = "ready"
   }
 
@@ -169,6 +177,20 @@ export function buildProductImportPlan(
     }
   }
 
+  const duplicateSourceKeys = duplicateValues(
+    entries
+      .filter((entry) => entry.state !== "rejected")
+      .map((entry) => (entry.sourceKey ? manifestKey(entry.sourceKey) : undefined))
+  )
+  for (const entry of entries) {
+    if (
+      entry.sourceKey &&
+      duplicateSourceKeys.includes(manifestKey(entry.sourceKey))
+    ) {
+      blockEntry(entry, "duplicate_source_key_requires_evidence_resolution")
+    }
+  }
+
   const provisionalRuntimeEntries = entries.flatMap((entry) => {
     if (
       entry.state !== "ready" ||
@@ -191,21 +213,10 @@ export function buildProductImportPlan(
 
   if (duplicateRuntimeManifestKeys.length > 0) {
     for (const entry of entries) {
-      if (!entry.sourceKey) continue
-      const runtimeKey = provisionalRuntimeEntries.find(
-        (manifestEntry) =>
-          manifestEntry.sourceId === entry.sourceKey?.sourceId &&
-          manifestEntry.locale === entry.sourceKey?.locale
-      )
-      if (!runtimeKey) continue
-      const encoded = [
-        runtimeKey.entityType,
-        runtimeKey.sourceId,
-        runtimeKey.locale ?? "-",
-      ]
-        .map((part) => encodeURIComponent(part))
-        .join(":")
-      if (duplicateRuntimeManifestKeys.includes(encoded)) {
+      if (
+        entry.sourceKey &&
+        duplicateRuntimeManifestKeys.includes(manifestKey(entry.sourceKey))
+      ) {
         blockEntry(entry, "duplicate_runtime_manifest_key")
       }
     }
@@ -241,6 +252,7 @@ export function buildProductImportPlan(
     totals,
     runtimeManifestEntries,
     duplicateCandidateKeys,
+    duplicateSourceKeys,
     duplicateRuntimeManifestKeys,
     duplicateSkus,
     isExecutable:
@@ -248,6 +260,7 @@ export function buildProductImportPlan(
       totals.blocked === 0 &&
       totals.rejected === 0 &&
       duplicateCandidateKeys.length === 0 &&
+      duplicateSourceKeys.length === 0 &&
       duplicateRuntimeManifestKeys.length === 0 &&
       duplicateSkus.length === 0,
   }
