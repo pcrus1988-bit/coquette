@@ -10,19 +10,27 @@ This file defines the concrete Railway staging deployment for the Medusa backend
 - Railway Redis must be dedicated to COQUETTE.
 - Magento remains production until formal cutover.
 
-## Railway project
+## Current verified state — 2026-08-26
 
-Recommended staging project name:
+- Railway project `coquette-staging` exists.
+- `coquette-backend` is deployed successfully from the stable `staging` release flow.
+- `coquette-worker` is deployed successfully from the same staging release flow.
+- The public backend healthcheck was brought online during staging setup.
+- Medusa Admin was reached during staging setup.
+- Medusa migrations are applied to the dedicated COQUETTE Supabase database.
+- Admin users and publishable Store API keys have been bootstrapped.
+- The Vercel staging storefront deploys successfully.
+- Repository CI validates the Railway production artifact and the staging commerce bootstrap on disposable PostgreSQL + Redis infrastructure.
 
-```text
-coquette-staging
-```
+The obsolete Vercel project named `backend` is not part of the COQUETTE runtime. Its deployment status must not be treated as a staging health signal and it must never receive database, Redis, S3 or payment secrets.
 
-Create three Railway services:
+## Railway services
 
-1. `coquette-backend` — GitHub source `pcrus1988-bit/coquette`, branch `staging` or `main` during initial bring-up.
-2. `coquette-worker` — the same GitHub source and commit as the backend.
-3. `Redis` — Railway managed Redis.
+The staging project uses three services:
+
+1. `coquette-backend` — GitHub source `pcrus1988-bit/coquette`, stable branch `staging`.
+2. `coquette-worker` — the same GitHub source and release commit as the backend.
+3. `Redis` — dedicated Railway-managed Redis.
 
 The worker must not receive a public domain.
 
@@ -30,19 +38,19 @@ The worker must not receive a public domain.
 
 Keep the Railway source root at the repository root. Do not set the service root to `apps/backend`, because pnpm workspace metadata and the root lockfile are required for the source build.
 
-Build command for both Medusa services:
+Preferred root build command for both Medusa services:
 
 ```sh
-pnpm --filter @coquette/backend build:deploy
+pnpm railway-build-backend
 ```
 
-Start command for both Medusa services:
+Preferred root start command for both Medusa services:
 
 ```sh
-pnpm --filter @coquette/backend start:deploy
+pnpm railway-start-backend
 ```
 
-The deploy build first runs Medusa through the repository pnpm workspace. Medusa recreates `apps/backend/.medusa/server` as a standalone application. The deployment script then installs only the standalone runtime's production dependencies with npm inside that generated directory. This deliberately avoids pnpm walking back up into the parent monorepo workspace during the second installation step. The start command launches the generated server from that directory.
+The root wrappers delegate to the backend package. The deploy build first runs Medusa through the repository pnpm workspace. Medusa recreates `apps/backend/.medusa/server` as a standalone application. The deployment script then installs only the standalone runtime's production dependencies with npm inside that generated directory. This deliberately avoids pnpm walking back up into the parent monorepo workspace during the second installation step. The start command launches the generated server from that directory and binds it to Railway's network interface and injected port.
 
 ## Redis production infrastructure
 
@@ -73,15 +81,15 @@ Healthcheck path:
 /health
 ```
 
-Railway injects `PORT` automatically and performs the healthcheck on that port. Medusa honors the `PORT` environment variable, but its default `HOST` is `localhost`. Railway must be able to reach the process over the container network, so set `HOST=0.0.0.0` on the backend service. Do not add a manual `PORT` unless Railway's generated port behavior is intentionally overridden.
+Railway injects `PORT` automatically and performs the healthcheck on that port. Medusa is started with `--host 0.0.0.0 --port ${PORT:-9000}` through `railway-start-backend`, so the process is reachable over the Railway container network. Do not add a manual `PORT` unless Railway's generated-port behavior is intentionally overridden.
 
 Pre-deploy command:
 
 ```sh
-pnpm --filter @coquette/backend predeploy
+pnpm railway-predeploy-backend
 ```
 
-This command runs Medusa migrations and link synchronization before the new server release starts.
+This command runs Medusa migrations and link synchronization before the new server release starts. Database migrations must remain server-only and must not run independently from the worker.
 
 Variables:
 
@@ -96,15 +104,15 @@ MEDUSA_WORKER_MODE=server
 DISABLE_MEDUSA_ADMIN=false
 MEDUSA_BACKEND_URL=https://<railway-backend-domain>
 ADMIN_CORS=https://<railway-backend-domain>
-STORE_CORS=<staging storefront origin; temporary backend origin is acceptable before storefront exists>
+STORE_CORS=<staging storefront origin>
 AUTH_CORS=<staging storefront origin>,https://<railway-backend-domain>
 ```
 
 Do not use a Supabase transaction-pooler URL on port 6543 for the persistent Medusa application. Use a direct connection where the host supports the required network path, otherwise use the Supabase Session Pooler on port 5432.
 
-Do not set payment, courier or AADE production credentials during staging bootstrap.
+Do not set production payment, courier or AADE credentials during staging bootstrap.
 
-S3 variables can be added after the base server is healthy:
+S3 variables:
 
 ```text
 S3_FILE_URL=https://pijetwrxqznxaoacnakr.supabase.co/storage/v1/object/public/coquette-media
@@ -127,7 +135,7 @@ coquette-worker
 
 Public networking: disabled.
 
-No healthcheck is required.
+No public HTTP healthcheck is required.
 
 No pre-deploy command is allowed on the worker. Database migrations must run only from the server release path.
 
@@ -142,20 +150,66 @@ MEDUSA_BACKEND_URL=https://<railway-backend-domain>
 
 The worker and server must deploy the same Git commit/release.
 
-## First staging verification
+## Explicit staging commerce bootstrap
 
-Do not proceed to storefront connection until all of these pass:
+The repository contains an idempotent Medusa CLI bootstrap for the initial Greece commerce configuration:
+
+```sh
+pnpm --filter @coquette/backend staging:bootstrap
+```
+
+The command is intentionally **not** part of the normal Railway pre-deploy command. It must be run explicitly when establishing or repairing a staging commerce environment so routine application releases cannot silently overwrite merchant-controlled commerce settings. Deploying or syncing the `staging` branch makes this command available on Railway; it does **not** execute the command against the live staging database automatically.
+
+The bootstrap safely ensures the following baseline:
+
+- one COQUETTE store, creating it when a clean environment has none;
+- one default sales channel, creating it when absent;
+- Greece region using EUR;
+- Greece (`gr`) assigned to the region;
+- store defaults for the Greece region and sales channel;
+- store locales `el-GR` and `en-GB`;
+- stock location `COQUETTE Greece`;
+- sales-channel ↔ stock-location linkage;
+- manual fulfillment provider ↔ stock-location linkage;
+- default shipping profile;
+- fulfillment set `COQUETTE Greece delivery`;
+- Greece service zone and country geo-zone;
+- fulfillment-set ↔ stock-location linkage;
+- registration of available staging PayPal/Klarna providers on the region when those providers are actually configured in the runtime.
+
+The command refuses to guess if an environment unexpectedly contains multiple stores or multiple sales channels.
+
+### Shipping price gate
+
+A customer-facing shipping option is created only when the operator deliberately supplies:
+
+```text
+COQUETTE_STANDARD_SHIPPING_EUR=<approved flat shipping price in EUR>
+```
+
+If this variable is absent, the fulfillment structure is created but no shipping price is invented. The synthetic `4.90` value used by GitHub CI exists only to exercise the shipping-option code path on a disposable database and is **not** a COQUETTE business setting.
+
+### CI proof
+
+The COQUETTE CI workflow runs the staging commerce bootstrap twice against a clean disposable PostgreSQL 17 + Redis environment. Both executions must succeed before the release is considered valid. This verifies both first-run creation and idempotent re-execution.
+
+## Staging verification
+
+The integrated staging environment is considered ready only when all of these pass:
 
 1. Railway server deployment is green.
-2. Pre-deploy migration completes successfully.
-3. `https://<railway-backend-domain>/health` returns `OK`.
-4. `https://<railway-backend-domain>/app` loads Medusa Admin.
-5. Worker remains running without a public endpoint.
-6. PostgreSQL logs show normal connectivity to the dedicated COQUETTE Supabase project.
-7. Logs confirm Redis-backed event bus, workflow engine, caching and locking modules connected successfully.
-
-After this, create the first Medusa Admin user and a publishable Store API key, then configure the Vercel storefront with the public backend URL and publishable key.
+2. Railway worker deployment is green.
+3. Pre-deploy migration completes successfully.
+4. `https://<railway-backend-domain>/health` returns `OK`.
+5. `https://<railway-backend-domain>/app` loads Medusa Admin.
+6. Worker remains running without a public endpoint.
+7. Server and worker logs show healthy access to the dedicated COQUETTE Supabase database.
+8. Server and worker logs confirm Redis-backed event bus, workflow engine, caching and locking modules connected successfully.
+9. The explicit commerce bootstrap has been run once against staging and its resulting database state has been verified.
+10. The Vercel storefront can call the Railway Store API with the intended publishable key.
+11. An Admin media upload and public read through `coquette-media` succeeds.
+12. Cart creation, shipping-option discovery and payment-session discovery succeed end-to-end.
 
 ## Railway configuration note
 
-Do not add a new `railway.json` or `railway.toml` for this project. Railway deprecated Config as Code for new services in 2026; use Railway's current service settings / Infrastructure as Code workflow instead. The application-level deployment commands remain in `apps/backend/package.json` so hosting configuration stays small and auditable.
+Do not add a new `railway.json` or `railway.toml` merely for this project setup. Keep hosting configuration in Railway's current service settings / Infrastructure-as-Code workflow and keep application-level commands in the repository where they remain auditable.
