@@ -105,6 +105,9 @@ jobs:
       - name: Validate capture ingestion and URL universe contract
         run: pnpm --filter @coquette/backend capture-ingestion:contract
 
+      - name: Validate public product structure evidence
+        run: pnpm --filter @coquette/backend product-structure:contract
+
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
 
