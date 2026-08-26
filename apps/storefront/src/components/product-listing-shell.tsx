@@ -6,6 +6,7 @@ import {
   type CategoryCatalogueState,
 } from "../lib/catalogue"
 import { getBrandProducts } from "../lib/brands"
+import { getSaleProducts } from "../lib/sale"
 import { ProductCard } from "./product-card"
 
 type StorefrontLanguage = "el" | "en"
@@ -16,6 +17,7 @@ type ProductListingShellProps = {
   description?: string
   categoryHandle?: string
   brandHandle?: string
+  saleOnly?: boolean
   loadAll?: boolean
   pendingMessage?: string
   page?: number
@@ -120,6 +122,7 @@ export async function ProductListingShell({
   description,
   categoryHandle,
   brandHandle,
+  saleOnly = false,
   loadAll = false,
   pendingMessage,
   page = 1,
@@ -131,13 +134,15 @@ export async function ProductListingShell({
   const labels = copy[language]
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
   const offset = (safePage - 1) * pageSize
-  const result = brandHandle
-    ? await getBrandProducts(brandHandle, pageSize, offset, locale)
-    : categoryHandle
-      ? await getCategoryProducts(categoryHandle, pageSize, offset, locale)
-      : loadAll
-        ? await getCatalogueProducts(pageSize, offset, locale)
-        : null
+  const result = saleOnly
+    ? await getSaleProducts(pageSize, offset, locale)
+    : brandHandle
+      ? await getBrandProducts(brandHandle, pageSize, offset, locale)
+      : categoryHandle
+        ? await getCategoryProducts(categoryHandle, pageSize, offset, locale)
+        : loadAll
+          ? await getCatalogueProducts(pageSize, offset, locale)
+          : null
   const totalPages = result
     ? Math.max(1, Math.ceil(result.count / pageSize))
     : 1
@@ -223,6 +228,7 @@ export async function ProductListingShell({
               <ProductCard
                 key={product.id}
                 language={language}
+                preferSalePrice={saleOnly}
                 product={product}
                 productHrefPrefix={resolvedProductHrefPrefix}
               />

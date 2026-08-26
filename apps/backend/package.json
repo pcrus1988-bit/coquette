@@ -14,7 +14,8 @@
     "db:migrate": "medusa db:migrate",
     "db:generate:brand": "medusa db:generate brand",
     "db:generate:content": "medusa db:generate content",
-    "migration:contract": "ts-node src/scripts/migration-contract-check.ts"
+    "migration:contract": "ts-node src/scripts/migration-contract-check.ts",
+    "sale:contract": "medusa exec ./src/scripts/sale-query-contract.ts"
   },
   "dependencies": {
     "@medusajs/admin-sdk": "2.19.0",

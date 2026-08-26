@@ -223,12 +223,13 @@ export default async function EnglishStorefrontPage({
 
     return (
       <ProductListingShell
-        description="The dedicated sale edit remains a separate merchandising surface with strike-through pricing and promotional states."
+        description="Only products whose currently calculated storefront price comes from an active Medusa Sale price list are shown. Private or customer-group price lists are not published as a general sale."
         eyebrow="Sale"
         hrefBase="/en/sale"
         language="en"
         locale={ENGLISH_LOCALE}
-        pendingMessage="Sale will not fall back to the full catalogue. It activates once the migrated sale-price/promotion rule is defined and verified."
+        page={pageNumber}
+        saleOnly
         title="Sale"
       />
     )

@@ -1,5 +1,6 @@
 import Link from "next/link"
 import type { CatalogueProduct } from "../lib/catalogue"
+import { isMedusaSalePrice } from "../lib/pricing"
 
 type ProductVariant = NonNullable<CatalogueProduct["variants"]>[number]
 type StorefrontLanguage = "el" | "en"
@@ -26,14 +27,24 @@ function formatPrice(
   }).format(amount)
 }
 
+function sortByCalculatedAmount(variants: ProductVariant[]): ProductVariant[] {
+  return [...variants].sort(
+    (left, right) =>
+      Number(left.calculated_price?.calculated_amount ?? 0) -
+      Number(right.calculated_price?.calculated_amount ?? 0)
+  )
+}
+
 export function ProductCard({
   product,
   language = "el",
   productHrefPrefix = "/products",
+  preferSalePrice = false,
 }: {
   product: CatalogueProduct
   language?: StorefrontLanguage
   productHrefPrefix?: string
+  preferSalePrice?: boolean
 }) {
   const copy = labels[language]
   const variants = product.variants ?? []
@@ -41,19 +52,17 @@ export function ProductCard({
     (variant: ProductVariant) =>
       variant.calculated_price?.calculated_amount != null
   )
-  const displayVariant = [...pricedVariants].sort(
-    (left: ProductVariant, right: ProductVariant) =>
-      Number(left.calculated_price?.calculated_amount ?? 0) -
-      Number(right.calculated_price?.calculated_amount ?? 0)
+  const saleVariants = pricedVariants.filter((variant: ProductVariant) =>
+    isMedusaSalePrice(variant.calculated_price)
+  )
+  const displayVariant = sortByCalculatedAmount(
+    preferSalePrice && saleVariants.length > 0 ? saleVariants : pricedVariants
   )[0]
   const price = displayVariant?.calculated_price
   const amount = price?.calculated_amount
   const originalAmount = price?.original_amount
   const currencyCode = price?.currency_code || "eur"
-  const isSale =
-    amount != null &&
-    originalAmount != null &&
-    Number(originalAmount) > Number(amount)
+  const isSale = isMedusaSalePrice(price)
   const isInStock = variants.some(
     (variant: ProductVariant) =>
       variant.manage_inventory === false ||
@@ -95,7 +104,7 @@ export function ProductCard({
           {amount != null ? (
             <div className="mt-2 flex items-baseline gap-2 text-sm">
               <span>{formatPrice(Number(amount), currencyCode, language)}</span>
-              {isSale ? (
+              {isSale && originalAmount != null ? (
                 <span className="text-xs text-neutral-400 line-through">
                   {formatPrice(Number(originalAmount), currencyCode, language)}
                 </span>
