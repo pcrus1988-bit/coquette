@@ -1,3 +1,4 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import { manifestKey } from "./manifest"
 import type { MigrationManifestEntry, MigrationSourceKey } from "./types"
 
@@ -15,7 +16,8 @@ export function buildImportedTargetMap(
     const existing = mapping.get(key)
 
     if (existing && existing !== entry.targetId) {
-      throw new Error(
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
         `Conflicting target IDs for migration source key ${key}: ${existing} vs ${entry.targetId}`
       )
     }
@@ -40,7 +42,10 @@ export function requireImportedTargetId(
   const targetId = resolveImportedTargetId(entries, key)
 
   if (!targetId) {
-    throw new Error(`Missing imported target mapping for ${manifestKey(key)}`)
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `Missing imported target mapping for ${manifestKey(key)}`
+    )
   }
 
   return targetId
