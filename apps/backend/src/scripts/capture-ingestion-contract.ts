@@ -3,6 +3,7 @@ import {
   buildDirectCaptureProductCandidates,
   type CaptureArtifactBundle,
 } from "../migration/capture-ingestion"
+import { validateCaptureArtifactBundle } from "../migration/capture-validation"
 import type { IndexedRecoveryBaseline } from "../migration/indexed-recovery"
 import { buildReconstructionUrlUniverse } from "../migration/url-universe"
 
@@ -38,11 +39,6 @@ const bundle: CaptureArtifactBundle = {
       optionLabels: ["Black", "S", "M"],
       description: "Captured public description",
     },
-    {
-      sourceUrl: "not-a-url",
-      name: "Invalid source fixture",
-      sku: "IGNORED",
-    },
   ],
   pages: [
     {
@@ -51,6 +47,7 @@ const bundle: CaptureArtifactBundle = {
       status: "captured",
       httpStatus: 200,
       capturedAt,
+      pageFile: "pages/fixture.html",
       pageType: "product",
       canonicalUrl: productUrl,
       checksum: "fixture-checksum",
@@ -85,6 +82,43 @@ const bundle: CaptureArtifactBundle = {
     [productUrl]: [mediaUrl],
   },
 }
+
+const validation = validateCaptureArtifactBundle(bundle)
+assert.equal(validation.isValid, true)
+assert.equal(validation.critical, 0)
+
+const invalidBundle: CaptureArtifactBundle = {
+  ...bundle,
+  products: [
+    ...bundle.products,
+    {
+      sourceUrl: "https://example.com/foreign-product.html",
+      name: "Foreign fixture",
+    },
+  ],
+  pages: [
+    ...bundle.pages,
+    {
+      sourceUrl: "https://coquetteconcept.gr/default/path-escape.html",
+      status: "captured",
+      capturedAt,
+      pageFile: "../escape.html",
+    },
+  ],
+}
+
+const invalidValidation = validateCaptureArtifactBundle(invalidBundle)
+assert.equal(invalidValidation.isValid, false)
+assert.ok(
+  invalidValidation.issues.some(
+    (issue) => issue.code === "invalid_product_source_url"
+  )
+)
+assert.ok(
+  invalidValidation.issues.some(
+    (issue) => issue.code === "unsafe_page_archive_path"
+  )
+)
 
 const candidates = buildDirectCaptureProductCandidates(bundle)
 assert.equal(candidates.length, 1)
