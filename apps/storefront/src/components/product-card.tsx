@@ -1,5 +1,6 @@
 import Link from "next/link"
 import type { CatalogueProduct } from "../lib/catalogue"
+import { isMedusaSalePrice } from "../lib/pricing"
 
 type ProductVariant = NonNullable<CatalogueProduct["variants"]>[number]
 type StorefrontLanguage = "el" | "en"
@@ -50,10 +51,7 @@ export function ProductCard({
   const amount = price?.calculated_amount
   const originalAmount = price?.original_amount
   const currencyCode = price?.currency_code || "eur"
-  const isSale =
-    amount != null &&
-    originalAmount != null &&
-    Number(originalAmount) > Number(amount)
+  const isSale = isMedusaSalePrice(price)
   const isInStock = variants.some(
     (variant: ProductVariant) =>
       variant.manage_inventory === false ||
@@ -95,7 +93,7 @@ export function ProductCard({
           {amount != null ? (
             <div className="mt-2 flex items-baseline gap-2 text-sm">
               <span>{formatPrice(Number(amount), currencyCode, language)}</span>
-              {isSale ? (
+              {isSale && originalAmount != null ? (
                 <span className="text-xs text-neutral-400 line-through">
                   {formatPrice(Number(originalAmount), currencyCode, language)}
                 </span>
