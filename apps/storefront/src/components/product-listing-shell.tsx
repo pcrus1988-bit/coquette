@@ -2,11 +2,14 @@ import Link from "next/link"
 import {
   getCatalogueProducts,
   getCategoryProducts,
+  getProductFilterOptions,
+  type CatalogueSort,
   type CatalogueState,
   type CategoryCatalogueState,
 } from "../lib/catalogue"
 import { getBrandProducts } from "../lib/brands"
 import { getSaleProducts } from "../lib/sale"
+import { CatalogueControls } from "./catalogue-controls"
 import { ProductCard } from "./product-card"
 
 type StorefrontLanguage = "el" | "en"
@@ -25,6 +28,9 @@ type ProductListingShellProps = {
   language?: StorefrontLanguage
   locale?: string
   productHrefPrefix?: string
+  query?: string
+  sort?: CatalogueSort
+  optionValueIds?: string[]
 }
 
 const copy = {
@@ -32,7 +38,7 @@ const copy = {
     filters: ["Τιμή", "Σχεδιαστής", "Χρώμα", "Μέγεθος"],
     products: "προϊόντα",
     connectionPending: "catalogue connection pending",
-    filterPending: "Ενεργοποιείται στη φάση search/filter",
+    filterPending: "Δεν είναι διαθέσιμο σε αυτή την εμπορική επιφάνεια ακόμη",
     sort: "Ταξινόμηση ▾",
     unconfigured:
       "Το catalogue UI είναι έτοιμο. Αναμένει το dedicated COQUETTE Medusa backend URL και publishable key του staging περιβάλλοντος.",
@@ -55,7 +61,7 @@ const copy = {
     filters: ["Price", "Designer", "Colour", "Size"],
     products: "products",
     connectionPending: "catalogue connection pending",
-    filterPending: "Activates in the search/filter phase",
+    filterPending: "Not available on this merchandising surface yet",
     sort: "Sort ▾",
     unconfigured:
       "The catalogue UI is ready and is waiting for the dedicated COQUETTE staging Medusa backend URL and publishable key.",
@@ -116,6 +122,40 @@ function ConnectionMessage({
   return <p>{labels.unavailable}</p>
 }
 
+function pageHref({
+  hrefBase,
+  page,
+  query,
+  sort,
+  optionValueIds,
+}: {
+  hrefBase: string
+  page: number
+  query?: string
+  sort?: CatalogueSort
+  optionValueIds?: string[]
+}) {
+  const params = new URLSearchParams()
+
+  if (query?.trim()) {
+    params.set("q", query.trim())
+  }
+  if (sort) {
+    params.set("sort", sort)
+  }
+  for (const optionId of [...new Set(optionValueIds ?? [])]) {
+    if (optionId) {
+      params.append("option", optionId)
+    }
+  }
+  if (page > 1) {
+    params.set("page", String(page))
+  }
+
+  const queryString = params.toString()
+  return queryString ? `${hrefBase}?${queryString}` : hrefBase
+}
+
 export async function ProductListingShell({
   eyebrow,
   title,
@@ -130,19 +170,35 @@ export async function ProductListingShell({
   language = "el",
   locale,
   productHrefPrefix,
+  query,
+  sort = "",
+  optionValueIds = [],
 }: ProductListingShellProps) {
   const labels = copy[language]
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
   const offset = (safePage - 1) * pageSize
+  const supportsNativeCatalogueQuery = !saleOnly && !brandHandle && (Boolean(categoryHandle) || loadAll)
+  const nativeQuery = supportsNativeCatalogueQuery
+    ? {
+        q: query,
+        order: sort,
+        optionValueIds,
+      }
+    : undefined
+
   const result = saleOnly
     ? await getSaleProducts(pageSize, offset, locale)
     : brandHandle
       ? await getBrandProducts(brandHandle, pageSize, offset, locale)
       : categoryHandle
-        ? await getCategoryProducts(categoryHandle, pageSize, offset, locale)
+        ? await getCategoryProducts(categoryHandle, pageSize, offset, locale, nativeQuery)
         : loadAll
-          ? await getCatalogueProducts(pageSize, offset, locale)
+          ? await getCatalogueProducts(pageSize, offset, locale, nativeQuery)
           : null
+
+  const filterOptionsResult = supportsNativeCatalogueQuery
+    ? await getProductFilterOptions(locale)
+    : null
   const totalPages = result
     ? Math.max(1, Math.ceil(result.count / pageSize))
     : 1
@@ -178,31 +234,42 @@ export async function ProductListingShell({
         </div>
       </header>
 
-      <section className="border-y border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 overflow-x-auto px-5 py-4 lg:px-8">
-          <div className="flex gap-2">
-            {(labels.filters as string[]).map((filter) => (
-              <button
-                className="cursor-not-allowed whitespace-nowrap border border-neutral-200 px-4 py-2 text-[11px] uppercase tracking-[0.12em] text-neutral-400"
-                disabled
-                key={filter}
-                title={labels.filterPending as string}
-                type="button"
-              >
-                {filter} +
-              </button>
-            ))}
+      {supportsNativeCatalogueQuery ? (
+        <CatalogueControls
+          action={hrefBase}
+          language={language}
+          options={filterOptionsResult?.options ?? []}
+          query={query}
+          selectedOptionValueIds={optionValueIds}
+          sort={sort}
+        />
+      ) : (
+        <section className="border-y border-neutral-200 bg-white">
+          <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 overflow-x-auto px-5 py-4 lg:px-8">
+            <div className="flex gap-2">
+              {(labels.filters as string[]).map((filter) => (
+                <button
+                  className="cursor-not-allowed whitespace-nowrap border border-neutral-200 px-4 py-2 text-[11px] uppercase tracking-[0.12em] text-neutral-400"
+                  disabled
+                  key={filter}
+                  title={labels.filterPending as string}
+                  type="button"
+                >
+                  {filter} +
+                </button>
+              ))}
+            </div>
+            <button
+              className="cursor-not-allowed whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-neutral-400"
+              disabled
+              title={labels.filterPending as string}
+              type="button"
+            >
+              {labels.sort}
+            </button>
           </div>
-          <button
-            className="cursor-not-allowed whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-neutral-400"
-            disabled
-            title={labels.filterPending as string}
-            type="button"
-          >
-            {labels.sort}
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="mx-auto max-w-[1440px] px-5 py-14 lg:px-8">
         {!result ? (
@@ -242,7 +309,15 @@ export async function ProductListingShell({
             className="mt-14 flex items-center justify-between border-t border-neutral-200 pt-8 text-xs uppercase tracking-[0.14em]"
           >
             {hasPrevious ? (
-              <Link href={`${hrefBase}?page=${safePage - 1}`}>
+              <Link
+                href={pageHref({
+                  hrefBase,
+                  page: safePage - 1,
+                  query,
+                  sort,
+                  optionValueIds,
+                })}
+              >
                 {labels.previous}
               </Link>
             ) : (
@@ -252,7 +327,15 @@ export async function ProductListingShell({
               {safePage} / {totalPages}
             </span>
             {hasNext ? (
-              <Link href={`${hrefBase}?page=${safePage + 1}`}>
+              <Link
+                href={pageHref({
+                  hrefBase,
+                  page: safePage + 1,
+                  query,
+                  sort,
+                  optionValueIds,
+                })}
+              >
                 {labels.next}
               </Link>
             ) : (
