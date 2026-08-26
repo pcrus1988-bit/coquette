@@ -62,9 +62,23 @@ export function explicitLegacyLocale(sourceId: string): "el" | "en" | undefined 
 }
 
 function semanticProductPayload(product: NormalizedStorefrontProduct) {
-  const { evidence, capturedAt, ...payload } = product
+  const {
+    evidence,
+    capturedAt,
+    stockState,
+    lowStockMessage,
+    regularPrice,
+    salePrice,
+    currencyCode,
+    ...payload
+  } = product
   void evidence
   void capturedAt
+  void stockState
+  void lowStockMessage
+  void regularPrice
+  void salePrice
+  void currencyCode
   return payload
 }
 
