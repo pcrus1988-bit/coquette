@@ -1,4 +1,4 @@
-import type { NormalizedMagentoProduct } from "./types"
+import type { NormalizedStorefrontProduct } from "./types"
 
 export type ValidationIssue = {
   field: string
@@ -6,12 +6,12 @@ export type ValidationIssue = {
 }
 
 export function validateNormalizedProduct(
-  product: NormalizedMagentoProduct
+  product: NormalizedStorefrontProduct
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = []
 
   if (!product.sourceId.trim()) {
-    issues.push({ field: "sourceId", message: "Magento source ID is required." })
+    issues.push({ field: "sourceId", message: "Legacy source ID is required." })
   }
 
   if (!product.sku.trim()) {
@@ -25,7 +25,23 @@ export function validateNormalizedProduct(
   if (product.type === "unknown") {
     issues.push({
       field: "type",
-      message: "Unknown Magento product type requires manual mapping.",
+      message: "Unknown legacy product type requires explicit review or mapping.",
+    })
+  }
+
+  if (product.categorySourceIds.length === 0) {
+    issues.push({
+      field: "categorySourceIds",
+      message:
+        "At least one recovered category source relationship is required for automatic product import.",
+    })
+  }
+
+  if (product.mediaSourceIds.length === 0) {
+    issues.push({
+      field: "mediaSourceIds",
+      message:
+        "At least one recovered COQUETTE-owned product media source is required for automatic product import.",
     })
   }
 
@@ -34,6 +50,17 @@ export function validateNormalizedProduct(
       field: "optionValues",
       message:
         "Configurable parent products must not be treated as purchasable variant option values.",
+    })
+  }
+
+  if (
+    product.regularPrice !== undefined &&
+    product.salePrice !== undefined &&
+    product.salePrice > product.regularPrice
+  ) {
+    issues.push({
+      field: "salePrice",
+      message: "Sale price cannot exceed regular price for automatic import.",
     })
   }
 
