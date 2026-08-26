@@ -30,8 +30,11 @@ const checksumChanged = sourceChecksum({ sku: "SKU-2", nested: { a: 1, b: 2 } })
 assert.equal(checksumA, checksumB, "checksum must ignore object key order")
 assert.notEqual(checksumA, checksumChanged, "checksum must change with source data")
 
+const sourceUrl = "https://coquetteconcept.gr/default/example.html"
+const capturedAt = "2026-08-26T12:00:00.000Z"
+
 const pending = createPendingManifestEntry(
-  { entityType: "product", sourceId: "https://coquetteconcept.gr/default/example.html", locale: "el" },
+  { entityType: "product", sourceId: sourceUrl, locale: "el" },
   checksumA
 )
 assert.equal(pending.status, "pending")
@@ -58,7 +61,8 @@ assert.equal(reconciliation.isReconciled, true)
 assert.equal(reconciliation.unexplainedVariance, 0)
 
 const sampleProduct: NormalizedMagentoProduct = {
-  sourceId: "https://coquetteconcept.gr/default/example.html",
+  sourceId: sourceUrl,
+  canonicalUrl: sourceUrl,
   sku: "COQ-42",
   name: "Synthetic storefront reconstruction fixture",
   status: "enabled",
@@ -67,6 +71,19 @@ const sampleProduct: NormalizedMagentoProduct = {
   categorySourceIds: ["https://coquetteconcept.gr/default/clothing.html"],
   optionValues: { size: "M" },
   mediaSourceIds: ["https://coquetteconcept.gr/media/catalog/product/example.jpg"],
+  stockState: "in_stock",
+  regularPrice: 100,
+  salePrice: 70,
+  currencyCode: "EUR",
+  evidence: [
+    {
+      sourceUrl,
+      capturedAt,
+      grade: "direct",
+      note: "Synthetic public product-page evidence",
+    },
+  ],
+  capturedAt,
 }
 
 assert.deepEqual(validateNormalizedProduct(sampleProduct), [])
@@ -74,7 +91,7 @@ assert.deepEqual(validateNormalizedProduct(sampleProduct), [])
 const normalizedRecord = createNormalizedSourceRecord(
   { entityType: "product", sourceId: sampleProduct.sourceId, locale: "el" },
   sampleProduct,
-  "2026-08-26T12:00:00.000Z"
+  capturedAt
 )
 assert.equal(normalizedRecord.sourceChecksum, sourceChecksum(sampleProduct))
 assert.equal(normalizedRecord.data.sku, "COQ-42")
@@ -117,7 +134,7 @@ const run = createMigrationRun(
     evidenceMode: "public_storefront",
     captureId: "storefront-2026-08-26",
     baseUrl: "https://coquetteconcept.gr/",
-    capturedAt: "2026-08-26T12:00:00.000Z",
+    capturedAt,
     crawlerCommitSha: "0123456789abcdef",
     urlInventorySha256: "a".repeat(64),
     captureManifestSha256: "b".repeat(64),
