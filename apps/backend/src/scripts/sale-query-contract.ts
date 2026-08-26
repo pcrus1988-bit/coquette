@@ -1,5 +1,8 @@
 import type { ExecArgs } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  MedusaError,
+} from "@medusajs/framework/utils"
 import { getPublicSaleCandidateProductIds } from "../sale/public-sale-candidates"
 
 export default async function saleQueryContract({ container }: ExecArgs) {
@@ -7,7 +10,10 @@ export default async function saleQueryContract({ container }: ExecArgs) {
   const productIds = await getPublicSaleCandidateProductIds(query)
 
   if (!Array.isArray(productIds)) {
-    throw new Error("Sale pricing graph contract did not return an array")
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      "Sale pricing graph contract did not return an array"
+    )
   }
 
   console.log(
