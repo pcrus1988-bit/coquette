@@ -95,18 +95,20 @@ Current implementation:
 
 - introduces a separate import-plan layer before runtime migration state
 - every recovery candidate is accounted as `ready`, `blocked`, or `rejected`
-- runtime `pending` manifest entries are generated only for fully validated, identity-safe candidates
-- semantic source checksum excludes evidence timestamps/provenance so a newer capture alone does not force product re-import
-- planning checksum separately tracks evidence/review-state changes
+- runtime `pending` product-manifest entries are generated only for fully validated, identity-safe candidates
+- planning checksum tracks evidence/review-state changes
+- runtime `product` semantic checksum is entity-scoped: it excludes price, sale-price, currency and stock/low-stock observations as well as evidence timestamps/provenance
+- price and inventory remain separate migration domains and cannot be falsely marked complete by a product import
 - `/default/` and `/en/` locale markers may be derived only from explicit public routes
 - duplicate SKU candidates are blocked until product/localization identity is explicitly resolved, preventing EL/EN duplicate product creation
-- duplicate candidate keys and duplicate runtime source keys block execution
-- automatic import requires at least one recovered category relationship and captured product-media source
+- duplicate candidate keys, duplicate legacy source keys and duplicate runtime source keys block execution
+- automatic product import requires at least one recovered category relationship and captured product-media source
 - import-boundary validation rejects foreign-host source/category/media URLs
+- explicitly configurable products are blocked from automatic product import until child variant identity, option combinations, pricing and inventory are reconstructed
 - configurable parent option flattening and invalid sale pricing remain blocked
-- `capture:ingest` report now includes the import plan
-- an optional executable runtime manifest file is written only when the **entire** product plan is executable; partial reconstruction cannot masquerade as a complete batch
-- dedicated deterministic import-plan contract is wired into CI
+- `capture:ingest` report includes the import plan
+- an optional executable runtime product manifest is written only when the **entire** product plan is executable; partial reconstruction cannot masquerade as a complete batch
+- deterministic import-plan contract is wired into CI and covers duplicate source identity, configurable-parent blocking, and product-checksum separation from price/inventory changes
 
 Canonical detail: `docs/migration/PRODUCT_IMPORT_PLAN.md`.
 
@@ -127,12 +129,12 @@ Canonical detail: `docs/migration/PRODUCT_IMPORT_PLAN.md`.
 
 After Phase 4F validates and merges:
 
-1. add explicit merchant/reviewer decisions for non-public fields such as publication status/visibility and unresolved product identity;
-2. run a useful direct capture from an accepted legitimate operator/browser network;
-3. ingest the archive and inspect structure/candidate/import-plan/URL-universe reports;
-4. reconcile category, Designer/Brand, localization, option/variant and media mappings;
-5. generate an executable idempotent runtime manifest only after the captured product plan is fully clean;
-6. proceed to staging import without weakening evidence or reconciliation gates.
+1. add a staging-only, fail-closed product execution layer using Medusa `createProductsWorkflow`;
+2. require resolved target mappings for every source dependency before any product write;
+3. keep price-list and inventory execution separate from the structural product manifest;
+4. add explicit merchant/reviewer decisions for unresolved publication/visibility, localization and variant identity where public evidence is insufficient;
+5. run a useful direct capture from an accepted legitimate operator/browser network;
+6. ingest the archive and drive candidate/import-plan/URL-universe blockers toward zero without weakening evidence gates.
 
 ## Phase 4 exit boundary
 
