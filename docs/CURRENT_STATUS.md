@@ -6,7 +6,7 @@
 
 ## Shipped to `main`
 
-Through merge `d0cb5cb046cd0933703f896cdbc2e9bcd792c24d`:
+Through merge `5cd7d026fffaeaeaa01f06031af42ff22a9ce0fa`:
 
 - isolated COQUETTE repository/workspace
 - pnpm/Turbo monorepo
@@ -23,39 +23,41 @@ Through merge `d0cb5cb046cd0933703f896cdbc2e9bcd792c24d`:
 - migration predeploy command
 - Admin backend URL configuration
 - guarded Medusa JS SDK Store API client
-- real Store API-backed product detail route for content, gallery, options, calculated prices and inventory state
-- real Store API category product-listing surfaces for Greek Clothing and Accessories
-- descendant-category aggregation so top-level categories include products assigned to nested categories
-- reusable product cards with media, stock state and calculated/sale pricing
+- Store API product-detail pages with media, options, calculated prices and inventory
+- Greek and English Clothing/Accessories PLPs and nested category PLPs
+- descendant-category aggregation
+- product cards with media, stock state and calculated pricing
 - server-side catalogue pagination
-- Medusa Translation Module enabled
-- locale-aware Store API product/category queries
-- shared Greek/English product cards and product-detail surface
-- `/en/products/<handle>` using the same product record with Medusa translations
-- localized English Clothing and Accessories PLPs and nested category routes
+- Medusa Translation Module and locale-aware Store API requests
+- shared Greek/English product cards and product-detail rendering
 - configurable English BCP-47 locale (`NEXT_PUBLIC_ENGLISH_LOCALE`, default `en-GB`)
-- CI with PostgreSQL 17 + Redis service containers, clean `medusa db:migrate`, backend type-check, migration-contract check, Medusa production build and storefront production build
+- public Brand Store API directory and Brand-product link queries
+- Greek and English Designer directories and Brand-backed Designer PLPs
+- CI with PostgreSQL 17 + Redis, clean `medusa db:migrate`, backend type-check, migration-contract check, production backend build and production storefront build
 - CI concurrency cancelling superseded branch validations
-- localization architecture documented in `docs/architecture/LOCALIZATION.md`
-- deployment runbook
+- localization architecture and deployment runbook
 
 ## Active implementation
 
-Branch: `feature/designer-brand-store-api`
+Branch: `feature/sale-merchandising-foundation`
 
 Implemented on branch and green in branch CI:
 
-- public `/store/brands` Brand directory endpoint exposing only safe storefront fields
-- public `/store/brands/<handle>` endpoint returning Brand metadata plus paginated linked product IDs/count
-- Brand-product pagination uses the Medusa module-link entry point rather than filtering products by metadata
-- storefront Brand client uses `sdk.client.fetch` for custom Store API routes
-- linked product IDs are rehydrated through the normal Medusa Store Product API so calculated pricing, inventory context and translations remain authoritative
-- Greek `/designers` directory uses live Brand records when staging is connected
-- Greek `/designers/<handle>` product grids are Brand-backed and paginated
-- English `/en/designers` directory uses the same Brand records
-- English `/en/designers/<handle>` uses the same Brand-product relation and localized product Store API queries
-- audited designer navigation remains only a temporary unconfigured-backend fallback and is not authoritative migration data
-- branch CI passes clean PostgreSQL migrations, backend production build and storefront production build
+- true Sale detection uses Medusa calculated-price metadata: only prices originating from a price list whose `price_list_type` is `sale` receive Sale treatment
+- override pricing cannot masquerade as a discount simply because `original_amount` differs
+- backend public Sale-candidate discovery queries active Sale price lists and follows Price List → Price → Price Set → Variant → Product
+- future and expired Sale lists are excluded by date
+- price lists with price-list-level rules are excluded from the general public Sale feed so customer-group/restricted pricing is not published as a universal offer
+- a dedicated `/store/sale-candidates` endpoint exposes only candidate product IDs/count, not pricing internals
+- storefront rehydrates candidates through the normal Store Product API using the current Greece price context and requested locale
+- a product is admitted to the public Sale PLP only if its currently calculated Store API price still resolves to a Medusa Sale price list
+- Sale membership/count are computed before page slicing, enabling real pagination
+- Greek `/sale` is active
+- English `/en/sale` is active with translated product fields
+- normal category cards retain lowest-calculated-price behavior; Sale cards deliberately prefer the cheapest currently applicable Sale variant so the badge and strike-through match the displayed price
+- PDP and product-card strike-through behavior now uses the same Sale semantic helper
+- CI includes a Sale pricing-graph contract executed against a clean migrated Medusa database
+- Sale pricing-graph contract, Medusa production build and storefront production build pass on the branch
 
 ## Phase status correction
 
@@ -75,16 +77,15 @@ Implementation: **complete**, except one account-level security setting is outst
 
 **Code and managed-resource foundation substantially complete.**
 
-Already complete relative to the older roadmap wording:
+Already complete:
 
 - custom module migrations generated and committed
-- dedicated Supabase project created
-- storage buckets provisioned and restricted
+- dedicated Supabase project and storage buckets
 - Supabase security/performance advisors clean after infrastructure setup
-- Medusa production artifact verified by CI
-- server/worker deployment contract documented
-- clean PostgreSQL migration smoke test in CI
-- Translation Module migrations validated together with Brand, Website Content and core Medusa migrations
+- production Medusa artifact verified by CI
+- server/worker deployment contract
+- clean PostgreSQL migration smoke test
+- Translation, Brand, Website Content and core Medusa migrations validated together
 
 Still outstanding:
 
@@ -93,7 +94,7 @@ Still outstanding:
 - dedicated runtime Redis
 - runtime-only database connection secret
 - runtime-only Supabase S3 credentials
-- apply Medusa migrations to the actual staging database environment
+- apply migrations to the actual staging database environment
 - create merchant Admin user
 - create storefront publishable API key
 - verify real S3 upload through Medusa
@@ -105,23 +106,21 @@ Still outstanding:
 
 Already complete:
 
-- deterministic source checksums
-- stable Magento source keys
+- deterministic source checksums and stable Magento source keys
 - change/retry detection
 - normalized validation primitives
 - reconciliation accounting
-- CI migration-contract self-check
-- migration data contract
-- public-site discovery inventory
-- access/export checklist
-- localization architecture ready for mapping Magento English store-view overrides to Medusa translations
-- first-class Brand/Designer target model and storefront query boundary ready for migrated designer assignments
+- migration data contract and CI self-check
+- public-site discovery inventory and controlled-access checklist
+- localization target architecture
+- first-class Brand/Designer target and storefront boundary
+- Sale target semantics based on Medusa Sale price lists rather than scraped storefront badges
 
 Blocked on controlled Magento administrative/database/export/media access. Public HTML is not accepted as authoritative migration data.
 
 ### Phase 5 — Merchant back office
 
-**Foundation started.** Medusa Admin plus Designer, Website Content and Translation management foundations exist. Full Magento-equivalent daily-operation parity is not complete.
+**Foundation started.** Medusa Admin plus Designer, Website Content, Translation and native Medusa pricing/price-list foundations exist. Full Magento-equivalent daily-operation parity is not complete.
 
 ### Phase 6 — Storefront parity
 
@@ -129,25 +128,28 @@ Blocked on controlled Magento administrative/database/export/media access. Publi
 
 Implemented or active:
 
-- Store API product detail
-- Greek and English Clothing/Accessories PLPs
+- Greek/English Store API product detail
+- Greek/English Clothing and Accessories PLPs
 - nested category PLPs
-- product cards
-- pricing/inventory/media
-- pagination
-- localized commerce records
-- Brand/Designer directories and Brand-backed PLPs on the active branch
+- Brand/Designer directories and PLPs
+- verified Greek/English Sale PLPs on the active branch
+- media, pricing, inventory and pagination
+- locale-aware commerce records
 
 Still incomplete:
 
 - real filter/sort behavior
+- search experience
 - cart interaction
 - wishlist
-- final Sale query semantics
 - full editorial English route parity
 - final visual parity and responsive UAT
 
-### Phases 7–18
+### Phase 7 — Search, discovery and merchandising
+
+**Next implementation focus after the Sale slice merges.** Filter/sort/search controls must remain non-functional until backed by real query semantics.
+
+### Phases 8–18
 
 Remain governed by `docs/ROADMAP.md`; no phase should be marked complete without its documented exit gate.
 
@@ -165,7 +167,7 @@ Tracked in GitHub issue #9:
 8. create Admin account and publishable Store API key
 9. configure supported store locales / translation settings in staging
 10. connect storefront to staging backend
-11. verify `/health`, Admin, Store API, Brand queries, translations, media upload and worker operation
+11. verify `/health`, Admin, Store API, Brand/Sale queries, translations, media upload and worker operation
 
 ## Production boundary
 
