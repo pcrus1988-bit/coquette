@@ -112,11 +112,11 @@ jobs:
       - name: Validate Sale pricing graph contract
         run: pnpm --filter @coquette/backend sale:contract
 
-      - name: Build deployable Medusa production artifact
+      - name: Build deployable Medusa production artifact through Railway wrapper
         env:
           NODE_ENV: production
         run: |
-          pnpm --filter @coquette/backend build:deploy
+          pnpm railway-build-backend
           test -f apps/backend/.medusa/server/medusa-config.js
           test -f apps/backend/.medusa/server/package.json
           test -d apps/backend/.medusa/server/node_modules
