@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Button, Container, Heading, Text } from "@medusajs/ui"
-import { FormEvent, useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import type { FormEvent } from "react"
 
 type ContentSection = {
   id: string
@@ -58,20 +59,29 @@ async function readJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T & { message?: string }
 
   if (!response.ok) {
-    throw new Error(payload.message || `Request failed with status ${response.status}`)
+    return Promise.reject(
+      payload.message || `Request failed with status ${response.status}`
+    )
   }
 
   return payload
 }
 
-function parseSections(value: string): ContentSection[] {
-  const parsed = JSON.parse(value) as unknown
+function parseSections(value: string): {
+  sections?: ContentSection[]
+  message?: string
+} {
+  try {
+    const parsed = JSON.parse(value) as unknown
 
-  if (!Array.isArray(parsed)) {
-    throw new Error("Sections must be a JSON array.")
+    if (!Array.isArray(parsed)) {
+      return { message: "Sections must be a JSON array." }
+    }
+
+    return { sections: parsed as ContentSection[] }
+  } catch {
+    return { message: "Sections must contain valid JSON." }
   }
-
-  return parsed as ContentSection[]
 }
 
 const WebsitePage = () => {
@@ -106,7 +116,7 @@ const WebsitePage = () => {
         setDraft(emptyDraft)
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load website content.")
+      setMessage(error instanceof Error ? error.message : String(error))
     } finally {
       setLoading(false)
     }
@@ -114,8 +124,6 @@ const WebsitePage = () => {
 
   useEffect(() => {
     void loadPages()
-    // Initial load only; later refreshes are explicit after saves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const selectPage = (page: ContentPage) => {
@@ -135,8 +143,14 @@ const WebsitePage = () => {
     setSaving(true)
     setMessage(null)
 
+    const parsedSections = parseSections(draft.sectionsText)
+    if (!parsedSections.sections) {
+      setMessage(parsedSections.message ?? "Invalid sections JSON.")
+      setSaving(false)
+      return
+    }
+
     try {
-      const sections = parseSections(draft.sectionsText)
       const response = await fetch(
         selectedId ? `/admin/website/${selectedId}` : "/admin/website",
         {
@@ -148,7 +162,7 @@ const WebsitePage = () => {
             locale: draft.locale,
             title: draft.title,
             status: draft.status,
-            sections,
+            sections: parsedSections.sections,
             seo_title: draft.seo_title || null,
             seo_description: draft.seo_description || null,
           }),
@@ -158,7 +172,7 @@ const WebsitePage = () => {
       setMessage(selectedId ? "Website content updated." : "Website content created.")
       await loadPages(payload.page.id)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save website content.")
+      setMessage(error instanceof Error ? error.message : String(error))
     } finally {
       setSaving(false)
     }
@@ -199,7 +213,7 @@ const WebsitePage = () => {
               >
                 <div className="flex items-center justify-between gap-2">
                   <Text weight="plus">{page.title}</Text>
-                  <Text size="xsmall" className="uppercase text-ui-fg-subtle">
+                  <Text size="small" className="uppercase text-ui-fg-subtle">
                     {page.locale}
                   </Text>
                 </div>
@@ -281,7 +295,7 @@ const WebsitePage = () => {
               onChange={(event) => setDraft({ ...draft, sectionsText: event.target.value })}
               spellCheck={false}
             />
-            <Text size="xsmall" className="text-ui-fg-subtle">
+            <Text size="small" className="text-ui-fg-subtle">
               Accepted section types: hero, rich_text, image_text, product_collection, banner, spacer.
             </Text>
           </label>
