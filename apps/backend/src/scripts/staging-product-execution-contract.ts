@@ -192,6 +192,46 @@ assert.ok(
   )
 )
 
+for (const retryStatus of ["pending", "error"] as const) {
+  const retryPlan = buildStagingProductExecutionPlan({
+    importPlan,
+    dependencyMappings: dependencies,
+    previousProductManifestEntries: [
+      {
+        ...runtimeManifestEntry,
+        status: retryStatus,
+        attempts: 1,
+        errors: retryStatus === "error" ? ["fixture failure"] : [],
+      },
+    ],
+    allowedMediaHosts: ["coquette-media.example"],
+  })
+  assert.equal(retryPlan.isExecutable, true)
+  assert.equal(retryPlan.entries[0].action, "create")
+  assert.equal(retryPlan.entries[0].previousManifestEntry?.status, retryStatus)
+}
+
+const changedErrorPlan = buildStagingProductExecutionPlan({
+  importPlan,
+  dependencyMappings: dependencies,
+  previousProductManifestEntries: [
+    {
+      ...runtimeManifestEntry,
+      status: "error",
+      sourceChecksum: "old-checksum",
+      attempts: 1,
+      errors: ["old failure"],
+    },
+  ],
+  allowedMediaHosts: ["coquette-media.example"],
+})
+assert.equal(changedErrorPlan.isExecutable, false)
+assert.ok(
+  changedErrorPlan.entries[0].blockers.includes(
+    "previous_product_manifest_checksum_changed:error"
+  )
+)
+
 const brandSourceId = "legacy-designer:fixture"
 const brandedCandidate = buildRecoveryProductCandidate("branded", [
   observation({ brandSourceId }),
@@ -207,6 +247,32 @@ assert.equal(missingBrandPlan.isExecutable, false)
 assert.ok(
   missingBrandPlan.entries[0].blockers.includes(
     `brand_mapping_missing:${brandSourceId}`
+  )
+)
+assert.ok(
+  missingBrandPlan.entries[0].blockers.includes(
+    "brand_link_execution_not_implemented"
+  )
+)
+
+const mappedBrandPlan = buildStagingProductExecutionPlan({
+  importPlan: brandedImportPlan,
+  dependencyMappings: [
+    ...dependencies,
+    {
+      entityType: "brand",
+      sourceId: brandSourceId,
+      status: "imported",
+      targetId: "brand_fixture",
+    },
+  ],
+  allowedMediaHosts: ["coquette-media.example"],
+})
+assert.equal(mappedBrandPlan.isExecutable, false)
+assert.equal(mappedBrandPlan.entries[0].brandTargetId, "brand_fixture")
+assert.ok(
+  mappedBrandPlan.entries[0].blockers.includes(
+    "brand_link_execution_not_implemented"
   )
 )
 
