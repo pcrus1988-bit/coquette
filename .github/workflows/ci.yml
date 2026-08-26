@@ -89,6 +89,14 @@ jobs:
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
 
+      - name: Validate PayPal provider registration path
+        env:
+          PAYPAL_CLIENT_ID: ci-paypal-client
+          PAYPAL_CLIENT_SECRET: ci-paypal-secret
+          PAYPAL_ENVIRONMENT: sandbox
+          PAYPAL_AUTO_CAPTURE: "false"
+        run: pnpm --filter @coquette/backend db:migrate
+
       - name: Validate Sale pricing graph contract
         run: pnpm --filter @coquette/backend sale:contract
 
