@@ -46,9 +46,12 @@ jobs:
         shell: bash
         run: |
           command -v google-chrome || command -v google-chrome-stable || command -v chromium
+          command -v Xvfb
 
       - name: Capture public legacy storefront
+        shell: bash
         env:
+          DISPLAY: ":99"
           COQUETTE_CAPTURE_BASE_URL: https://coquetteconcept.gr/
           COQUETTE_CAPTURE_ID: emergency-${{ github.run_id }}-${{ github.run_attempt }}
           COQUETTE_CAPTURE_DIR: ${{ runner.temp }}/coquette-legacy-capture
@@ -58,9 +61,14 @@ jobs:
           COQUETTE_CAPTURE_MEDIA_CONCURRENCY: "6"
           COQUETTE_CAPTURE_RESPECT_ROBOTS: "true"
           COQUETTE_CAPTURE_BROWSER: "true"
-          COQUETTE_CAPTURE_BROWSER_MODE: headless
-          COQUETTE_CAPTURE_CHALLENGE_TIMEOUT_MS: "30000"
-        run: pnpm --filter @coquette/backend storefront:capture
+          COQUETTE_CAPTURE_BROWSER_MODE: headed
+          COQUETTE_CAPTURE_CHALLENGE_TIMEOUT_MS: "60000"
+        run: |
+          Xvfb :99 -screen 0 1440x1200x24 -nolisten tcp >"${RUNNER_TEMP}/coquette-xvfb.log" 2>&1 &
+          XVFB_PID=$!
+          trap 'kill "$XVFB_PID" 2>/dev/null || true' EXIT
+          sleep 1
+          pnpm --filter @coquette/backend storefront:capture
 
       - name: Publish capture summary
         if: always()
