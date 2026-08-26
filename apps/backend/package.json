@@ -20,6 +20,8 @@
     "storefront:capture:contract": "ts-node src/scripts/storefront-capture-contract.ts",
     "storefront:capture": "ts-node src/scripts/capture-legacy-storefront.ts",
     "indexed-recovery:contract": "ts-node src/scripts/indexed-recovery-contract.ts",
+    "indexed-recovery:candidates": "ts-node src/scripts/indexed-recovery-candidates.ts",
+    "recovery-candidates:contract": "ts-node src/scripts/recovery-candidates-contract.ts",
     "admin:crud:contract": "medusa exec ./src/scripts/admin-crud-contract.ts",
     "sale:contract": "medusa exec ./src/scripts/sale-query-contract.ts",
     "staging:bootstrap": "medusa exec ./src/scripts/staging-commerce-bootstrap.ts",
