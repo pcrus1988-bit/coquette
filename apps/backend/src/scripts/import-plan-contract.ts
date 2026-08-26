@@ -201,6 +201,25 @@ assert.deepEqual(duplicateKeyPlan.duplicateCandidateKeys, ["same-key"])
 assert.equal(duplicateKeyPlan.totals.blocked, 2)
 assert.equal(duplicateKeyPlan.runtimeManifestEntries.length, 0)
 
+const duplicateSourceUrl = "https://coquetteconcept.gr/default/shared-source.html"
+const duplicateSourcePlan = buildProductImportPlan([
+  buildRecoveryProductCandidate("source-a", [
+    readyObservation(duplicateSourceUrl, "SOURCE-A"),
+  ]),
+  buildRecoveryProductCandidate("source-b", [
+    readyObservation(duplicateSourceUrl, "SOURCE-B"),
+  ]),
+])
+assert.equal(duplicateSourcePlan.duplicateSourceKeys.length, 1)
+assert.equal(duplicateSourcePlan.totals.ready, 0)
+assert.equal(duplicateSourcePlan.totals.blocked, 2)
+assert.equal(duplicateSourcePlan.runtimeManifestEntries.length, 0)
+assert.ok(
+  duplicateSourcePlan.entries.every((entry) =>
+    entry.blockers.includes("duplicate_source_key_requires_evidence_resolution")
+  )
+)
+
 const executablePlan = buildProductImportPlan([readyCandidate])
 assert.equal(executablePlan.isExecutable, true)
 assert.equal(executablePlan.runtimeManifestEntries.length, 1)
