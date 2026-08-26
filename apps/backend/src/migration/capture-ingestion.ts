@@ -157,7 +157,6 @@ function productFields(
     fields.name = (product.name ?? product.title)!.trim()
   }
   if (nonEmptyString(product.description)) fields.description = product.description
-  if (nonEmptyString(product.brand)) fields.brandSourceId = `public-brand:${product.brand}`
 
   const stockState = mapStockState(product.availability)
   if (stockState) fields.stockState = stockState
