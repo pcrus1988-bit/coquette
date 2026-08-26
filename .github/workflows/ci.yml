@@ -84,6 +84,9 @@ jobs:
       - name: Type-check backend
         run: pnpm --filter @coquette/backend exec tsc --noEmit
 
+      - name: Enforce Medusa lint rules
+        run: pnpm --filter @coquette/backend lint
+
       - name: Validate Magento migration contract
         run: pnpm --filter @coquette/backend migration:contract
 

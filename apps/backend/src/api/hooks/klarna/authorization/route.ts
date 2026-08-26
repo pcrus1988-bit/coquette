@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { Modules } from "@medusajs/framework/utils"
+import recordKlarnaAuthorizationWorkflow from "../../../../workflows/record-klarna-authorization"
 
 type KlarnaAuthorizationBody = {
   authorization_token?: string
@@ -46,46 +46,28 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return
   }
 
-  const paymentModuleService = req.scope.resolve(Modules.PAYMENT)
-  const sessions = await paymentModuleService.listPaymentSessions({
-    id: paymentSessionId,
+  const { result } = await recordKlarnaAuthorizationWorkflow(req.scope).run({
+    input: {
+      payment_session_id: paymentSessionId,
+      klarna_session_id: body.session_id,
+      authorization_token: body.authorization_token,
+    },
   })
-  const session = sessions[0]
 
-  if (!session) {
+  if (result.outcome === "not_found") {
     res.status(404).json({ message: "Payment session not found" })
     return
   }
 
-  const data = (session.data || {}) as Record<string, unknown>
-  if (data.klarna_session_id !== body.session_id) {
+  if (result.outcome === "session_mismatch") {
     res.status(409).json({ message: "Klarna session mismatch" })
     return
   }
 
-  // Klarna delivers authorization callbacks with at-least-once semantics.
-  // Repeating the same token is idempotent; a conflicting token is rejected.
-  const existingToken = data.authorization_token
-  if (
-    existingToken &&
-    typeof existingToken === "string" &&
-    existingToken !== body.authorization_token
-  ) {
+  if (result.outcome === "conflicting_token") {
     res.status(409).json({ message: "Conflicting Klarna authorization token" })
     return
   }
-
-  await paymentModuleService.updatePaymentSession({
-    id: session.id,
-    status: session.status,
-    currency_code: session.currency_code,
-    amount: session.amount,
-    data: {
-      ...data,
-      authorization_token: body.authorization_token,
-      klarna_authorized_at: new Date().toISOString(),
-    },
-  })
 
   res.status(204).send()
 }
