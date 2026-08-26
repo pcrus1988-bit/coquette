@@ -1,6 +1,7 @@
 import type { ExecArgs } from "@medusajs/framework/types"
 import {
   ContainerRegistrationKeys,
+  MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
 import {
@@ -32,7 +33,8 @@ const parseShippingAmount = () => {
   const amount = Number(value)
 
   if (!Number.isFinite(amount) || amount < 0) {
-    throw new Error(
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
       "COQUETTE_STANDARD_SHIPPING_EUR must be a non-negative number"
     )
   }
@@ -50,6 +52,9 @@ const isExistingLinkError = (error: unknown) => {
     normalized.includes("unique")
   )
 }
+
+const unexpectedState = (message: string) =>
+  new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
 
 export default async function stagingCommerceBootstrap({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
@@ -76,7 +81,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
 
   const stores = await storeModuleService.listStores({}, { take: 2 })
   if (stores.length !== 1) {
-    throw new Error(
+    throw unexpectedState(
       `Expected exactly one COQUETTE store, found ${stores.length}. Refusing to guess.`
     )
   }
@@ -87,7 +92,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
     { take: 2 }
   )
   if (salesChannels.length !== 1) {
-    throw new Error(
+    throw unexpectedState(
       `Expected exactly one COQUETTE sales channel, found ${salesChannels.length}. Refusing to guess.`
     )
   }
@@ -139,7 +144,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
   }
 
   if (!region) {
-    throw new Error("Greece region was not available after bootstrap")
+    throw unexpectedState("Greece region was not available after bootstrap")
   }
 
   logger.info("Configuring COQUETTE store defaults and locales")
@@ -176,7 +181,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
   }
 
   if (!stockLocation) {
-    throw new Error("Stock location was not available after bootstrap")
+    throw unexpectedState("Stock location was not available after bootstrap")
   }
 
   await updateStoresWorkflow(container).run({
@@ -211,7 +216,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
     id: "manual_manual",
   })
   if (!manualProviders.length) {
-    throw new Error(
+    throw unexpectedState(
       "The manual fulfillment provider is unavailable; cannot create staging shipping configuration"
     )
   }
@@ -245,7 +250,9 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
   }
 
   if (!shippingProfile) {
-    throw new Error("Default shipping profile was not available after bootstrap")
+    throw unexpectedState(
+      "Default shipping profile was not available after bootstrap"
+    )
   }
 
   let [fulfillmentSet] = await fulfillmentModuleService.listFulfillmentSets({
@@ -272,7 +279,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
   }
 
   if (!fulfillmentSet) {
-    throw new Error("Fulfillment set was not available after bootstrap")
+    throw unexpectedState("Fulfillment set was not available after bootstrap")
   }
 
   await createLinkIfMissing({
@@ -292,7 +299,9 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
   )
 
   if (!serviceZone) {
-    throw new Error("Greece service zone was not available after bootstrap")
+    throw unexpectedState(
+      "Greece service zone was not available after bootstrap"
+    )
   }
 
   const shippingAmount = parseShippingAmount()
