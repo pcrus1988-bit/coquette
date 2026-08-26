@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Button, Container, Heading, Text } from "@medusajs/ui"
-import { FormEvent, useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import type { FormEvent } from "react"
 
 type Designer = {
   id: string
@@ -39,7 +40,9 @@ async function readJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T & { message?: string }
 
   if (!response.ok) {
-    throw new Error(payload.message || `Request failed with status ${response.status}`)
+    return Promise.reject(
+      payload.message || `Request failed with status ${response.status}`
+    )
   }
 
   return payload
@@ -77,7 +80,7 @@ const DesignersPage = () => {
         setDraft(emptyDraft)
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load designers.")
+      setMessage(error instanceof Error ? error.message : String(error))
     } finally {
       setLoading(false)
     }
@@ -85,8 +88,6 @@ const DesignersPage = () => {
 
   useEffect(() => {
     void loadDesigners()
-    // Initial load only; later refreshes are explicit after saves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const selectDesigner = (designer: Designer) => {
@@ -124,7 +125,7 @@ const DesignersPage = () => {
       setMessage(selectedId ? "Designer updated." : "Designer created.")
       await loadDesigners(payload.designer.id)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save designer.")
+      setMessage(error instanceof Error ? error.message : String(error))
     } finally {
       setSaving(false)
     }
