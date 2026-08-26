@@ -32,7 +32,8 @@ export default async function UtilityPage({
 
     return (
       <ProductListingShell
-        description="Αναζήτησε στον πραγματικό κατάλογο προϊόντων και περιόρισε τα αποτελέσματα με τις μεταφερμένες global επιλογές χρώματος και μεγέθους."
+        description="Αναζήτησε στον πραγματικό κατάλογο προϊόντων και περιόρισε τα αποτελέσματα με σχεδιαστή και τις μεταφερμένες global επιλογές χρώματος και μεγέθους."
+        designer={parsed.designer}
         eyebrow="Αναζήτηση"
         hrefBase="/search"
         loadAll
