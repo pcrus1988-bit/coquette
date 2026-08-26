@@ -42,6 +42,12 @@ export type BrandProductsResult = {
   count: number
 }
 
+export type BrandProductIdsResult = {
+  state: CatalogueState | "not_found"
+  brand: StoreBrand | null
+  productIds: string[]
+}
+
 export async function getBrands(
   limit = 200,
   offset = 0
@@ -77,6 +83,70 @@ export async function getBrands(
       state: "unavailable",
       brands: [],
       count: 0,
+    }
+  }
+}
+
+export async function getBrandProductIds(
+  handle: string
+): Promise<BrandProductIdsResult> {
+  if (!isMedusaStoreConfigured) {
+    return {
+      state: "unconfigured",
+      brand: null,
+      productIds: [],
+    }
+  }
+
+  const limit = 100
+  let offset = 0
+  let count = Number.POSITIVE_INFINITY
+  let brand: StoreBrand | null = null
+  const productIds: string[] = []
+
+  try {
+    while (offset < count) {
+      const response = await medusa.client.fetch<BrandProductIdsResponse>(
+        `/store/brands/${encodeURIComponent(handle)}`,
+        {
+          query: {
+            limit,
+            offset,
+          },
+        }
+      )
+
+      brand = response.brand
+      count = response.count
+      productIds.push(...response.product_ids)
+
+      if (response.product_ids.length === 0) {
+        break
+      }
+
+      offset += response.product_ids.length
+    }
+
+    return {
+      state: "ready",
+      brand,
+      productIds: [...new Set(productIds)],
+    }
+  } catch (error) {
+    if (error instanceof FetchError && error.status === 404) {
+      return {
+        state: "not_found",
+        brand: null,
+        productIds: [],
+      }
+    }
+
+    console.error(`COQUETTE Brand ID query failed for ${handle}`, error)
+
+    return {
+      state: "unavailable",
+      brand: null,
+      productIds: [],
     }
   }
 }
