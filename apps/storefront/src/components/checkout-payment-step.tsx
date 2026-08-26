@@ -1,0 +1,273 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { medusa } from "../lib/medusa"
+import { useCart } from "../providers/cart"
+
+type StorefrontLanguage = "el" | "en"
+type PaymentProvidersResponse = Awaited<
+  ReturnType<typeof medusa.store.payment.listPaymentProviders>
+>
+type PaymentProvider = PaymentProvidersResponse["payment_providers"][number]
+
+const allowManualPayment =
+  process.env.NEXT_PUBLIC_ALLOW_MANUAL_PAYMENT === "true"
+
+const copy = {
+  el: {
+    title: "Πληρωμή",
+    beforeShipping:
+      "Επίλεξε πρώτα έγκυρη διεύθυνση και τρόπο αποστολής για να εμφανιστούν οι διαθέσιμοι τρόποι πληρωμής.",
+    loading: "Έλεγχος διαθέσιμων τρόπων πληρωμής…",
+    none: "Δεν υπάρχει ενεργός online τρόπος πληρωμής για αυτή την περιοχή ακόμη.",
+    choose: "Επίλεξε τρόπο πληρωμής",
+    initialize: "Συνέχεια με αυτόν τον τρόπο πληρωμής",
+    initializing: "Προετοιμασία πληρωμής…",
+    ready:
+      "Η συνεδρία πληρωμής δημιουργήθηκε στο Medusa. Η εξουσιοδότηση από τον πραγματικό provider είναι το επόμενο βήμα και δεν έχει εκτελεστεί ακόμη.",
+    providerUiPending:
+      "Το provider-specific βήμα για εξουσιοδότηση/redirect δεν είναι ενεργό ακόμη. Δεν θα ολοκληρωθεί παραγγελία ούτε θα χρεωθεί ποσό από αυτή την οθόνη.",
+    zeroTotal:
+      "Δεν δημιουργείται online payment session για checkout με μηδενικό σύνολο.",
+    error:
+      "Δεν ήταν δυνατή η προετοιμασία του τρόπου πληρωμής. Δοκίμασε ξανά ή επίλεξε άλλον provider.",
+    selected: "Επιλεγμένο",
+  },
+  en: {
+    title: "Payment",
+    beforeShipping:
+      "Save a valid address and select a delivery method first to see the available payment methods.",
+    loading: "Checking available payment methods…",
+    none: "No live online payment method is enabled for this region yet.",
+    choose: "Choose a payment method",
+    initialize: "Continue with this payment method",
+    initializing: "Preparing payment…",
+    ready:
+      "The Medusa payment session is initialized. Authorization with the real provider is the next step and has not happened yet.",
+    providerUiPending:
+      "The provider-specific authorization/redirect step is not active yet. This screen cannot complete an order or charge the customer.",
+    zeroTotal:
+      "An online payment session is not initialized for a zero-total checkout.",
+    error:
+      "The payment method could not be prepared. Try again or select another provider.",
+    selected: "Selected",
+  },
+} satisfies Record<StorefrontLanguage, Record<string, string>>
+
+function isManualProvider(providerId: string) {
+  return providerId.startsWith("pp_system_default")
+}
+
+function paymentProviderTitle(providerId: string) {
+  const normalized = providerId.toLowerCase()
+
+  if (normalized.includes("paypal")) {
+    return "PayPal"
+  }
+
+  if (normalized.includes("klarna")) {
+    return "Klarna"
+  }
+
+  if (
+    normalized.includes("card") ||
+    normalized.includes("stripe") ||
+    normalized.includes("viva")
+  ) {
+    return "Card"
+  }
+
+  if (isManualProvider(providerId)) {
+    return "Manual payment"
+  }
+
+  return providerId
+    .replace(/^pp_/, "")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+export function CheckoutPaymentStep({
+  language = "el",
+}: {
+  language?: StorefrontLanguage
+}) {
+  const labels = copy[language]
+  const { cart, loading: cartLoading, initiatePaymentSession } = useCart()
+  const [paymentProviders, setPaymentProviders] = useState<PaymentProvider[]>([])
+  const [providersLoading, setProvidersLoading] = useState(false)
+  const [selectedProviderId, setSelectedProviderId] = useState("")
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  const hasAddress = Boolean(cart?.shipping_address?.address_1)
+  const hasShippingMethod = (cart?.shipping_methods?.length ?? 0) > 0
+  const total = Number(cart?.total ?? 0)
+  const paymentEligible = hasAddress && hasShippingMethod && total > 0
+
+  const activeSession = useMemo(
+    () => cart?.payment_collection?.payment_sessions?.[0],
+    [cart?.payment_collection?.payment_sessions]
+  )
+
+  useEffect(() => {
+    if (activeSession?.provider_id) {
+      setSelectedProviderId(activeSession.provider_id)
+    }
+  }, [activeSession?.provider_id])
+
+  useEffect(() => {
+    if (!cart?.region_id || !hasAddress || !hasShippingMethod) {
+      setPaymentProviders([])
+      return
+    }
+
+    let active = true
+    setProvidersLoading(true)
+    setLocalError(null)
+
+    medusa.store.payment
+      .listPaymentProviders({ region_id: cart.region_id })
+      .then(({ payment_providers }) => {
+        if (!active) {
+          return
+        }
+
+        const customerFacing = payment_providers.filter(
+          (provider) => allowManualPayment || !isManualProvider(provider.id)
+        )
+        setPaymentProviders(customerFacing)
+
+        if (
+          activeSession?.provider_id &&
+          customerFacing.some(
+            (provider) => provider.id === activeSession.provider_id
+          )
+        ) {
+          setSelectedProviderId(activeSession.provider_id)
+        } else if (customerFacing.length === 1) {
+          setSelectedProviderId(customerFacing[0].id)
+        }
+      })
+      .catch((reason) => {
+        if (!active) {
+          return
+        }
+        console.error("COQUETTE payment-provider discovery failed", reason)
+        setPaymentProviders([])
+        setLocalError(labels.error)
+      })
+      .finally(() => {
+        if (active) {
+          setProvidersLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [
+    cart?.region_id,
+    hasAddress,
+    hasShippingMethod,
+    activeSession?.provider_id,
+    labels.error,
+  ])
+
+  const initialize = async () => {
+    if (!selectedProviderId || !paymentEligible) {
+      return
+    }
+
+    setLocalError(null)
+    try {
+      await initiatePaymentSession({ provider_id: selectedProviderId })
+    } catch (reason) {
+      console.error("COQUETTE payment-session step failed", reason)
+      setLocalError(labels.error)
+    }
+  }
+
+  return (
+    <section className="border border-neutral-200 bg-white p-6 sm:p-8">
+      <h2 className="font-serif text-2xl">{labels.title}</h2>
+
+      {!hasAddress || !hasShippingMethod ? (
+        <p className="mt-4 text-sm leading-6 text-neutral-600">
+          {labels.beforeShipping}
+        </p>
+      ) : total <= 0 ? (
+        <p className="mt-4 text-sm leading-6 text-neutral-600">
+          {labels.zeroTotal}
+        </p>
+      ) : providersLoading ? (
+        <p className="mt-4 text-sm text-neutral-600">{labels.loading}</p>
+      ) : paymentProviders.length === 0 ? (
+        <p className="mt-4 text-sm leading-6 text-neutral-600">{labels.none}</p>
+      ) : (
+        <div className="mt-5 space-y-4">
+          <fieldset>
+            <legend className="text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+              {labels.choose}
+            </legend>
+            <div className="mt-3 space-y-2">
+              {paymentProviders.map((provider) => {
+                const selected = selectedProviderId === provider.id
+                const activeProvider = activeSession?.provider_id === provider.id
+
+                return (
+                  <label
+                    className={`flex cursor-pointer items-center justify-between gap-4 border p-4 ${
+                      selected ? "border-neutral-950" : "border-neutral-200"
+                    }`}
+                    key={provider.id}
+                  >
+                    <span className="flex items-center gap-3">
+                      <input
+                        checked={selected}
+                        disabled={cartLoading}
+                        name="payment-provider"
+                        onChange={() => setSelectedProviderId(provider.id)}
+                        type="radio"
+                        value={provider.id}
+                      />
+                      <span className="text-sm">
+                        {paymentProviderTitle(provider.id)}
+                      </span>
+                    </span>
+                    {activeProvider ? (
+                      <span className="text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+                        {labels.selected}
+                      </span>
+                    ) : null}
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
+
+          <button
+            className="w-full bg-neutral-950 px-6 py-4 text-xs uppercase tracking-[0.16em] text-white disabled:bg-neutral-400"
+            disabled={cartLoading || !selectedProviderId || !paymentEligible}
+            onClick={() => void initialize()}
+            type="button"
+          >
+            {cartLoading ? labels.initializing : labels.initialize}
+          </button>
+
+          {activeSession ? (
+            <div className="border border-neutral-200 bg-[#f7f5f2] p-4">
+              <p className="text-sm leading-6 text-neutral-700">{labels.ready}</p>
+              <p className="mt-2 text-xs leading-5 text-neutral-500">
+                {paymentProviderTitle(activeSession.provider_id)} · {labels.providerUiPending}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {localError ? (
+        <p className="mt-4 text-sm text-red-700">{localError}</p>
+      ) : null}
+    </section>
+  )
+}
