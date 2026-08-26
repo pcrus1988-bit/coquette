@@ -6,7 +6,7 @@
 
 ## Shipped to `main`
 
-Through merge `16a6e61bd346f867776a381b9f70c74719fa22a1`:
+Through merge `8bc13b4a3e456cab094a1357f05873551c22c943`:
 
 - isolated COQUETTE repository/workspace and dedicated Supabase project/storage
 - pnpm/Turbo monorepo, Medusa v2.19 backend/Admin and Next.js storefront
@@ -30,32 +30,37 @@ Through merge `16a6e61bd346f867776a381b9f70c74719fa22a1`:
 - real PDP variant selection and Add to Cart
 - Greek `/cart` and English `/en/cart`
 - line-item quantity update/removal and live header count
-- real Medusa cart subtotal/total rendering
+- Greek `/checkout` and English `/en/checkout`
+- customer email + shipping/billing address updates
+- country selection restricted to the active Medusa region
+- live Store API shipping-option discovery
+- calculated shipping-rate retrieval without guessed fallback prices
+- real Medusa shipping-method selection and authoritative cart totals
 - CI with fresh PostgreSQL 17 + Redis, clean migrations, migration contract, Sale pricing-graph contract, backend production build and storefront production build
 
 ## Active implementation
 
-Branch: `feature/checkout-address-shipping`
+Branch: `feature/payment-session-foundation`
 
-Implemented on branch and green on functional head `b00546918dce6e4cdff0681d2581a20d482d4c78`:
+Implemented on branch and green on functional head `8242db8c1e9a9b0604fdd9df8740ff105d05243c`:
 
-- cart CTA now enters a real checkout flow instead of a disabled placeholder
-- Greek `/checkout` and English `/en/checkout`
-- customer email capture
-- shipping address form
-- billing address initially mirrors shipping address
-- country selector restricted to countries in the active Medusa region
-- cart contact/address update through the Store Cart Update API
-- live shipping-option discovery using `store.fulfillment.listCartOptions({ cart_id })`
-- calculated shipping-rate retrieval through Medusa's documented Calculate Shipping Option Price route
-- calculated options without a valid returned amount remain unselectable rather than receiving a guessed rate
-- shipping-method selection through Medusa `cart.addShippingMethod`
-- selected shipping method updates authoritative shipping/cart totals
-- payment remains deliberately disabled until real providers are configured
-- no old Magento courier charge, free-shipping rule, payment credential or fiscal rule is hard-coded
-- architecture documented in `docs/architecture/CHECKOUT_ADDRESS_SHIPPING.md`
+- checkout payment step is provider-agnostic and remains inside the existing Medusa cart flow
+- payment providers are discovered using the cart `region_id`
+- payment selection activates only after address + shipping method are present
+- zero-total carts do not initialize an online payment session
+- Medusa's `pp_system_default` manual provider is hidden from customers by default
+- manual payment can only be surfaced with explicit `NEXT_PUBLIC_ALLOW_MANUAL_PAYMENT=true`
+- typed `initiatePaymentSession` operation is derived from the installed Medusa SDK signature
+- Medusa creates/updates the payment collection/session; storefront does not fabricate payment state
+- cart is re-fetched with `payment_collection.payment_sessions` after initialization
+- active provider/session is rendered from authoritative cart state
+- no `completeCart` call exists in this branch
+- no PayPal/Klarna/card credentials are stored or required
+- provider-specific authorization/redirect UI remains deliberately unimplemented
+- no payment authorization, capture, refund or successful-order state can be triggered from the new step
+- architecture documented in `docs/architecture/PAYMENT_SESSION.md`
 
-The checkout branch still requires documentation-inclusive exact-head CI, protected PR CI and merge before address/shipping checkout is considered shipped.
+The payment-session branch still requires documentation-inclusive exact-head CI, protected PR CI and merge before this foundation is considered shipped.
 
 ## Phase status
 
@@ -85,7 +90,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 6 — Storefront parity
 
-**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery and cart are shipped. Wishlist, full editorial parity and final responsive/visual UAT remain.
+**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery, cart and address/shipping checkout are shipped. Wishlist, full editorial parity and final responsive/visual UAT remain.
 
 ### Phase 7 — Search, discovery and merchandising
 
@@ -93,7 +98,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 8 — Cart / checkout foundation
 
-**Cart shipped; address/shipping active on feature branch.** Email, address and real shipping-option selection are implemented. Payment-session work has not started.
+**Cart + address/shipping shipped; payment-session foundation active on feature branch.** Generic provider discovery and session initialization are implemented without order completion. Provider-specific PayPal/Klarna/card authorization is not implemented yet.
 
 ### Phases 9–18
 
@@ -114,8 +119,9 @@ Tracked in GitHub issue #9:
 9. configure supported `el-GR` and `en-GB` locales
 10. configure the Greece-serving Medusa region and sales-channel relationship
 11. configure real service zones, shipping profiles/options and any fulfillment provider needed for calculated rates
-12. connect storefront to staging backend
-13. verify `/health`, Admin, Store API, Brand/Sale queries, filters/search, translations, cart, address/shipping checkout, media upload and worker operation
+12. install and enable real payment providers on the intended region using sandbox/test credentials
+13. connect storefront to staging backend
+14. verify `/health`, Admin, Store API, catalogue flows, translations, cart, address/shipping checkout, payment-provider discovery/session initialization, media upload and worker operation
 
 ## Production boundary
 

@@ -17,6 +17,9 @@ import { useRegion } from "./region"
 type CartRetrieveResponse = Awaited<ReturnType<typeof medusa.store.cart.retrieve>>
 export type StoreCart = CartRetrieveResponse["cart"]
 type CartUpdateInput = Parameters<typeof medusa.store.cart.update>[1]
+type PaymentSessionInput = Parameters<
+  typeof medusa.store.payment.initiatePaymentSession
+>[1]
 
 export type CheckoutAddress = {
   first_name: string
@@ -46,6 +49,7 @@ type CartContextValue = {
     billingAddress?: CheckoutAddress
   }) => Promise<StoreCart>
   addShippingMethod: (optionId: string, data?: Record<string, unknown>) => Promise<StoreCart>
+  initiatePaymentSession: (input: PaymentSessionInput) => Promise<StoreCart>
   refreshCart: () => Promise<StoreCart | undefined>
 }
 
@@ -59,6 +63,8 @@ const cartFields = [
   "+shipping_methods.*",
   "+shipping_address.*",
   "+billing_address.*",
+  "+payment_collection.*",
+  "+payment_collection.payment_sessions.*",
 ].join(",")
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -243,6 +249,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [cart]
   )
 
+  const initiatePaymentSession = useCallback(
+    async (input: PaymentSessionInput) => {
+      if (!cart) {
+        throw new Error("No active cart")
+      }
+
+      setLoading(true)
+      setError(null)
+      try {
+        await medusa.store.payment.initiatePaymentSession(cart, input)
+        const { cart: updated } = await medusa.store.cart.retrieve(cart.id, {
+          fields: cartFields,
+        })
+        setCart(updated)
+        return updated
+      } catch (reason) {
+        console.error("COQUETTE payment-session initialization failed", reason)
+        setError("The payment method could not be initialized.")
+        throw reason
+      } finally {
+        setLoading(false)
+      }
+    },
+    [cart]
+  )
+
   const addToCart = useCallback(
     async (variantId: string, quantity = 1) => {
       setLoading(true)
@@ -340,6 +372,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       updateCart,
       updateCheckoutContact,
       addShippingMethod,
+      initiatePaymentSession,
       refreshCart,
     }),
     [
@@ -353,6 +386,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       updateCart,
       updateCheckoutContact,
       addShippingMethod,
+      initiatePaymentSession,
       refreshCart,
     ]
   )
