@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import {
   buildDirectCaptureProductCandidates,
+  readCaptureArtifactBundle,
   type CaptureArtifactBundle,
 } from "../migration/capture-ingestion"
 import { validateCaptureArtifactBundle } from "../migration/capture-validation"
@@ -93,6 +97,8 @@ const invalidBundle: CaptureArtifactBundle = {
     ...bundle.products,
     {
       sourceUrl: "https://example.com/foreign-product.html",
+      canonicalUrl: "https://example.com/foreign-canonical.html",
+      hreflang: [{ lang: "en", url: "https://example.com/en/foreign.html" }],
       name: "Foreign fixture",
     },
   ],
@@ -112,6 +118,16 @@ assert.equal(invalidValidation.isValid, false)
 assert.ok(
   invalidValidation.issues.some(
     (issue) => issue.code === "invalid_product_source_url"
+  )
+)
+assert.ok(
+  invalidValidation.issues.some(
+    (issue) => issue.code === "invalid_product_canonical_url"
+  )
+)
+assert.ok(
+  invalidValidation.issues.some(
+    (issue) => issue.code === "invalid_product_hreflang_url"
   )
 )
 assert.ok(
@@ -144,6 +160,20 @@ assert.ok(direct.missingRequiredFields.includes("categorySourceIds"))
 assert.ok(!direct.missingRequiredFields.includes("mediaSourceIds"))
 assert.equal(direct.normalizedProduct, undefined)
 
+const foreignOnly = buildDirectCaptureProductCandidates({
+  ...bundle,
+  products: [
+    {
+      sourceUrl: "https://example.com/foreign-product.html",
+      canonicalUrl: "https://example.com/foreign-product.html",
+      name: "Foreign",
+      sku: "FOREIGN-1",
+    },
+  ],
+  pageMedia: {},
+})
+assert.equal(foreignOnly.length, 0)
+
 const baseline: IndexedRecoveryBaseline = {
   schemaVersion: 1,
   observedAt: "2026-08-26T15:00:00Z",
@@ -166,6 +196,12 @@ const baseline: IndexedRecoveryBaseline = {
       unit: "product",
       indexFreshness: "today",
     },
+    {
+      url: "https://example.com/foreign-indexed.html",
+      observedCount: 1,
+      unit: "product",
+      indexFreshness: "today",
+    },
   ],
   recentProductSpotChecks: [],
 }
@@ -178,6 +214,9 @@ assert.equal(unresolved.totals.indexed_only, 1)
 assert.equal(unresolved.totals.unavailable, 0)
 assert.equal(unresolved.unresolved, 2)
 assert.equal(unresolved.isFullyClassified, false)
+assert.ok(
+  !unresolved.entries.some((entry) => entry.url.includes("example.com"))
+)
 
 const classified = buildReconstructionUrlUniverse(bundle.pages, baseline, [
   {
@@ -188,6 +227,10 @@ const classified = buildReconstructionUrlUniverse(bundle.pages, baseline, [
     url: "https://coquetteconcept.gr/default/indexed-only.html",
     note: "Indexed historical URL no longer directly recoverable",
   },
+  {
+    url: "https://example.com/foreign-manual.html",
+    note: "Must never enter the COQUETTE legacy URL universe",
+  },
 ])
 
 assert.equal(classified.totals.captured, 1)
@@ -197,9 +240,92 @@ assert.equal(classified.totals.indexed_only, 0)
 assert.equal(classified.totals.unavailable, 2)
 assert.equal(classified.unresolved, 0)
 assert.equal(classified.isFullyClassified, true)
+assert.ok(
+  !classified.entries.some((entry) => entry.url.includes("example.com"))
+)
 
 const capturedEntry = classified.entries.find((entry) => entry.url === productUrl)
 assert.equal(capturedEntry?.status, "captured")
 assert.equal(capturedEntry?.evidence.length, 2)
 
-console.log("COQUETTE capture ingestion and URL universe contract checks passed")
+async function verifyArchiveReadBoundary() {
+  const root = await mkdtemp(join(tmpdir(), "coquette-capture-boundary-"))
+  const captureDir = join(root, "capture")
+  const pagesDir = join(captureDir, "pages")
+  const outsideHtml = join(root, "outside.html")
+  const traversalUrl = "https://coquetteconcept.gr/default/traversal.html"
+  const symlinkUrl = "https://coquetteconcept.gr/default/symlink.html"
+
+  try {
+    await mkdir(pagesDir, { recursive: true })
+    await writeFile(
+      outsideHtml,
+      `<html><body><img src="${mediaUrl}"></body></html>`,
+      "utf8"
+    )
+    await symlink(outsideHtml, join(pagesDir, "outside-link.html"))
+
+    await writeFile(
+      join(captureDir, "manifest.json"),
+      `${JSON.stringify({
+        captureId: "boundary-fixture",
+        source: "https://coquetteconcept.gr",
+        evidenceMode: "public_storefront",
+        startedAt: capturedAt,
+        completedAt: capturedAt,
+        complete: false,
+      })}\n`,
+      "utf8"
+    )
+    await writeFile(join(captureDir, "products.jsonl"), "", "utf8")
+    await writeFile(
+      join(captureDir, "pages.jsonl"),
+      [
+        {
+          sourceUrl: traversalUrl,
+          finalUrl: traversalUrl,
+          status: "captured",
+          capturedAt,
+          pageFile: "../outside.html",
+        },
+        {
+          sourceUrl: symlinkUrl,
+          finalUrl: symlinkUrl,
+          status: "captured",
+          capturedAt,
+          pageFile: "pages/outside-link.html",
+        },
+      ]
+        .map((record) => JSON.stringify(record))
+        .join("\n") + "\n",
+      "utf8"
+    )
+    await writeFile(
+      join(captureDir, "media.jsonl"),
+      `${JSON.stringify({
+        sourceUrl: mediaUrl,
+        status: "captured",
+        mediaFile: "media/fixture.jpg",
+        capturedAt,
+      })}\n`,
+      "utf8"
+    )
+
+    const readBundle = await readCaptureArtifactBundle(captureDir)
+    assert.deepEqual(readBundle.pageMedia[traversalUrl], [])
+    assert.deepEqual(readBundle.pageMedia[symlinkUrl], [])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+verifyArchiveReadBoundary()
+  .then(() => {
+    console.log(
+      "COQUETTE capture ingestion, archive containment and URL universe contract checks passed"
+    )
+  })
+  .catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
