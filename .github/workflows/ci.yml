@@ -108,6 +108,9 @@ jobs:
       - name: Validate public product structure evidence
         run: pnpm --filter @coquette/backend product-structure:contract
 
+      - name: Validate archive-native product structure reconstruction
+        run: pnpm --filter @coquette/backend archived-product-structure:contract
+
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
 
