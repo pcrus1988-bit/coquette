@@ -228,6 +228,7 @@ export async function ProductListingShell({
               <ProductCard
                 key={product.id}
                 language={language}
+                preferSalePrice={saleOnly}
                 product={product}
                 productHrefPrefix={resolvedProductHrefPrefix}
               />
