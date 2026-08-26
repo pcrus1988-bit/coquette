@@ -109,13 +109,14 @@ jobs:
       - name: Validate Sale pricing graph contract
         run: pnpm --filter @coquette/backend sale:contract
 
-      - name: Build Medusa production artifact
+      - name: Build deployable Medusa production artifact
         env:
           NODE_ENV: production
         run: |
-          pnpm --filter @coquette/backend build
+          pnpm --filter @coquette/backend build:deploy
           test -f apps/backend/.medusa/server/medusa-config.js
           test -f apps/backend/.medusa/server/package.json
+          test -d apps/backend/.medusa/server/node_modules
 
       - name: Build storefront
         run: pnpm --filter @coquette/storefront build
