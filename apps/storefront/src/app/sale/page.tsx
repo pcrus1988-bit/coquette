@@ -1,13 +1,21 @@
 import { ProductListingShell } from "../../components/product-listing-shell"
 
-export default function SalePage() {
+export default async function SalePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>
+}) {
+  const { page } = await searchParams
+  const pageNumber = Math.max(1, Number.parseInt(page || "1", 10) || 1)
+
   return (
     <ProductListingShell
+      description="Εμφανίζονται μόνο προϊόντα των οποίων η τρέχουσα υπολογισμένη τιμή για το storefront προέρχεται από ενεργό Medusa price list τύπου Sale. Private/customer-group price lists δεν δημοσιεύονται ως γενική προσφορά."
       eyebrow="Sale"
       hrefBase="/sale"
+      page={pageNumber}
+      saleOnly
       title="Σε Προσφορά"
-      description="Η dedicated sale συλλογή παραμένει ξεχωριστή εμπορική επιφάνεια, με strike-through pricing και promotional badges όταν συνδεθεί το πραγματικό catalogue."
-      pendingMessage="Η σελίδα Sale δεν θα εμφανίσει όλα τα προϊόντα ως υποκατάστατο. Θα ενεργοποιηθεί όταν οριστεί και δοκιμαστεί ο πραγματικός κανόνας προσφοράς/price-list από το migrated catalogue."
     />
   )
 }
