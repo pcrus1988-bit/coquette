@@ -3,6 +3,10 @@ import { readFile, realpath } from "node:fs/promises"
 import { isAbsolute, relative, resolve, sep } from "node:path"
 import { discoverMedia } from "../reconstruction/html-evidence"
 import {
+  extractPublicProductStructure,
+  type PublicProductStructureEvidence,
+} from "../reconstruction/product-structure"
+import {
   buildRecoveryProductCandidate,
   type RecoveryProductCandidate,
   type RecoveryProductFields,
@@ -71,6 +75,7 @@ export type CaptureArtifactBundle = {
   pages: CapturePageRecord[]
   media: CaptureMediaRecord[]
   pageMedia: Record<string, string[]>
+  productStructures?: Record<string, PublicProductStructureEvidence>
 }
 
 function nonEmptyString(value: unknown): value is string {
@@ -110,13 +115,23 @@ function mapStockState(value?: string) {
   return undefined
 }
 
-function optionValues(product: CapturedProductRecord) {
+function fallbackOptionValues(product: CapturedProductRecord) {
   const result: Record<string, string> = {}
   if (Array.isArray(product.colors) && product.colors.length === 1) {
     result.color = product.colors[0]
   }
   if (Array.isArray(product.sizes) && product.sizes.length === 1) {
     result.size = product.sizes[0]
+  }
+  return result
+}
+
+function structuralOptionValues(structure?: PublicProductStructureEvidence) {
+  const result: Record<string, string> = {}
+  for (const group of structure?.optionGroups ?? []) {
+    if (group.values.length !== 1) continue
+    const key = group.name.trim().toLowerCase()
+    if (key) result[key] = group.values[0]
   }
   return result
 }
@@ -146,7 +161,7 @@ function alternateLocaleUrl(product: CapturedProductRecord, expectedHost: string
 
 function productFields(
   product: CapturedProductRecord,
-  mediaSourceIds: string[] | undefined,
+  structure: PublicProductStructureEvidence | undefined,
   expectedHost: string
 ): RecoveryProductFields {
   const fields: RecoveryProductFields = {}
@@ -178,13 +193,25 @@ function productFields(
   }
   if (product.currency === "EUR") fields.currencyCode = "EUR"
 
-  const options = optionValues(product)
-  if (Object.keys(options).length > 0) fields.optionValues = options
-  if (mediaSourceIds) {
-    fields.mediaSourceIds = mediaSourceIds.filter((url) =>
-      Boolean(validHttpUrlOnHost(url, expectedHost))
-    )
+  const options = {
+    ...fallbackOptionValues(product),
+    ...structuralOptionValues(structure),
   }
+  if (Object.keys(options).length > 0) fields.optionValues = options
+
+  const categorySourceIds = (structure?.categoryReferences ?? [])
+    .map((reference) => validHttpUrlOnHost(reference.url, expectedHost))
+    .filter((value): value is string => typeof value === "string")
+  if (categorySourceIds.length > 0) {
+    fields.categorySourceIds = [...new Set(categorySourceIds)]
+  }
+
+  const galleryMedia = (structure?.galleryMedia ?? [])
+    .map((url) => validHttpUrlOnHost(url, expectedHost))
+    .filter((value): value is string => typeof value === "string")
+  if (galleryMedia.length > 0) fields.mediaSourceIds = [...new Set(galleryMedia)]
+
+  if (structure?.typeHint === "configurable") fields.type = "configurable"
 
   return fields
 }
@@ -192,24 +219,36 @@ function productFields(
 function directObservation(
   product: CapturedProductRecord,
   capturedAt: string,
-  pageMedia: Record<string, string[]>,
+  productStructures: Record<string, PublicProductStructureEvidence>,
   expectedHost: string
 ): RecoveryProductObservation | undefined {
   const sourceUrl = validHttpUrlOnHost(product.sourceUrl, expectedHost)
   if (!sourceUrl) return undefined
+  const structure = productStructures[sourceUrl]
+  const structuralNote = structure
+    ? [
+        `categories=${structure.categoryReferences.length}`,
+        `gallery_media=${structure.galleryMedia.length}`,
+        `option_groups=${structure.optionGroups.length}`,
+        structure.typeEvidence,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : undefined
 
   return {
     authority: "direct_storefront",
     sourceUrl,
     observedAt: capturedAt,
-    note: product.checksum
-      ? `Phase 4A captured product checksum=${product.checksum}`
-      : "Phase 4A direct public product capture",
-    fields: productFields(
-      { ...product, sourceUrl },
-      pageMedia[sourceUrl],
-      expectedHost
-    ),
+    note: [
+      product.checksum
+        ? `Phase 4A captured product checksum=${product.checksum}`
+        : "Phase 4A direct public product capture",
+      structuralNote,
+    ]
+      .filter(Boolean)
+      .join("; "),
+    fields: productFields({ ...product, sourceUrl }, structure, expectedHost),
   }
 }
 
@@ -219,12 +258,13 @@ export function buildDirectCaptureProductCandidates(
 ): RecoveryProductCandidate[] {
   const capturedAt = bundle.manifest.completedAt ?? bundle.manifest.startedAt
   if (!capturedAt || Number.isNaN(Date.parse(capturedAt))) return []
+  const productStructures = bundle.productStructures ?? {}
 
   return bundle.products.flatMap((product) => {
     const observation = directObservation(
       product,
       capturedAt,
-      bundle.pageMedia,
+      productStructures,
       expectedHost
     )
     if (!observation) return []
@@ -326,6 +366,57 @@ async function reconstructPageMedia(
   return relationships
 }
 
+async function reconstructProductStructures(
+  captureDir: string,
+  products: CapturedProductRecord[],
+  pages: CapturePageRecord[],
+  media: CaptureMediaRecord[],
+  expectedHost: string
+) {
+  const productUrls = new Set(
+    products
+      .map((product) => validHttpUrlOnHost(product.sourceUrl, expectedHost))
+      .filter((value): value is string => typeof value === "string")
+  )
+  const capturedMedia = new Set(
+    media
+      .filter((record) => record.status === "captured")
+      .map((record) => validHttpUrlOnHost(record.sourceUrl, expectedHost))
+      .filter((value): value is string => typeof value === "string")
+  )
+  const structures: Record<string, PublicProductStructureEvidence> = {}
+
+  for (const page of pages) {
+    const pageUrl = validHttpUrlOnHost(
+      page.finalUrl ?? page.sourceUrl,
+      expectedHost
+    )
+    if (
+      !pageUrl ||
+      page.status !== "captured" ||
+      (page.pageType !== "product" && !productUrls.has(pageUrl))
+    ) {
+      continue
+    }
+
+    const archiveFile = await resolveArchiveFile(captureDir, page.pageFile)
+    if (!archiveFile) continue
+
+    try {
+      const html = await readFile(archiveFile, "utf8")
+      const structure = extractPublicProductStructure(html, pageUrl)
+      structures[pageUrl] = {
+        ...structure,
+        galleryMedia: structure.galleryMedia.filter((url) => capturedMedia.has(url)),
+      }
+    } catch {
+      // The page record remains preserved and validation/reconciliation can surface the gap.
+    }
+  }
+
+  return structures
+}
+
 export async function readCaptureArtifactBundle(
   captureDir: string,
   expectedHost = COQUETTE_LEGACY_HOST
@@ -347,6 +438,13 @@ export async function readCaptureArtifactBundle(
     media,
     pageMedia: await reconstructPageMedia(
       captureDir,
+      pages,
+      media,
+      expectedHost
+    ),
+    productStructures: await reconstructProductStructures(
+      captureDir,
+      products,
       pages,
       media,
       expectedHost

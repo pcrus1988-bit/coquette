@@ -14,6 +14,7 @@ import { buildReconstructionUrlUniverse } from "../migration/url-universe"
 const capturedAt = "2026-08-26T18:30:00.000Z"
 const productUrl = "https://coquetteconcept.gr/default/fixture-product.html"
 const englishProductUrl = "https://coquetteconcept.gr/en/fixture-product.html"
+const categoryUrl = "https://coquetteconcept.gr/default/clothing.html"
 const mediaUrl = "https://coquetteconcept.gr/media/catalog/product/fixture.jpg"
 
 const bundle: CaptureArtifactBundle = {
@@ -85,6 +86,16 @@ const bundle: CaptureArtifactBundle = {
   pageMedia: {
     [productUrl]: [mediaUrl],
   },
+  productStructures: {
+    [productUrl]: {
+      galleryMedia: [mediaUrl],
+      categoryReferences: [{ name: "Clothing", url: categoryUrl }],
+      optionGroups: [
+        { name: "color", values: ["Black"] },
+        { name: "size", values: ["S", "M"] },
+      ],
+    },
+  },
 }
 
 const validation = validateCaptureArtifactBundle(bundle)
@@ -152,11 +163,12 @@ assert.equal(direct.selected.stockState, "in_stock")
 assert.equal(direct.selected.brandSourceId, undefined)
 assert.equal(direct.selected.optionValues?.color, "Black")
 assert.equal(direct.selected.optionValues?.size, undefined)
+assert.deepEqual(direct.selected.categorySourceIds, [categoryUrl])
 assert.deepEqual(direct.selected.mediaSourceIds, [mediaUrl])
 assert.ok(direct.missingRequiredFields.includes("status"))
 assert.ok(direct.missingRequiredFields.includes("visibility"))
 assert.ok(direct.missingRequiredFields.includes("type"))
-assert.ok(direct.missingRequiredFields.includes("categorySourceIds"))
+assert.ok(!direct.missingRequiredFields.includes("categorySourceIds"))
 assert.ok(!direct.missingRequiredFields.includes("mediaSourceIds"))
 assert.equal(direct.normalizedProduct, undefined)
 
@@ -171,6 +183,7 @@ const foreignOnly = buildDirectCaptureProductCandidates({
     },
   ],
   pageMedia: {},
+  productStructures: {},
 })
 assert.equal(foreignOnly.length, 0)
 
@@ -314,6 +327,8 @@ async function verifyArchiveReadBoundary() {
     const readBundle = await readCaptureArtifactBundle(captureDir)
     assert.deepEqual(readBundle.pageMedia[traversalUrl], [])
     assert.deepEqual(readBundle.pageMedia[symlinkUrl], [])
+    assert.equal(readBundle.productStructures?.[traversalUrl], undefined)
+    assert.equal(readBundle.productStructures?.[symlinkUrl], undefined)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
