@@ -102,6 +102,9 @@ jobs:
       - name: Generate current indexed recovery candidates
         run: pnpm --filter @coquette/backend indexed-recovery:candidates > /tmp/coquette-indexed-recovery-candidates.json
 
+      - name: Validate capture ingestion and URL universe contract
+        run: pnpm --filter @coquette/backend capture-ingestion:contract
+
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
 
