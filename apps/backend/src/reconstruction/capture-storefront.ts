@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises"
 import { basename, extname, join } from "node:path"
-import { checksum, extractPageEvidence } from "./html-evidence"
+import { BrowserTransport, type BrowserTextResponse } from "./browser-transport"
+import { checksum, extractPageEvidence, textContent } from "./html-evidence"
 
 export type CaptureOptions = {
   baseUrl: string
@@ -11,6 +12,7 @@ export type CaptureOptions = {
   downloadMedia: boolean
   mediaConcurrency: number
   respectRobots: boolean
+  browser: boolean
 }
 
 type PageRecord = {
@@ -48,6 +50,8 @@ type RobotsPolicy = {
   sitemaps: string[]
 }
 
+type TextFetcher = (url: string) => Promise<BrowserTextResponse>
+
 const SKIP_PATH_PREFIXES = [
   "/customer/",
   "/checkout/",
@@ -62,7 +66,15 @@ const SKIP_PATH_PREFIXES = [
 ]
 
 const PAGE_EXTENSIONS = new Set(["", ".html", ".htm", ".php"])
-const MEDIA_EXTENSIONS = new Set([".avif", ".gif", ".jpg", ".jpeg", ".png", ".svg", ".webp"])
+const MEDIA_EXTENSIONS = new Set([
+  ".avif",
+  ".gif",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".svg",
+  ".webp",
+])
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -93,7 +105,11 @@ export function normalizeCrawlUrl(value: string, baseUrl: string) {
   url.search = ""
   if (page && page !== "1") url.searchParams.set("p", page)
 
-  if (SKIP_PATH_PREFIXES.some((prefix) => url.pathname.toLowerCase().startsWith(prefix))) {
+  if (
+    SKIP_PATH_PREFIXES.some((prefix) =>
+      url.pathname.toLowerCase().startsWith(prefix)
+    )
+  ) {
     return undefined
   }
 
@@ -121,8 +137,9 @@ function parseRobots(raw: string, baseUrl: string): RobotsPolicy {
   const disallow: string[] = []
   const sitemaps: string[] = []
   let appliesToUs = false
+  const plain = /<html\b/i.test(raw) ? textContent(raw) : raw
 
-  for (const rawLine of raw.split(/\r?\n/)) {
+  for (const rawLine of plain.split(/\r?\n/)) {
     const line = rawLine.replace(/#.*$/, "").trim()
     if (!line) continue
     const separator = line.indexOf(":")
@@ -138,7 +155,7 @@ function parseRobots(raw: string, baseUrl: string): RobotsPolicy {
       try {
         sitemaps.push(new URL(value, baseUrl).toString())
       } catch {
-        // Ignore malformed sitemap hints; the standard locations are still attempted.
+        // Ignore malformed sitemap hints; standard locations are still attempted.
       }
     }
   }
@@ -148,27 +165,46 @@ function parseRobots(raw: string, baseUrl: string): RobotsPolicy {
 
 function robotsAllows(url: string, policy: RobotsPolicy) {
   const path = new URL(url).pathname
-  return !policy.disallow.some((rule) => rule === "/" || path.startsWith(rule))
+  return !policy.disallow.some(
+    (rule) => rule === "/" || (rule.startsWith("/") && path.startsWith(rule))
+  )
 }
 
-async function fetchText(url: string) {
+async function httpFetchText(url: string): Promise<BrowserTextResponse> {
   const response = await fetch(url, {
     redirect: "follow",
     headers: {
-      "user-agent": "COQUETTE-Reconstruction/1.0 (+legacy storefront preservation)",
+      "user-agent":
+        "COQUETTE-Reconstruction/1.0 (+legacy storefront preservation)",
       accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     },
   })
-  return { response, text: await response.text() }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    url: response.url,
+    contentType: response.headers.get("content-type") ?? "",
+    text: await response.text(),
+  }
 }
 
 function xmlLocations(xml: string) {
-  return [...xml.matchAll(/<loc\b[^>]*>([\s\S]*?)<\/loc>/gi)]
-    .map((match) => match[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim())
+  const normalized = xml
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+
+  return [...normalized.matchAll(/<loc\b[^>]*>([\s\S]*?)<\/loc>/gi)]
+    .map((match) => textContent(match[1]).replace(/<!\[CDATA\[|\]\]>/g, "").trim())
     .filter(Boolean)
 }
 
-async function discoverSitemapUrls(baseUrl: string, robots: RobotsPolicy) {
+async function discoverSitemapUrls(
+  baseUrl: string,
+  robots: RobotsPolicy,
+  fetchText: TextFetcher
+) {
   const base = new URL(baseUrl)
   const pending = [
     ...robots.sitemaps,
@@ -184,9 +220,12 @@ async function discoverSitemapUrls(baseUrl: string, robots: RobotsPolicy) {
     seenSitemaps.add(sitemapUrl)
 
     try {
-      const { response, text } = await fetchText(sitemapUrl)
-      if (!response.ok || !/xml/i.test(response.headers.get("content-type") ?? "")) continue
-      for (const location of xmlLocations(text)) {
+      const response = await fetchText(sitemapUrl)
+      if (!response.ok) continue
+      const locations = xmlLocations(response.text)
+      if (!locations.length && !/xml/i.test(response.contentType)) continue
+
+      for (const location of locations) {
         if (/\.xml(?:$|\?)/i.test(location)) {
           try {
             const nested = new URL(location, sitemapUrl)
@@ -200,7 +239,7 @@ async function discoverSitemapUrls(baseUrl: string, robots: RobotsPolicy) {
         if (normalized) pageUrls.add(normalized)
       }
     } catch {
-      // Sitemaps are discovery accelerators. Link crawling remains authoritative fallback.
+      // Sitemaps accelerate discovery. Link crawling remains the fallback.
     }
   }
 
@@ -223,8 +262,12 @@ function safeMediaFilename(url: string, contentType?: string | null) {
     "image/svg+xml": ".svg",
     "image/webp": ".webp",
   }
-  const extension = sourceExtension || byMime[(contentType ?? "").split(";")[0]] || ".bin"
-  const stem = sourceName.slice(0, sourceName.length - sourceExtension.length).slice(0, 80) || "media"
+  const extension =
+    sourceExtension || byMime[(contentType ?? "").split(";")[0]] || ".bin"
+  const stem =
+    sourceName
+      .slice(0, sourceName.length - sourceExtension.length)
+      .slice(0, 80) || "media"
   return `${checksum(url).slice(0, 20)}-${stem}${extension}`
 }
 
@@ -232,14 +275,21 @@ async function writeJsonl(path: string, values: unknown[]) {
   await writeFile(path, values.map(jsonLine).join(""), "utf8")
 }
 
-async function downloadOneMedia(url: string, mediaDir: string): Promise<MediaRecord> {
+async function downloadOneMedia(
+  url: string,
+  mediaDir: string,
+  browserHeaders: Record<string, string>
+): Promise<MediaRecord> {
   const capturedAt = new Date().toISOString()
   try {
     const response = await fetch(url, {
       redirect: "follow",
       headers: {
-        "user-agent": "COQUETTE-Reconstruction/1.0 (+legacy storefront preservation)",
+        "user-agent":
+          browserHeaders["user-agent"] ??
+          "COQUETTE-Reconstruction/1.0 (+legacy storefront preservation)",
         accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        ...(browserHeaders.cookie ? { cookie: browserHeaders.cookie } : {}),
       },
     })
 
@@ -290,7 +340,11 @@ async function downloadOneMedia(url: string, mediaDir: string): Promise<MediaRec
   }
 }
 
-async function concurrentMap<T, R>(values: T[], concurrency: number, mapper: (value: T) => Promise<R>) {
+async function concurrentMap<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<R>
+) {
   const results = new Array<R>(values.length)
   let cursor = 0
 
@@ -302,7 +356,9 @@ async function concurrentMap<T, R>(values: T[], concurrency: number, mapper: (va
     }
   }
 
-  await Promise.all(Array.from({ length: Math.max(1, concurrency) }, () => worker()))
+  await Promise.all(
+    Array.from({ length: Math.max(1, concurrency) }, () => worker())
+  )
   return results
 }
 
@@ -314,210 +370,248 @@ export async function captureStorefront(options: CaptureOptions) {
   await mkdir(pagesDir, { recursive: true })
   await mkdir(mediaDir, { recursive: true })
 
-  let robots: RobotsPolicy = { disallow: [], sitemaps: [] }
+  const browser = options.browser ? await BrowserTransport.launch() : undefined
+  const fetchText: TextFetcher = browser
+    ? (url) => browser.fetchText(url)
+    : httpFetchText
+
   try {
-    const robotsUrl = new URL("/robots.txt", base).toString()
-    const { response, text } = await fetchText(robotsUrl)
-    if (response.ok) robots = parseRobots(text, options.baseUrl)
-    await writeFile(join(options.outputDir, "robots.txt"), text, "utf8")
-  } catch {
-    await writeFile(join(options.outputDir, "robots.txt"), "# unavailable during capture\n", "utf8")
-  }
-
-  const sitemapUrls = await discoverSitemapUrls(options.baseUrl, robots)
-  const seeds = [
-    normalizeCrawlUrl(base.toString(), options.baseUrl),
-    normalizeCrawlUrl(new URL("/default/", base).toString(), options.baseUrl),
-    normalizeCrawlUrl(new URL("/en/", base).toString(), options.baseUrl),
-    ...sitemapUrls,
-  ].filter((value): value is string => Boolean(value))
-
-  const queue = [...new Set(seeds)]
-  const queued = new Set(queue)
-  const visited = new Set<string>()
-  const pageRecords: PageRecord[] = []
-  const productEvidence: unknown[] = []
-  const mediaUrls = new Set<string>()
-
-  while (queue.length && visited.size < options.maxPages) {
-    const sourceUrl = queue.shift()!
-    if (visited.has(sourceUrl)) continue
-    visited.add(sourceUrl)
-
-    if (options.respectRobots && !robotsAllows(sourceUrl, robots)) {
-      pageRecords.push({
-        sourceUrl,
-        status: "skipped",
-        capturedAt: new Date().toISOString(),
-        discoveredLinks: 0,
-        discoveredMedia: 0,
-        error: "robots.txt disallow",
-      })
-      continue
+    let robots: RobotsPolicy = { disallow: [], sitemaps: [] }
+    try {
+      const robotsUrl = new URL("/robots.txt", base).toString()
+      const response = await fetchText(robotsUrl)
+      if (response.ok) robots = parseRobots(response.text, options.baseUrl)
+      await writeFile(join(options.outputDir, "robots.txt"), response.text, "utf8")
+    } catch {
+      await writeFile(
+        join(options.outputDir, "robots.txt"),
+        "# unavailable during capture\n",
+        "utf8"
+      )
     }
 
-    if (options.delayMs > 0) await sleep(options.delayMs)
+    const sitemapUrls = await discoverSitemapUrls(
+      options.baseUrl,
+      robots,
+      fetchText
+    )
+    const seeds = [
+      normalizeCrawlUrl(base.toString(), options.baseUrl),
+      normalizeCrawlUrl(new URL("/default/", base).toString(), options.baseUrl),
+      normalizeCrawlUrl(new URL("/en/", base).toString(), options.baseUrl),
+      ...sitemapUrls,
+    ].filter((value): value is string => Boolean(value))
 
-    try {
-      const { response, text } = await fetchText(sourceUrl)
-      const capturedAt = new Date().toISOString()
-      const contentType = response.headers.get("content-type") ?? undefined
-      const finalUrl = normalizeCrawlUrl(response.url, options.baseUrl) ?? sourceUrl
+    const queue = [...new Set(seeds)]
+    const queued = new Set(queue)
+    const visited = new Set<string>()
+    const pageRecords: PageRecord[] = []
+    const productEvidence: unknown[] = []
+    const mediaUrls = new Set<string>()
 
-      if (!response.ok) {
+    while (queue.length && visited.size < options.maxPages) {
+      const sourceUrl = queue.shift()!
+      if (visited.has(sourceUrl)) continue
+      visited.add(sourceUrl)
+
+      if (options.respectRobots && !robotsAllows(sourceUrl, robots)) {
         pageRecords.push({
           sourceUrl,
-          finalUrl,
-          status: "error",
-          httpStatus: response.status,
-          contentType,
-          capturedAt,
-          discoveredLinks: 0,
-          discoveredMedia: 0,
-          error: `HTTP ${response.status}`,
-        })
-        continue
-      }
-
-      if (!/html|xhtml/i.test(contentType ?? "text/html")) {
-        pageRecords.push({
-          sourceUrl,
-          finalUrl,
           status: "skipped",
-          httpStatus: response.status,
-          contentType,
-          capturedAt,
+          capturedAt: new Date().toISOString(),
           discoveredLinks: 0,
           discoveredMedia: 0,
-          error: "Non-HTML response",
+          error: "robots.txt disallow",
         })
         continue
       }
 
-      const evidence = extractPageEvidence(text, finalUrl)
-      const pageFilename = `${checksum(finalUrl).slice(0, 24)}.html`
-      const pageFile = join("pages", pageFilename)
-      await writeFile(join(pagesDir, pageFilename), text, "utf8")
+      if (options.delayMs > 0) await sleep(options.delayMs)
 
-      for (const link of evidence.links) {
-        const normalized = normalizeCrawlUrl(link, options.baseUrl)
-        if (normalized && !visited.has(normalized) && !queued.has(normalized)) {
-          queue.push(normalized)
-          queued.add(normalized)
+      try {
+        const response = await fetchText(sourceUrl)
+        const capturedAt = new Date().toISOString()
+        const contentType = response.contentType || undefined
+        const finalUrl =
+          normalizeCrawlUrl(response.url, options.baseUrl) ?? sourceUrl
+
+        if (!response.ok) {
+          pageRecords.push({
+            sourceUrl,
+            finalUrl,
+            status: "error",
+            httpStatus: response.status,
+            contentType,
+            capturedAt,
+            discoveredLinks: 0,
+            discoveredMedia: 0,
+            error: `HTTP ${response.status}`,
+          })
+          continue
         }
-      }
 
-      for (const media of evidence.media) {
-        const normalized = normalizeMediaUrl(media, options.baseUrl)
-        if (normalized) mediaUrls.add(normalized)
-      }
+        if (!/html|xhtml/i.test(contentType ?? "text/html")) {
+          pageRecords.push({
+            sourceUrl,
+            finalUrl,
+            status: "skipped",
+            httpStatus: response.status,
+            contentType,
+            capturedAt,
+            discoveredLinks: 0,
+            discoveredMedia: 0,
+            error: "Non-HTML response",
+          })
+          continue
+        }
 
-      if (evidence.pageType === "product" && evidence.product) {
-        productEvidence.push({
-          sourceUrl: finalUrl,
+        const evidence = extractPageEvidence(response.text, finalUrl)
+        const pageFilename = `${checksum(finalUrl).slice(0, 24)}.html`
+        const pageFile = join("pages", pageFilename)
+        await writeFile(join(pagesDir, pageFilename), response.text, "utf8")
+
+        for (const link of evidence.links) {
+          const normalized = normalizeCrawlUrl(link, options.baseUrl)
+          if (
+            normalized &&
+            !visited.has(normalized) &&
+            !queued.has(normalized)
+          ) {
+            queue.push(normalized)
+            queued.add(normalized)
+          }
+        }
+
+        for (const media of evidence.media) {
+          const normalized = normalizeMediaUrl(media, options.baseUrl)
+          if (normalized) mediaUrls.add(normalized)
+        }
+
+        if (evidence.pageType === "product" && evidence.product) {
+          productEvidence.push({
+            sourceUrl: finalUrl,
+            checksum: evidence.checksum,
+            title: evidence.title,
+            canonicalUrl: evidence.canonicalUrl,
+            hreflang: evidence.hreflang,
+            ...evidence.product,
+          })
+        }
+
+        pageRecords.push({
+          sourceUrl,
+          finalUrl,
+          status: "captured",
+          httpStatus: response.status,
+          contentType,
+          capturedAt,
+          pageFile,
           checksum: evidence.checksum,
+          pageType: evidence.pageType,
           title: evidence.title,
           canonicalUrl: evidence.canonicalUrl,
-          hreflang: evidence.hreflang,
-          ...evidence.product,
+          discoveredLinks: evidence.links.length,
+          discoveredMedia: evidence.media.length,
+        })
+      } catch (error) {
+        pageRecords.push({
+          sourceUrl,
+          status: "error",
+          capturedAt: new Date().toISOString(),
+          discoveredLinks: 0,
+          discoveredMedia: 0,
+          error: error instanceof Error ? error.message : String(error),
         })
       }
-
-      pageRecords.push({
-        sourceUrl,
-        finalUrl,
-        status: "captured",
-        httpStatus: response.status,
-        contentType,
-        capturedAt,
-        pageFile,
-        checksum: evidence.checksum,
-        pageType: evidence.pageType,
-        title: evidence.title,
-        canonicalUrl: evidence.canonicalUrl,
-        discoveredLinks: evidence.links.length,
-        discoveredMedia: evidence.media.length,
-      })
-    } catch (error) {
-      pageRecords.push({
-        sourceUrl,
-        status: "error",
-        capturedAt: new Date().toISOString(),
-        discoveredLinks: 0,
-        discoveredMedia: 0,
-        error: error instanceof Error ? error.message : String(error),
-      })
     }
-  }
 
-  const allMedia = [...mediaUrls]
-  const mediaRecords = options.downloadMedia
-    ? await concurrentMap(allMedia, options.mediaConcurrency, (url) => downloadOneMedia(url, mediaDir))
-    : allMedia.map<MediaRecord>((sourceUrl) => ({
-        sourceUrl,
-        status: "skipped",
-        capturedAt: new Date().toISOString(),
-        error: "Media download disabled",
+    const allMedia = [...mediaUrls]
+    const browserHeaders = browser ? await browser.requestHeaders() : {}
+    const mediaRecords = options.downloadMedia
+      ? await concurrentMap(allMedia, options.mediaConcurrency, (url) =>
+          downloadOneMedia(url, mediaDir, browserHeaders)
+        )
+      : allMedia.map<MediaRecord>((sourceUrl) => ({
+          sourceUrl,
+          status: "skipped",
+          capturedAt: new Date().toISOString(),
+          error: "Media download disabled",
+        }))
+
+    await writeJsonl(join(options.outputDir, "pages.jsonl"), pageRecords)
+    await writeJsonl(join(options.outputDir, "products.jsonl"), productEvidence)
+    await writeJsonl(join(options.outputDir, "media.jsonl"), mediaRecords)
+    await writeJsonl(
+      join(options.outputDir, "url-inventory.jsonl"),
+      pageRecords.map((record) => ({
+        sourceUrl: record.sourceUrl,
+        finalUrl: record.finalUrl,
+        status: record.status,
+        httpStatus: record.httpStatus,
+        pageType: record.pageType,
+        checksum: record.checksum,
+        error: record.error,
       }))
+    )
 
-  await writeJsonl(join(options.outputDir, "pages.jsonl"), pageRecords)
-  await writeJsonl(join(options.outputDir, "products.jsonl"), productEvidence)
-  await writeJsonl(join(options.outputDir, "media.jsonl"), mediaRecords)
-  await writeJsonl(
-    join(options.outputDir, "url-inventory.jsonl"),
-    pageRecords.map((record) => ({
-      sourceUrl: record.sourceUrl,
-      finalUrl: record.finalUrl,
-      status: record.status,
-      httpStatus: record.httpStatus,
-      pageType: record.pageType,
-      checksum: record.checksum,
-      error: record.error,
-    }))
-  )
+    const completedAt = new Date().toISOString()
+    const manifest = {
+      schemaVersion: 2,
+      captureId: options.captureId,
+      source: base.origin,
+      evidenceMode: "public_storefront",
+      transport: options.browser ? "browser" : "http",
+      startedAt,
+      completedAt,
+      options: {
+        maxPages: options.maxPages,
+        delayMs: options.delayMs,
+        downloadMedia: options.downloadMedia,
+        mediaConcurrency: options.mediaConcurrency,
+        respectRobots: options.respectRobots,
+        browser: options.browser,
+      },
+      robots: {
+        found: Boolean(robots.raw),
+        disallowCount: robots.disallow.length,
+        sitemapCount: robots.sitemaps.length,
+      },
+      discovery: {
+        sitemapUrls: sitemapUrls.length,
+        queuedUrls: queued.size,
+        visitedUrls: visited.size,
+      },
+      pages: {
+        captured: pageRecords.filter((record) => record.status === "captured")
+          .length,
+        skipped: pageRecords.filter((record) => record.status === "skipped")
+          .length,
+        errors: pageRecords.filter((record) => record.status === "error").length,
+        products: productEvidence.length,
+      },
+      media: {
+        discovered: mediaRecords.length,
+        captured: mediaRecords.filter((record) => record.status === "captured")
+          .length,
+        skipped: mediaRecords.filter((record) => record.status === "skipped")
+          .length,
+        errors: mediaRecords.filter((record) => record.status === "error").length,
+        bytes: mediaRecords.reduce(
+          (sum, record) => sum + (record.bytes ?? 0),
+          0
+        ),
+      },
+      complete: queue.length === 0,
+      remainingQueue: queue.length,
+    }
 
-  const completedAt = new Date().toISOString()
-  const manifest = {
-    schemaVersion: 1,
-    captureId: options.captureId,
-    source: base.origin,
-    evidenceMode: "public_storefront",
-    startedAt,
-    completedAt,
-    options: {
-      maxPages: options.maxPages,
-      delayMs: options.delayMs,
-      downloadMedia: options.downloadMedia,
-      mediaConcurrency: options.mediaConcurrency,
-      respectRobots: options.respectRobots,
-    },
-    robots: {
-      found: Boolean(robots.raw),
-      disallowCount: robots.disallow.length,
-      sitemapCount: robots.sitemaps.length,
-    },
-    discovery: {
-      sitemapUrls: sitemapUrls.length,
-      queuedUrls: queued.size,
-      visitedUrls: visited.size,
-    },
-    pages: {
-      captured: pageRecords.filter((record) => record.status === "captured").length,
-      skipped: pageRecords.filter((record) => record.status === "skipped").length,
-      errors: pageRecords.filter((record) => record.status === "error").length,
-      products: productEvidence.length,
-    },
-    media: {
-      discovered: mediaRecords.length,
-      captured: mediaRecords.filter((record) => record.status === "captured").length,
-      skipped: mediaRecords.filter((record) => record.status === "skipped").length,
-      errors: mediaRecords.filter((record) => record.status === "error").length,
-      bytes: mediaRecords.reduce((sum, record) => sum + (record.bytes ?? 0), 0),
-    },
-    complete: queue.length === 0,
-    remainingQueue: queue.length,
+    await writeFile(
+      join(options.outputDir, "manifest.json"),
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      "utf8"
+    )
+    return manifest
+  } finally {
+    await browser?.close()
   }
-
-  await writeFile(join(options.outputDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8")
-  return manifest
 }
