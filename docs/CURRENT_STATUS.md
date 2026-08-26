@@ -6,7 +6,7 @@
 
 ## Shipped to `main`
 
-Through merge `6f918059efd0668a0cb8558f297831dc26a6a1a3`:
+Through merge `3baf8febcd5573de616f96449342b21eb7ff4eec`:
 
 - isolated COQUETTE repository/workspace and dedicated Supabase project/storage
 - pnpm/Turbo monorepo, Medusa v2.19 backend/Admin and Next.js storefront
@@ -40,34 +40,36 @@ Through merge `6f918059efd0668a0cb8558f297831dc26a6a1a3`:
 - typed Medusa payment-session initialization
 - authoritative payment collection/session state reloaded into the cart
 - customer-facing manual/system payment provider hidden by default
-- no order completion or fake paid state in generic checkout
+- custom PayPal Medusa Payment Module Provider using `@paypal/paypal-server-sdk@2.5.0`
+- conditional PayPal provider registration only when backend credentials exist
+- PayPal Sandbox-safe runtime contract, authorize/capture/refund/void/update/retrieve/status methods and verified webhook handling
+- CI forcing the configured PayPal provider registration path with dummy Sandbox credentials
+- no customer order completion or fake paid state in the generic payment-session layer
 - CI with fresh PostgreSQL 17 + Redis, clean migrations, migration contract, PayPal registration contract, Sale pricing-graph contract, backend production build and storefront production build
 
 ## Active implementation
 
-Branch: `feature/paypal-provider-foundation`
+Branch: `feature/paypal-storefront-approval`
 
 Implemented on branch:
 
-- pinned `@paypal/paypal-server-sdk@2.5.0` using the workspace lockfile
-- custom Medusa PayPal Payment Module Provider under `apps/backend/src/modules/paypal`
-- provider identifier `paypal`; runtime Medusa provider ID `pp_paypal_paypal`
-- provider is registered only when both `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` exist
-- absence of PayPal credentials leaves local development and normal backend startup provider-free
-- Sandbox is the safe/default environment; Live requires explicit `PAYPAL_ENVIRONMENT=production`
-- authorize-only is the default; `PAYPAL_AUTO_CAPTURE=true` enables immediate capture behavior
-- PayPal order creation stores Medusa session ID as PayPal `custom_id`
-- provider methods implemented for initiate, authorize, capture, refund, update, retrieve, cancel, delete/no-op and payment-status mapping
-- PayPal webhook signature verification implemented using the configured PayPal webhook ID
-- supported webhook actions include authorization-created, authorization-voided, capture-completed and capture-denied
-- backend environment template documents PayPal runtime variables without credentials
-- CI now forces the PayPal registration path with dummy sandbox credentials after clean migrations
-- backend TypeScript compatibility with PayPal SDK 2.5.0 passed
-- conditional Medusa provider registration/constructor path passed with dummy sandbox credentials
-- architecture documented in `docs/architecture/PAYPAL_PROVIDER.md`
-- temporary dependency-lock bootstrap workflow has been removed; normal frozen-lockfile CI remains authoritative
+- pinned `@paypal/react-paypal-js@10.3.0` using the workspace lockfile
+- PayPal React SDK v6 integration (`@paypal/react-paypal-js/sdk-v6`), not the legacy v5 button API
+- storefront PayPal environment contract with public Client ID and explicit Sandbox/production selector
+- payment session reuses the PayPal order created by the COQUETTE Medusa backend; browser code never creates a duplicate PayPal order
+- PayPal v6 `PayPalOneTimePaymentButton` receives the authoritative payment-session `order_id`
+- approval callback verifies the PayPal order ID matches the Medusa session before attempting order placement
+- customer PayPal approval then calls Medusa `store.cart.complete(cart.id)`
+- only Medusa `type === "order"` is accepted as a completed COQUETTE order
+- persisted `coquette_cart_id` is removed only after successful Medusa order creation
+- PayPal cancel/error leaves the cart intact and creates no COQUETTE order
+- Medusa completion failure keeps the cart recoverable and relies on Medusa's completion rollback behavior rather than issuing a browser-side refund
+- Greek `/order-confirmation/[id]` and English `/en/order-confirmation/[id]` routes
+- public confirmation page intentionally exposes only the opaque order identifier, not customer/order details
+- architecture documented in `docs/architecture/PAYPAL_STOREFRONT_APPROVAL.md`
+- temporary storefront lockfile bootstrap workflow removed; normal frozen-lockfile CI remains authoritative
 
-The branch still requires final documentation-inclusive exact-head CI, protected PR CI and merge before the PayPal backend provider is considered shipped.
+This branch still requires exact-head CI, protected PR CI and merge before PayPal browser approval/order completion is considered shipped. It also requires real PayPal Sandbox end-to-end testing in the dedicated COQUETTE staging environment before Live activation.
 
 ## Phase status
 
@@ -97,7 +99,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 6 — Storefront parity
 
-**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery, cart, address/shipping checkout and generic payment-session selection are shipped. Wishlist, full editorial parity, provider-specific payment authorization and final responsive/visual UAT remain.
+**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery, cart, address/shipping checkout and generic payment-session selection are shipped. PayPal browser approval/order completion is active on a feature branch. Wishlist, full editorial parity and final responsive/visual UAT remain.
 
 ### Phase 7 — Search, discovery and merchandising
 
@@ -105,7 +107,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 8 — Cart / checkout foundation
 
-**Generic checkout/payment-session foundation shipped.** The PayPal backend provider is active on a feature branch. PayPal browser approval/order completion, Klarna and the final card acquirer remain separate provider workstreams.
+**Generic checkout/payment-session foundation and PayPal backend provider shipped.** PayPal browser approval/order completion is active on a feature branch. Klarna and the final card acquirer remain separate provider workstreams.
 
 ### Phases 9–18
 
@@ -126,12 +128,13 @@ Tracked in GitHub issue #9:
 9. configure supported `el-GR` and `en-GB` locales
 10. configure the Greece-serving Medusa region and sales-channel relationship
 11. configure real service zones, shipping profiles/options and any fulfillment provider needed for calculated rates
-12. provision PayPal Sandbox merchant app and backend credentials
+12. provision the dedicated COQUETTE PayPal Sandbox merchant app and backend credentials
 13. configure PayPal webhook and `PAYPAL_WEBHOOK_ID`
 14. enable `pp_paypal_paypal` on the intended Medusa region
-15. add/test the provider-specific PayPal browser approval flow before enabling order completion
-16. connect storefront to staging backend
-17. verify `/health`, Admin, Store API, catalogue flows, translations, cart, address/shipping checkout, payment sessions, PayPal authorization/webhooks, media upload and worker operation
+15. configure the storefront with the matching public Sandbox Client ID
+16. test PayPal approval, cancel, failed completion, successful order creation, capture, void, refund and webhook behavior end-to-end
+17. connect storefront to staging backend
+18. verify `/health`, Admin, Store API, catalogue flows, translations, cart, address/shipping checkout, payment sessions, PayPal flow, media upload and worker operation
 
 ## Production boundary
 
