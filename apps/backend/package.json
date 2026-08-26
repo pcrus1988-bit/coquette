@@ -18,7 +18,8 @@
     "db:generate:content": "medusa db:generate content",
     "migration:contract": "ts-node src/scripts/migration-contract-check.ts",
     "sale:contract": "medusa exec ./src/scripts/sale-query-contract.ts",
-    "staging:bootstrap": "medusa exec ./src/scripts/staging-commerce-bootstrap.ts"
+    "staging:bootstrap": "medusa exec ./src/scripts/staging-commerce-bootstrap.ts",
+    "storage:smoke": "medusa exec ./src/scripts/storage-smoke.ts"
   },
   "dependencies": {
     "@medusajs/admin-sdk": "2.19.0",
@@ -47,7 +48,7 @@
     "jest": "^29.7.0",
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^18.2.25",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2",
     "vite": "^7.3.6"
