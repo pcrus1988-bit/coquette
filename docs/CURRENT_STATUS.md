@@ -6,7 +6,7 @@
 
 ## Shipped to `main`
 
-Through merge `4134a2dfe959d2c9ad6bf399dd1eccc89fa4305b`:
+Through merge `2c6fbfbd5d73dcb3f51077423763bc81d91ccc09`:
 
 - isolated COQUETTE repository/workspace and dedicated Supabase project/storage
 - pnpm/Turbo monorepo, Medusa v2.19 backend/Admin and Next.js storefront
@@ -20,29 +20,39 @@ Through merge `4134a2dfe959d2c9ad6bf399dd1eccc89fa4305b`:
 - public Brand Store API and Greek/English Brand-backed Designer PLPs
 - verified public Sale pipeline and Greek/English Sale PLPs
 - Sale badges/strike-through based on true Medusa `sale` price-list semantics
+- real Greek/English product search using Medusa `q`
+- controlled catalogue sorting using Medusa `order`
+- Color/Size filters using global Product Option value IDs
+- Designer filters using first-class Brand links intersected inside normal Store Product API queries
+- URL-driven catalogue state: `q`, `sort`, repeated `option`, `designer`, `page`
+- exact query-state preservation across pagination
 - CI with fresh PostgreSQL 17 + Redis, clean migrations, migration contract, Sale pricing-graph contract, backend production build and storefront production build
 
 ## Active implementation
 
-Branch: `feature/catalogue-search-filter-sort`
+Branch: `feature/cart-foundation`
 
-Implemented on branch:
+Implemented on branch and green on functional head `1e7cf2f47be9d492b6c268759f70c06512e1698b`:
 
-- real Greek and English `/search` product-result surfaces
-- Medusa-native keyword search through `q`
-- controlled product sorting through `order`
-- Color and Size filters using real Medusa global Product Option value IDs and `option_value_id`
-- live Designer filter using COQUETTE Brand records rather than product metadata
-- Designer filtering resolves the Brand's complete linked product-ID set and intersects it inside the normal Store Product API query, preserving exact category/search/options counts and pagination
-- URL-driven GET state: `q`, `sort`, repeated `option`, `designer`, `page`
-- shared parser validates sort values, option-value IDs and Designer handles
-- active query state is preserved across pagination
-- Greek/English Clothing and Accessories top-level/nested PLPs use the same filter contract
-- dedicated Designer PLPs and Sale PLPs deliberately retain their specialized relation/pricing pipelines
-- Price filter remains deliberately disabled until a context-aware calculated-price range implementation can guarantee exact public pricing/count/pagination semantics
-- query architecture documented in `docs/architecture/CATALOGUE_QUERY.md`
+- client Region provider resolves the Medusa region serving Greece and persists the region ID
+- persistent Medusa cart ID stored locally; invalid/expired carts are discarded safely
+- cart is created lazily and remains Medusa-authoritative
+- explicit cart locales: Greek `el-GR`, English `en-GB`, configurable by environment
+- persisted cart is idempotently aligned with the current region and storefront locale
+- one cart survives EL/EN navigation while translated line-item content follows cart locale
+- real product option/variant selection on product detail
+- Add to Cart only becomes available after selected option values resolve to an actual Medusa variant
+- selected variant controls displayed calculated price and stock state
+- quantity selection and real Store API add-line-item operation
+- live cart item count in the site header
+- real Greek `/cart` and English `/en/cart`
+- line-item quantity update and removal
+- product thumbnails/variant labels and real cart subtotal/total
+- checkout remains deliberately disabled until addresses, shipping and payments are implemented together
+- no provisional shipping fee, payment credential or fiscal rule is hard-coded
+- architecture documented in `docs/architecture/CART.md`
 
-The branch still requires its final exact-head CI, protected PR CI and merge before these Phase 7 capabilities are considered shipped.
+The cart branch still requires final documentation-inclusive exact-head CI, protected PR CI and merge before cart is considered shipped.
 
 ## Phase status
 
@@ -72,13 +82,17 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 6 — Storefront parity
 
-**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media and pagination are implemented. Cart, wishlist, full editorial parity and final responsive/visual UAT remain.
+**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination and catalogue discovery are shipped. Cart interaction is implemented on the active branch; wishlist, full editorial parity and final responsive/visual UAT remain.
 
 ### Phase 7 — Search, discovery and merchandising
 
-**Active.** Search, sorting, Color/Size and Designer filtering are implemented on the active branch with URL-driven native query semantics. Context-correct Price filtering remains deferred.
+**Substantially implemented.** Search, sorting, Color/Size and Designer filtering are shipped to `main` with URL-driven native query semantics. Context-correct Price filtering remains deferred.
 
-### Phases 8–18
+### Phase 8 — Cart / checkout foundation
+
+**Cart active on feature branch.** Persistent cart and line-item operations are implemented. Checkout address, shipping and payment-session work has not started yet.
+
+### Phases 9–18
 
 Remain governed by `docs/ROADMAP.md`; no phase should be marked complete without its documented exit gate.
 
@@ -94,9 +108,10 @@ Tracked in GitHub issue #9:
 6. place Supabase DB/S3 credentials only in backend hosting secrets
 7. migrate staging schema
 8. create Admin account and publishable Store API key
-9. configure supported locales
-10. connect storefront to staging backend
-11. verify `/health`, Admin, Store API, Brand/Sale queries, filters/search, translations, media upload and worker operation
+9. configure supported `el-GR` and `en-GB` locales
+10. configure the Greece-serving Medusa region and sales-channel relationship
+11. connect storefront to staging backend
+12. verify `/health`, Admin, Store API, Brand/Sale queries, filters/search, translations, real cart flow, media upload and worker operation
 
 ## Production boundary
 
