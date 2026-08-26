@@ -24,6 +24,11 @@ async function optionalManualUnavailable(path?: string): Promise<ManualUnavailab
   })
 }
 
+function raiseExitCode(code: number) {
+  const current = typeof process.exitCode === "number" ? process.exitCode : 0
+  process.exitCode = Math.max(current, code)
+}
+
 async function main() {
   const captureDir = process.env.COQUETTE_CAPTURE_DIR
   if (!captureDir) {
@@ -111,7 +116,7 @@ async function main() {
       console.error(
         "Runtime import manifest was requested, but the product import plan is not fully executable. No runtime manifest was written."
       )
-      process.exitCode = Math.max(process.exitCode ?? 0, 3)
+      raiseExitCode(3)
     } else {
       await writeFile(
         resolve(runtimeManifestPath),
@@ -124,7 +129,7 @@ async function main() {
   console.log(output)
 
   if (!validation.isValid) {
-    process.exitCode = Math.max(process.exitCode ?? 0, 2)
+    raiseExitCode(2)
   }
 }
 
