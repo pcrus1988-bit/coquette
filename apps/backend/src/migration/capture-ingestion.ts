@@ -315,7 +315,8 @@ async function reconstructPageMedia(
       relationships[pageUrl] = discoverMedia(html, pageUrl)
         .map((url) => validHttpUrlOnHost(url, expectedHost))
         .filter(
-          (url): url is string => Boolean(url) && availableMedia.has(url)
+          (url): url is string =>
+            typeof url === "string" && availableMedia.has(url)
         )
     } catch {
       relationships[pageUrl] = []
