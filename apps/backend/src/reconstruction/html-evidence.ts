@@ -176,7 +176,7 @@ export function discoverMedia(html: string, pageUrl: string) {
   return unique(
     candidates
       .map((value) => safeUrl(value, pageUrl))
-      .filter((value): value is string => Boolean(value) && isMediaUrl(value))
+      .filter((value): value is string => typeof value === "string" && isMediaUrl(value))
   )
 }
 
