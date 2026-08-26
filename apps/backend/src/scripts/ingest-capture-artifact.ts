@@ -50,9 +50,10 @@ async function main() {
     baseline,
     manualUnavailable
   )
+  const structures = Object.values(bundle.productStructures ?? {})
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     capture: {
       captureId: bundle.manifest.captureId,
@@ -66,6 +67,21 @@ async function main() {
       products: bundle.products.length,
       media: bundle.media.length,
       pagesWithRecoveredMediaRelationships: Object.keys(bundle.pageMedia).length,
+      productStructure: {
+        productsReparsed: structures.length,
+        withGalleryMedia: structures.filter(
+          (structure) => structure.galleryMedia.length > 0
+        ).length,
+        withCategories: structures.filter(
+          (structure) => structure.categoryReferences.length > 0
+        ).length,
+        withOptionGroups: structures.filter(
+          (structure) => structure.optionGroups.length > 0
+        ).length,
+        explicitlyConfigurable: structures.filter(
+          (structure) => structure.typeHint === "configurable"
+        ).length,
+      },
     },
     candidates: {
       total: candidates.length,
