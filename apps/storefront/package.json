@@ -1,6 +1,7 @@
 {
   "name": "@coquette/storefront",
   "version": "0.1.0",
+  "description": "COQUETTE Next.js storefront",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 8000",
@@ -12,6 +13,7 @@
   "dependencies": {
     "@medusajs/js-sdk": "2.19.0",
     "@medusajs/ui-preset": "2.19.0",
+    "@paypal/react-paypal-js": "10.3.0",
     "next": "15.5.21",
     "react": "19.0.5",
     "react-dom": "19.0.5"

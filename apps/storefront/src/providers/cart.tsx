@@ -20,6 +20,9 @@ type CartUpdateInput = Parameters<typeof medusa.store.cart.update>[1]
 type PaymentSessionInput = Parameters<
   typeof medusa.store.payment.initiatePaymentSession
 >[1]
+export type CompleteCartResponse = Awaited<
+  ReturnType<typeof medusa.store.cart.complete>
+>
 
 export type CheckoutAddress = {
   first_name: string
@@ -50,6 +53,7 @@ type CartContextValue = {
   }) => Promise<StoreCart>
   addShippingMethod: (optionId: string, data?: Record<string, unknown>) => Promise<StoreCart>
   initiatePaymentSession: (input: PaymentSessionInput) => Promise<StoreCart>
+  completeCart: () => Promise<CompleteCartResponse>
   refreshCart: () => Promise<StoreCart | undefined>
 }
 
@@ -275,6 +279,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [cart]
   )
 
+  const completeCart = useCallback(async () => {
+    if (!cart) {
+      throw new Error("No active cart")
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await medusa.store.cart.complete(cart.id)
+
+      if (result.type === "order") {
+        localStorage.removeItem(CART_STORAGE_KEY)
+        setCart(undefined)
+        return result
+      }
+
+      if (result.cart) {
+        setCart(result.cart as StoreCart)
+      }
+      setError(result.error?.message || "The order could not be completed.")
+      return result
+    } catch (reason) {
+      console.error("COQUETTE cart completion failed", reason)
+      setError("The order could not be completed.")
+      throw reason
+    } finally {
+      setLoading(false)
+    }
+  }, [cart])
+
   const addToCart = useCallback(
     async (variantId: string, quantity = 1) => {
       setLoading(true)
@@ -373,6 +407,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       updateCheckoutContact,
       addShippingMethod,
       initiatePaymentSession,
+      completeCart,
       refreshCart,
     }),
     [
@@ -387,6 +422,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       updateCheckoutContact,
       addShippingMethod,
       initiatePaymentSession,
+      completeCart,
       refreshCart,
     ]
   )
