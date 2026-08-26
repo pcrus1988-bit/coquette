@@ -66,7 +66,7 @@
 - [x] Create one store, one sales channel and one EUR Greece region
 - [x] Add explicit idempotent `staging:bootstrap` command for Greece commerce configuration
 - [x] CI validates the bootstrap twice from a clean database, including a synthetic shipping-option creation path
-- [ ] Run `pnpm --filter @coquette/backend staging:bootstrap` once against the real Railway staging runtime
+- [ ] Run `pnpm --filter @coquette/backend staging:bootstrap` once against the real Railway staging runtime. This is deliberately separate from normal deploy/pre-deploy and is not executed merely by syncing the branch.
 - [ ] Verify live store name/default region/default location/default sales channel after bootstrap
 - [ ] Verify live `el-GR` and `en-GB` store locale links after bootstrap
 - [ ] Verify Greece is assigned to the Medusa region after bootstrap
