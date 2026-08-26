@@ -8,6 +8,7 @@ export type CatalogueQuery = {
   q?: string
   order?: CatalogueSort
   optionValueIds?: string[]
+  productIds?: string[]
 }
 
 type ProductListResponse = Awaited<ReturnType<typeof medusa.store.product.list>>
@@ -71,6 +72,9 @@ function localeTag(locale?: string) {
 function normalizeQuery(query?: CatalogueQuery) {
   const q = query?.q?.trim()
   const optionValueIds = [...new Set(query?.optionValueIds ?? [])].filter(Boolean)
+  const productIds = query?.productIds
+    ? [...new Set(query.productIds)].filter(Boolean)
+    : undefined
 
   return {
     ...(q ? { q } : {}),
@@ -78,6 +82,7 @@ function normalizeQuery(query?: CatalogueQuery) {
     ...(optionValueIds.length > 0
       ? { option_value_id: optionValueIds }
       : {}),
+    ...(productIds && productIds.length > 0 ? { id: productIds } : {}),
   }
 }
 
@@ -85,8 +90,14 @@ function queryTags(query?: CatalogueQuery) {
   const q = query?.q?.trim() || "all"
   const order = query?.order || "default"
   const options = [...new Set(query?.optionValueIds ?? [])].sort().join(",") || "all"
+  const productSet = query?.productIds ? String(query.productIds.length) : "all"
 
-  return [`query:${q}`, `order:${order}`, `options:${options}`]
+  return [
+    `query:${q}`,
+    `order:${order}`,
+    `options:${options}`,
+    `product-set-size:${productSet}`,
+  ]
 }
 
 export async function getProductFilterOptions(
@@ -137,6 +148,14 @@ export async function getCatalogueProducts(
   if (!isMedusaStoreConfigured) {
     return {
       state: "unconfigured",
+      products: [],
+      count: 0,
+    }
+  }
+
+  if (query?.productIds && query.productIds.length === 0) {
+    return {
+      state: "ready",
       products: [],
       count: 0,
     }
@@ -276,6 +295,15 @@ export async function getCategoryProducts(
       return {
         state: "not_found",
         category: null,
+        products: [],
+        count: 0,
+      }
+    }
+
+    if (query?.productIds && query.productIds.length === 0) {
+      return {
+        state: "ready",
+        category,
         products: [],
         count: 0,
       }
