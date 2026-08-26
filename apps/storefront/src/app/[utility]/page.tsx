@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { CartPage } from "../../components/cart-page"
 import { ProductListingShell } from "../../components/product-listing-shell"
 import {
   parseCatalogueSearchParams,
@@ -7,7 +8,6 @@ import {
 
 const pages: Record<string, { title: string; body: string }> = {
   account: { title: "Λογαριασμός", body: "Σύνδεση, εγγραφή, ανάκτηση κωδικού, διευθύνσεις, παραγγελίες και wishlist θα υλοποιηθούν χωρίς τα Magento account overlays." },
-  cart: { title: "Το καλάθι μου", body: "Το ενιαίο cart και checkout flow θα συνδεθεί με τις πραγματικές payment και shipping integrations στη φάση checkout." },
   contact: { title: "Επικοινωνία", body: "Coquette Concept · Βρασίδου 119, ΤΚ 23100 · Αρχαία Σπάρτη · 2731 0 20404." },
   shipping: { title: "Αποστολές", body: "Οι τελικοί courier κανόνες, χρεώσεις και δωρεάν μεταφορικά άνω των €100 θα μεταφερθούν μετά την επιβεβαίωση των εμπορικών ρυθμίσεων." },
   payments: { title: "Τρόποι πληρωμής", body: "Η σελίδα θα ενημερώνεται από το merchant back office και θα αντικατοπτρίζει μόνο ενεργούς payment providers." },
@@ -23,6 +23,10 @@ export default async function UtilityPage({
   searchParams: Promise<CatalogueSearchParams>
 }) {
   const [{ utility }, rawSearchParams] = await Promise.all([params, searchParams])
+
+  if (utility === "cart") {
+    return <CartPage />
+  }
 
   if (utility === "search") {
     const parsed = parseCatalogueSearchParams(rawSearchParams)
