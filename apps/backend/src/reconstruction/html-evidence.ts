@@ -166,11 +166,11 @@ export function discoverMedia(html: string, pageUrl: string) {
     candidates.push(cssMatch[1])
   }
 
-  const embeddedImagePattern = /https?:\\?\/\\?\/[^
-\r\t"'<> ]+?\.(?:avif|gif|jpe?g|png|svg|webp)(?:\?[^"'<> ]*)?/gi
+  const normalizedHtml = html.replace(/\\\//g, "/")
+  const embeddedImagePattern = /https?:\/\/[^\s"'<>]+?\.(?:avif|gif|jpe?g|png|svg|webp)(?:\?[^\s"'<>]*)?/gi
   let embeddedMatch: RegExpExecArray | null
-  while ((embeddedMatch = embeddedImagePattern.exec(html))) {
-    candidates.push(embeddedMatch[0].replace(/\\\//g, "/"))
+  while ((embeddedMatch = embeddedImagePattern.exec(normalizedHtml))) {
+    candidates.push(embeddedMatch[0])
   }
 
   return unique(
@@ -296,7 +296,7 @@ export function extractPageEvidence(html: string, sourceUrl: string): PageEviden
   const classified = classifyOptionValues(labels)
 
   const title =
-    firstTextMatch(html, [/<h1\b[^>]*>[\s\S]*?<\/h1>/i, /<title\b[^>]*>([\s\S]*?)<\/title>/i]) ??
+    firstTextMatch(html, [/<h1\b[^>]*>([\s\S]*?)<\/h1>/i, /<title\b[^>]*>([\s\S]*?)<\/title>/i]) ??
     metaContent(html, "og:title", "property")
 
   const canonical = linkHref(html, "canonical")
