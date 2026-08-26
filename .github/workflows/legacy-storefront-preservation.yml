@@ -46,7 +46,6 @@ jobs:
         shell: bash
         run: |
           command -v google-chrome || command -v google-chrome-stable || command -v chromium
-          command -v xvfb-run
 
       - name: Capture public legacy storefront
         env:
@@ -59,7 +58,7 @@ jobs:
           COQUETTE_CAPTURE_MEDIA_CONCURRENCY: "6"
           COQUETTE_CAPTURE_RESPECT_ROBOTS: "true"
           COQUETTE_CAPTURE_BROWSER: "true"
-          COQUETTE_CAPTURE_BROWSER_MODE: headed
+          COQUETTE_CAPTURE_BROWSER_MODE: headless
           COQUETTE_CAPTURE_CHALLENGE_TIMEOUT_MS: "30000"
         run: pnpm --filter @coquette/backend storefront:capture
 
