@@ -40,6 +40,30 @@ const parseShippingAmount = () => {
   return amount
 }
 
+const isExistingLinkError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+  const normalized = message.toLowerCase()
+
+  return (
+    normalized.includes("already") ||
+    normalized.includes("duplicate") ||
+    normalized.includes("unique")
+  )
+}
+
+const createLinkIfMissing = async (
+  link: { create: (definition: Record<string, unknown>) => Promise<unknown> },
+  definition: Record<string, unknown>
+) => {
+  try {
+    await link.create(definition)
+  } catch (error) {
+    if (!isExistingLinkError(error)) {
+      throw error
+    }
+  }
+}
+
 export default async function stagingCommerceBootstrap({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const link = container.resolve(ContainerRegistrationKeys.LINK)
@@ -80,6 +104,10 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
         id.includes("klarna")
     )
 
+  const providerIds = enabledPaymentProviderIds.length
+    ? enabledPaymentProviderIds
+    : ["pp_system_default"]
+
   let [region] = await regionModuleService.listRegions({ name: REGION_NAME })
 
   if (!region) {
@@ -91,65 +119,54 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
             name: REGION_NAME,
             currency_code: "eur",
             countries: [COUNTRY_CODE],
-            payment_providers: enabledPaymentProviderIds.length
-              ? enabledPaymentProviderIds
-              : ["pp_system_default"],
+            payment_providers: providerIds,
           },
         ],
       },
     })
     region = result[0]
   } else {
-    const regionCountries = await regionModuleService.listRegionCountries({
+    const countries = await regionModuleService.listCountries({
       region_id: region.id,
     })
-    const hasGreece = regionCountries.some(
+    const hasGreece = countries.some(
       (country) => country.iso_2.toLowerCase() === COUNTRY_CODE
     )
 
-    const providerIds = enabledPaymentProviderIds.length
-      ? enabledPaymentProviderIds
-      : ["pp_system_default"]
-
     if (!hasGreece || providerIds.length > 1) {
       logger.info("Updating Greece region country/payment-provider links")
-      await updateRegionsWorkflow(container).run({
-        input: {
-          selector: { id: region.id },
-          update: {
-            countries: [COUNTRY_CODE],
-            payment_providers: providerIds,
-          },
-        },
-      })
-      ;[region] = await regionModuleService.listRegions({ id: region.id })
     }
+
+    await updateRegionsWorkflow(container).run({
+      input: {
+        selector: { id: region.id },
+        update: {
+          countries: [COUNTRY_CODE],
+          payment_providers: providerIds,
+        },
+      },
+    })
+    ;[region] = await regionModuleService.listRegions({ id: region.id })
   }
 
   if (!region) {
     throw new Error("Greece region was not available after bootstrap")
   }
 
-  const supportedLocales = await storeModuleService.listStoreLocales({
-    store_id: store.id,
-  })
-  const supportedLocaleCodes = new Set(
-    supportedLocales.map((locale) => locale.locale_code)
-  )
-
-  if (STORE_LOCALES.some((locale) => !supportedLocaleCodes.has(locale))) {
-    logger.info("Enabling Greek and English store locales")
-    await updateStoresWorkflow(container).run({
-      input: {
-        selector: { id: store.id },
-        update: {
-          supported_locales: STORE_LOCALES.map((locale_code) => ({
-            locale_code,
-          })),
-        },
+  logger.info("Configuring COQUETTE store defaults and locales")
+  await updateStoresWorkflow(container).run({
+    input: {
+      selector: { id: store.id },
+      update: {
+        name: "COQUETTE",
+        default_region_id: region.id,
+        default_sales_channel_id: salesChannel.id,
+        supported_locales: STORE_LOCALES.map((locale_code) => ({
+          locale_code,
+        })),
       },
-    })
-  }
+    },
+  })
 
   let [stockLocation] = await stockLocationModuleService.listStockLocations({
     name: STOCK_LOCATION_NAME,
@@ -173,61 +190,58 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
     throw new Error("Stock location was not available after bootstrap")
   }
 
-  if (store.default_location_id !== stockLocation.id) {
-    await updateStoresWorkflow(container).run({
-      input: {
-        selector: { id: store.id },
-        update: {
-          default_location_id: stockLocation.id,
-          default_sales_channel_id: salesChannel.id,
-        },
-      },
-    })
-  }
-
-  await linkSalesChannelsToStockLocationWorkflow(container).run({
+  await updateStoresWorkflow(container).run({
     input: {
-      id: stockLocation.id,
-      add: [salesChannel.id],
+      selector: { id: store.id },
+      update: {
+        name: "COQUETTE",
+        default_region_id: region.id,
+        default_location_id: stockLocation.id,
+        default_sales_channel_id: salesChannel.id,
+        supported_locales: STORE_LOCALES.map((locale_code) => ({
+          locale_code,
+        })),
+      },
     },
   })
 
-  const locationProviders = await fulfillmentModuleService.listFulfillmentProviders(
-    { id: "manual_manual" }
-  )
-  if (!locationProviders.length) {
+  try {
+    await linkSalesChannelsToStockLocationWorkflow(container).run({
+      input: {
+        id: stockLocation.id,
+        add: [salesChannel.id],
+      },
+    })
+  } catch (error) {
+    if (!isExistingLinkError(error)) {
+      throw error
+    }
+  }
+
+  const manualProviders = await fulfillmentModuleService.listFulfillmentProviders({
+    id: "manual_manual",
+  })
+  if (!manualProviders.length) {
     throw new Error(
       "The manual fulfillment provider is unavailable; cannot create staging shipping configuration"
     )
   }
 
-  const existingLocationProviderLinks = await fulfillmentModuleService.listFulfillmentProviders(
-    { id: "manual_manual" }
-  )
-
-  if (existingLocationProviderLinks.length) {
-    try {
-      await link.create({
-        [Modules.STOCK_LOCATION]: {
-          stock_location_id: stockLocation.id,
-        },
-        [Modules.FULFILLMENT]: {
-          fulfillment_provider_id: "manual_manual",
-        },
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (!message.toLowerCase().includes("already")) {
-        throw error
-      }
-    }
-  }
+  await createLinkIfMissing(link, {
+    [Modules.STOCK_LOCATION]: {
+      stock_location_id: stockLocation.id,
+    },
+    [Modules.FULFILLMENT]: {
+      fulfillment_provider_id: "manual_manual",
+    },
+  })
 
   let [shippingProfile] = await fulfillmentModuleService.listShippingProfiles({
     type: "default",
   })
 
   if (!shippingProfile) {
+    logger.info("Creating default shipping profile")
     const { result } = await createShippingProfilesWorkflow(container).run({
       input: {
         data: [
@@ -272,39 +286,35 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
     throw new Error("Fulfillment set was not available after bootstrap")
   }
 
-  try {
-    await link.create({
-      [Modules.STOCK_LOCATION]: {
-        stock_location_id: stockLocation.id,
-      },
-      [Modules.FULFILLMENT]: {
-        fulfillment_set_id: fulfillmentSet.id,
-      },
-    })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (!message.toLowerCase().includes("already")) {
-      throw error
-    }
-  }
-
-  const serviceZones = await fulfillmentModuleService.listServiceZones({
-    fulfillment_set_id: fulfillmentSet.id,
-    name: SERVICE_ZONE_NAME,
+  await createLinkIfMissing(link, {
+    [Modules.STOCK_LOCATION]: {
+      stock_location_id: stockLocation.id,
+    },
+    [Modules.FULFILLMENT]: {
+      fulfillment_set_id: fulfillmentSet.id,
+    },
   })
-  const serviceZone = serviceZones[0]
+
+  const serviceZones = await fulfillmentModuleService.listServiceZones({})
+  const serviceZone = serviceZones.find(
+    (zone) =>
+      zone.fulfillment_set_id === fulfillmentSet.id &&
+      zone.name === SERVICE_ZONE_NAME
+  )
 
   if (!serviceZone) {
     throw new Error("Greece service zone was not available after bootstrap")
   }
 
   const shippingAmount = parseShippingAmount()
-  const shippingOptions = await fulfillmentModuleService.listShippingOptions({
-    service_zone_id: serviceZone.id,
-    name: STANDARD_SHIPPING_OPTION_NAME,
-  })
+  const allShippingOptions = await fulfillmentModuleService.listShippingOptions({})
+  const shippingOption = allShippingOptions.find(
+    (option) =>
+      option.service_zone_id === serviceZone.id &&
+      option.name === STANDARD_SHIPPING_OPTION_NAME
+  )
 
-  if (!shippingOptions.length && shippingAmount !== null) {
+  if (!shippingOption && shippingAmount !== null) {
     logger.info(
       `Creating Standard Greece shipping option at EUR ${shippingAmount}`
     )
@@ -346,7 +356,7 @@ export default async function stagingCommerceBootstrap({ container }: ExecArgs) 
         },
       ],
     })
-  } else if (!shippingOptions.length) {
+  } else if (!shippingOption) {
     logger.warn(
       "COQUETTE_STANDARD_SHIPPING_EUR is not set; fulfillment structure is ready, but no customer-facing shipping option was created"
     )
