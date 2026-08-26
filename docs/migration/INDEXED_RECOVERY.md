@@ -6,7 +6,7 @@ This recovery layer exists so COQUETTE can reconcile the legacy Magento catalogu
 
 It is a **secondary evidence source**. It is not a substitute for the Magento database, `pub/media`, configuration inventory, or a successful direct storefront capture.
 
-The machine-readable baseline is `docs/migration/indexed-recovery-baseline.json` and is validated in CI by `pnpm --filter @coquette/backend indexed-recovery:contract`.
+The machine-readable baseline is `docs/migration/indexed-recovery-baseline.json` and is validated in CI by `pnpm --filter @coquette/backend indexed-recovery:contract`. The normal COQUETTE pull-request pipeline must pass this gate alongside the storefront-capture, migration, database, Admin CRUD, payment/bootstrap, pricing, Railway-build and storefront-build checks.
 
 ## Evidence hierarchy
 
@@ -18,7 +18,7 @@ Use the highest available evidence grade for each individual field, not one blan
 4. **Derived reconstruction** — a value reconstructed from relationships or surrounding evidence.
 5. **Inferred/unavailable** — never publish as fact without review.
 
-A newer lower-ranked observation may legitimately prove that an older authoritative snapshot changed later. When this happens, retain both observations and the chronology; do not overwrite provenance.
+A newer lower-ranked observation may legitimately prove that an older authoritative snapshot changed later. When this happens, retain both observations and the chronology; do not overwrite provenance. Source priority is therefore evaluated **per field and observation time**, while unexplained conflicts remain review items rather than being silently resolved by source rank alone.
 
 ## Field reconciliation rules
 
