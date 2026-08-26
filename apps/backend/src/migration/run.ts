@@ -1,3 +1,4 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import type { ReconciliationResult } from "./types"
 
 export type MagentoSnapshotDescriptor = {
@@ -26,7 +27,10 @@ const SAFE_ARTIFACT_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 function assertSafeArtifactSegment(value: string, label: string): void {
   if (!SAFE_ARTIFACT_SEGMENT.test(value)) {
-    throw new Error(`${label} contains unsupported characters: ${value}`)
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `${label} contains unsupported characters: ${value}`
+    )
   }
 }
 
