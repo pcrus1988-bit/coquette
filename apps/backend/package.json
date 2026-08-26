@@ -23,6 +23,7 @@
     "indexed-recovery:candidates": "ts-node src/scripts/indexed-recovery-candidates.ts",
     "recovery-candidates:contract": "ts-node src/scripts/recovery-candidates-contract.ts",
     "capture-ingestion:contract": "ts-node src/scripts/capture-ingestion-contract.ts",
+    "product-structure:contract": "ts-node src/scripts/product-structure-contract.ts",
     "capture:ingest": "ts-node src/scripts/ingest-capture-artifact.ts",
     "admin:crud:contract": "medusa exec ./src/scripts/admin-crud-contract.ts",
     "sale:contract": "medusa exec ./src/scripts/sale-query-contract.ts",
