@@ -89,6 +89,9 @@ jobs:
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
 
+      - name: Validate Sale pricing graph contract
+        run: pnpm --filter @coquette/backend sale:contract
+
       - name: Build Medusa production artifact
         env:
           NODE_ENV: production
