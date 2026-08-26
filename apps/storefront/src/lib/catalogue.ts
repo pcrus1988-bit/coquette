@@ -44,9 +44,18 @@ function collectCategoryIds(category: CatalogueCategoryTree): string[] {
   ]
 }
 
+function localeParams(locale?: string) {
+  return locale ? { locale } : {}
+}
+
+function localeTag(locale?: string) {
+  return locale ? `locale:${locale}` : "locale:default"
+}
+
 export async function getCatalogueProducts(
   limit = 24,
-  offset = 0
+  offset = 0,
+  locale?: string
 ): Promise<CatalogueProductsResult> {
   if (!isMedusaStoreConfigured) {
     return {
@@ -63,10 +72,11 @@ export async function getCatalogueProducts(
         offset,
         country_code: defaultCountryCode,
         fields: productCardFields,
+        ...localeParams(locale),
       },
       {
         next: {
-          tags: ["products"],
+          tags: ["products", localeTag(locale)],
         },
       }
     )
@@ -90,7 +100,8 @@ export async function getCatalogueProducts(
 export async function getCategoryProducts(
   categoryHandle: string,
   limit = 24,
-  offset = 0
+  offset = 0,
+  locale?: string
 ): Promise<CategoryProductsResult> {
   if (!isMedusaStoreConfigured) {
     return {
@@ -108,10 +119,11 @@ export async function getCategoryProducts(
         limit: 1,
         include_descendants_tree: true,
         fields: "*category_children",
+        ...localeParams(locale),
       },
       {
         next: {
-          tags: ["categories", `category:${categoryHandle}`],
+          tags: ["categories", `category:${categoryHandle}`, localeTag(locale)],
         },
       }
     )
@@ -135,11 +147,13 @@ export async function getCategoryProducts(
         offset,
         country_code: defaultCountryCode,
         fields: productCardFields,
+        ...localeParams(locale),
       },
       {
         next: {
           tags: [
             "products",
+            localeTag(locale),
             `category-products:${category.id}`,
             ...categoryIds.map((id) => `category-products:${id}`),
           ],
@@ -169,7 +183,8 @@ export async function getCategoryProducts(
 }
 
 export async function getProductByHandle(
-  handle: string
+  handle: string,
+  locale?: string
 ): Promise<CatalogueProductResult> {
   if (!isMedusaStoreConfigured) {
     return {
@@ -185,10 +200,11 @@ export async function getProductByHandle(
         limit: 1,
         country_code: defaultCountryCode,
         fields: "*variants.calculated_price,+variants.inventory_quantity,*images",
+        ...localeParams(locale),
       },
       {
         next: {
-          tags: ["products", `product:${handle}`],
+          tags: ["products", `product:${handle}`, localeTag(locale)],
         },
       }
     )

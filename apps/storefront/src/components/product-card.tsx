@@ -2,15 +2,40 @@ import Link from "next/link"
 import type { CatalogueProduct } from "../lib/catalogue"
 
 type ProductVariant = NonNullable<CatalogueProduct["variants"]>[number]
+type StorefrontLanguage = "el" | "en"
 
-function formatPrice(amount: number, currencyCode: string): string {
-  return new Intl.NumberFormat("el-GR", {
+const labels = {
+  el: {
+    outOfStock: "Εξαντλημένο",
+    priceUnavailable: "Τιμή μη διαθέσιμη",
+  },
+  en: {
+    outOfStock: "Out of stock",
+    priceUnavailable: "Price unavailable",
+  },
+} satisfies Record<StorefrontLanguage, Record<string, string>>
+
+function formatPrice(
+  amount: number,
+  currencyCode: string,
+  language: StorefrontLanguage
+): string {
+  return new Intl.NumberFormat(language === "en" ? "en-GB" : "el-GR", {
     style: "currency",
     currency: currencyCode.toUpperCase(),
   }).format(amount)
 }
 
-export function ProductCard({ product }: { product: CatalogueProduct }) {
+export function ProductCard({
+  product,
+  language = "el",
+  productHrefPrefix = "/products",
+}: {
+  product: CatalogueProduct
+  language?: StorefrontLanguage
+  productHrefPrefix?: string
+}) {
+  const copy = labels[language]
   const variants = product.variants ?? []
   const pricedVariants = variants.filter(
     (variant: ProductVariant) =>
@@ -38,7 +63,7 @@ export function ProductCard({ product }: { product: CatalogueProduct }) {
 
   return (
     <article className="group min-w-0">
-      <Link className="block" href={`/products/${product.handle}`}>
+      <Link className="block" href={`${productHrefPrefix}/${product.handle}`}>
         <div className="relative aspect-[3/4] overflow-hidden bg-neutral-100">
           {imageUrl ? (
             <img
@@ -59,7 +84,7 @@ export function ProductCard({ product }: { product: CatalogueProduct }) {
             ) : null}
             {!isInStock && variants.length > 0 ? (
               <span className="bg-white/90 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-neutral-700">
-                Εξαντλημένο
+                {copy.outOfStock}
               </span>
             ) : null}
           </div>
@@ -69,15 +94,17 @@ export function ProductCard({ product }: { product: CatalogueProduct }) {
           <h2 className="line-clamp-2 text-sm leading-5">{product.title}</h2>
           {amount != null ? (
             <div className="mt-2 flex items-baseline gap-2 text-sm">
-              <span>{formatPrice(Number(amount), currencyCode)}</span>
+              <span>{formatPrice(Number(amount), currencyCode, language)}</span>
               {isSale ? (
                 <span className="text-xs text-neutral-400 line-through">
-                  {formatPrice(Number(originalAmount), currencyCode)}
+                  {formatPrice(Number(originalAmount), currencyCode, language)}
                 </span>
               ) : null}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-neutral-500">Τιμή μη διαθέσιμη</p>
+            <p className="mt-2 text-xs text-neutral-500">
+              {copy.priceUnavailable}
+            </p>
           )}
         </div>
       </Link>
