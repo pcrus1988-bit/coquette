@@ -6,7 +6,7 @@
 
 ## Shipped to `main`
 
-Through merge `2c6fbfbd5d73dcb3f51077423763bc81d91ccc09`:
+Through merge `16a6e61bd346f867776a381b9f70c74719fa22a1`:
 
 - isolated COQUETTE repository/workspace and dedicated Supabase project/storage
 - pnpm/Turbo monorepo, Medusa v2.19 backend/Admin and Next.js storefront
@@ -25,34 +25,37 @@ Through merge `2c6fbfbd5d73dcb3f51077423763bc81d91ccc09`:
 - Color/Size filters using global Product Option value IDs
 - Designer filters using first-class Brand links intersected inside normal Store Product API queries
 - URL-driven catalogue state: `q`, `sort`, repeated `option`, `designer`, `page`
-- exact query-state preservation across pagination
+- persistent Medusa cart with Greece-region resolution
+- explicit `el-GR` / `en-GB` cart localization
+- real PDP variant selection and Add to Cart
+- Greek `/cart` and English `/en/cart`
+- line-item quantity update/removal and live header count
+- real Medusa cart subtotal/total rendering
 - CI with fresh PostgreSQL 17 + Redis, clean migrations, migration contract, Sale pricing-graph contract, backend production build and storefront production build
 
 ## Active implementation
 
-Branch: `feature/cart-foundation`
+Branch: `feature/checkout-address-shipping`
 
-Implemented on branch and green on functional head `1e7cf2f47be9d492b6c268759f70c06512e1698b`:
+Implemented on branch and green on functional head `b00546918dce6e4cdff0681d2581a20d482d4c78`:
 
-- client Region provider resolves the Medusa region serving Greece and persists the region ID
-- persistent Medusa cart ID stored locally; invalid/expired carts are discarded safely
-- cart is created lazily and remains Medusa-authoritative
-- explicit cart locales: Greek `el-GR`, English `en-GB`, configurable by environment
-- persisted cart is idempotently aligned with the current region and storefront locale
-- one cart survives EL/EN navigation while translated line-item content follows cart locale
-- real product option/variant selection on product detail
-- Add to Cart only becomes available after selected option values resolve to an actual Medusa variant
-- selected variant controls displayed calculated price and stock state
-- quantity selection and real Store API add-line-item operation
-- live cart item count in the site header
-- real Greek `/cart` and English `/en/cart`
-- line-item quantity update and removal
-- product thumbnails/variant labels and real cart subtotal/total
-- checkout remains deliberately disabled until addresses, shipping and payments are implemented together
-- no provisional shipping fee, payment credential or fiscal rule is hard-coded
-- architecture documented in `docs/architecture/CART.md`
+- cart CTA now enters a real checkout flow instead of a disabled placeholder
+- Greek `/checkout` and English `/en/checkout`
+- customer email capture
+- shipping address form
+- billing address initially mirrors shipping address
+- country selector restricted to countries in the active Medusa region
+- cart contact/address update through the Store Cart Update API
+- live shipping-option discovery using `store.fulfillment.listCartOptions({ cart_id })`
+- calculated shipping-rate retrieval through Medusa's documented Calculate Shipping Option Price route
+- calculated options without a valid returned amount remain unselectable rather than receiving a guessed rate
+- shipping-method selection through Medusa `cart.addShippingMethod`
+- selected shipping method updates authoritative shipping/cart totals
+- payment remains deliberately disabled until real providers are configured
+- no old Magento courier charge, free-shipping rule, payment credential or fiscal rule is hard-coded
+- architecture documented in `docs/architecture/CHECKOUT_ADDRESS_SHIPPING.md`
 
-The cart branch still requires final documentation-inclusive exact-head CI, protected PR CI and merge before cart is considered shipped.
+The checkout branch still requires documentation-inclusive exact-head CI, protected PR CI and merge before address/shipping checkout is considered shipped.
 
 ## Phase status
 
@@ -82,7 +85,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 6 — Storefront parity
 
-**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination and catalogue discovery are shipped. Cart interaction is implemented on the active branch; wishlist, full editorial parity and final responsive/visual UAT remain.
+**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery and cart are shipped. Wishlist, full editorial parity and final responsive/visual UAT remain.
 
 ### Phase 7 — Search, discovery and merchandising
 
@@ -90,7 +93,7 @@ Implementation: **complete**, except the GitHub repository remains public and sh
 
 ### Phase 8 — Cart / checkout foundation
 
-**Cart active on feature branch.** Persistent cart and line-item operations are implemented. Checkout address, shipping and payment-session work has not started yet.
+**Cart shipped; address/shipping active on feature branch.** Email, address and real shipping-option selection are implemented. Payment-session work has not started.
 
 ### Phases 9–18
 
@@ -110,8 +113,9 @@ Tracked in GitHub issue #9:
 8. create Admin account and publishable Store API key
 9. configure supported `el-GR` and `en-GB` locales
 10. configure the Greece-serving Medusa region and sales-channel relationship
-11. connect storefront to staging backend
-12. verify `/health`, Admin, Store API, Brand/Sale queries, filters/search, translations, real cart flow, media upload and worker operation
+11. configure real service zones, shipping profiles/options and any fulfillment provider needed for calculated rates
+12. connect storefront to staging backend
+13. verify `/health`, Admin, Store API, Brand/Sale queries, filters/search, translations, cart, address/shipping checkout, media upload and worker operation
 
 ## Production boundary
 

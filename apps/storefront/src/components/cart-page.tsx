@@ -17,9 +17,9 @@ const copy = {
     remove: "Αφαίρεση",
     subtotal: "Υποσύνολο",
     total: "Σύνολο",
-    checkout: "Ολοκλήρωση αγοράς · επόμενο στάδιο",
+    checkout: "Συνέχεια στο checkout",
     checkoutNote:
-      "Η διεύθυνση, τα μεταφορικά και οι πληρωμές θα ενεργοποιηθούν στο επόμενο checkout workstream. Το καλάθι είναι ήδη πραγματικό Medusa cart.",
+      "Στο επόμενο βήμα αποθηκεύεις email/διεύθυνση και επιλέγεις πραγματικό διαθέσιμο τρόπο αποστολής. Η πληρωμή παραμένει κλειδωμένη μέχρι να συνδεθούν οι production payment providers.",
     loading: "Φόρτωση καλαθιού…",
     error: "Παρουσιάστηκε πρόβλημα με το καλάθι.",
   },
@@ -32,9 +32,9 @@ const copy = {
     remove: "Remove",
     subtotal: "Subtotal",
     total: "Total",
-    checkout: "Proceed to checkout · next phase",
+    checkout: "Continue to checkout",
     checkoutNote:
-      "Address, shipping and payments will activate in the next checkout workstream. This bag already uses a real Medusa cart.",
+      "Next you can save your email/address and select an actual available delivery method. Payment remains locked until the production payment providers are connected.",
     loading: "Loading your bag…",
     error: "There is a problem with your bag.",
   },
@@ -74,6 +74,7 @@ export function CartPage({ language = "el" }: { language?: StorefrontLanguage })
   const currencyCode = cart?.currency_code || "eur"
   const shoppingHref = language === "en" ? "/en/clothing" : "/clothing"
   const productPrefix = language === "en" ? "/en/products" : "/products"
+  const checkoutHref = language === "en" ? "/en/checkout" : "/checkout"
 
   return (
     <main className="bg-[#f7f5f2] px-5 py-14 text-neutral-950 lg:px-8">
@@ -118,11 +119,7 @@ export function CartPage({ language = "el" }: { language?: StorefrontLanguage })
                   <article className="grid grid-cols-[96px_1fr] gap-5 p-5 sm:grid-cols-[120px_1fr]" key={item.id}>
                     <div className="aspect-[3/4] overflow-hidden bg-neutral-100">
                       {thumbnail ? (
-                        <img
-                          alt={title}
-                          className="h-full w-full object-cover"
-                          src={thumbnail}
-                        />
+                        <img alt={title} className="h-full w-full object-cover" src={thumbnail} />
                       ) : null}
                     </div>
                     <div className="flex min-w-0 flex-col justify-between gap-4">
@@ -134,12 +131,8 @@ export function CartPage({ language = "el" }: { language?: StorefrontLanguage })
                         ) : (
                           <p className="text-sm leading-5">{title}</p>
                         )}
-                        {variant ? (
-                          <p className="mt-2 text-xs text-neutral-500">{variant}</p>
-                        ) : null}
-                        <p className="mt-3 text-sm">
-                          {formatPrice(lineTotal, currencyCode, language)}
-                        </p>
+                        {variant ? <p className="mt-2 text-xs text-neutral-500">{variant}</p> : null}
+                        <p className="mt-3 text-sm">{formatPrice(lineTotal, currencyCode, language)}</p>
                       </div>
 
                       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -175,30 +168,19 @@ export function CartPage({ language = "el" }: { language?: StorefrontLanguage })
             <aside className="h-fit border border-neutral-200 bg-white p-6 lg:sticky lg:top-8">
               <div className="flex justify-between gap-4 text-sm">
                 <span>{labels.subtotal}</span>
-                <span>
-                  {formatPrice(Number(cart?.subtotal ?? 0), currencyCode, language)}
-                </span>
+                <span>{formatPrice(Number(cart?.subtotal ?? 0), currencyCode, language)}</span>
               </div>
               <div className="mt-5 flex justify-between gap-4 border-t border-neutral-200 pt-5 text-lg">
                 <span>{labels.total}</span>
-                <span>
-                  {formatPrice(
-                    Number(cart?.total ?? cart?.subtotal ?? 0),
-                    currencyCode,
-                    language
-                  )}
-                </span>
+                <span>{formatPrice(Number(cart?.total ?? cart?.subtotal ?? 0), currencyCode, language)}</span>
               </div>
-              <button
-                className="mt-6 w-full cursor-not-allowed bg-neutral-400 px-6 py-4 text-xs uppercase tracking-[0.16em] text-white"
-                disabled
-                type="button"
+              <Link
+                className="mt-6 block w-full bg-neutral-950 px-6 py-4 text-center text-xs uppercase tracking-[0.16em] text-white"
+                href={checkoutHref}
               >
                 {labels.checkout}
-              </button>
-              <p className="mt-4 text-xs leading-5 text-neutral-500">
-                {labels.checkoutNote}
-              </p>
+              </Link>
+              <p className="mt-4 text-xs leading-5 text-neutral-500">{labels.checkoutNote}</p>
             </aside>
           </div>
         )}

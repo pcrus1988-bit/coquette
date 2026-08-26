@@ -16,6 +16,20 @@ import { useRegion } from "./region"
 
 type CartRetrieveResponse = Awaited<ReturnType<typeof medusa.store.cart.retrieve>>
 export type StoreCart = CartRetrieveResponse["cart"]
+type CartUpdateInput = Parameters<typeof medusa.store.cart.update>[1]
+
+export type CheckoutAddress = {
+  first_name: string
+  last_name: string
+  address_1: string
+  address_2?: string
+  company?: string
+  postal_code: string
+  city: string
+  country_code: string
+  province?: string
+  phone?: string
+}
 
 type CartContextValue = {
   cart?: StoreCart
@@ -25,12 +39,27 @@ type CartContextValue = {
   addToCart: (variantId: string, quantity?: number) => Promise<StoreCart>
   updateItemQuantity: (itemId: string, quantity: number) => Promise<StoreCart>
   removeItem: (itemId: string) => Promise<StoreCart>
+  updateCart: (input: CartUpdateInput) => Promise<StoreCart>
+  updateCheckoutContact: (input: {
+    email: string
+    shippingAddress: CheckoutAddress
+    billingAddress?: CheckoutAddress
+  }) => Promise<StoreCart>
+  addShippingMethod: (optionId: string, data?: Record<string, unknown>) => Promise<StoreCart>
   refreshCart: () => Promise<StoreCart | undefined>
 }
 
 const CartContext = createContext<CartContextValue | null>(null)
 const CART_STORAGE_KEY = "coquette_cart_id"
-const cartFields = "+items.*,+items.variant.*,+items.variant.options.*,+items.variant.options.option.*"
+const cartFields = [
+  "+items.*",
+  "+items.variant.*",
+  "+items.variant.options.*",
+  "+items.variant.options.option.*",
+  "+shipping_methods.*",
+  "+shipping_address.*",
+  "+billing_address.*",
+].join(",")
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
@@ -101,9 +130,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        // Medusa supports mutating a cart's locale, but the StoreCart response type
-        // doesn't currently expose a locale property. Apply the desired locale
-        // idempotently whenever a persisted cart is restored or language changes.
         const { cart: updated } = await medusa.store.cart.update(
           saved.id,
           {
@@ -144,6 +170,78 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const restored = await refreshCart()
     return restored || createCart()
   }, [cart, refreshCart, createCart])
+
+  const updateCart = useCallback(
+    async (input: CartUpdateInput) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const current = await ensureCart()
+        const { cart: updated } = await medusa.store.cart.update(
+          current.id,
+          input,
+          { fields: cartFields }
+        )
+        setCart(updated)
+        return updated
+      } catch (reason) {
+        console.error("COQUETTE cart update failed", reason)
+        setError("The checkout details could not be saved.")
+        throw reason
+      } finally {
+        setLoading(false)
+      }
+    },
+    [ensureCart]
+  )
+
+  const updateCheckoutContact = useCallback(
+    async ({
+      email,
+      shippingAddress,
+      billingAddress,
+    }: {
+      email: string
+      shippingAddress: CheckoutAddress
+      billingAddress?: CheckoutAddress
+    }) =>
+      updateCart({
+        email,
+        shipping_address: shippingAddress,
+        billing_address: billingAddress || shippingAddress,
+      }),
+    [updateCart]
+  )
+
+  const addShippingMethod = useCallback(
+    async (optionId: string, data?: Record<string, unknown>) => {
+      if (!cart) {
+        throw new Error("No active cart")
+      }
+
+      setLoading(true)
+      setError(null)
+      try {
+        const { cart: updated } = await medusa.store.cart.addShippingMethod(
+          cart.id,
+          {
+            option_id: optionId,
+            ...(data ? { data } : {}),
+          },
+          { fields: cartFields }
+        )
+        setCart(updated)
+        return updated
+      } catch (reason) {
+        console.error("COQUETTE shipping-method selection failed", reason)
+        setError("The shipping method could not be selected.")
+        throw reason
+      } finally {
+        setLoading(false)
+      }
+    },
+    [cart]
+  )
 
   const addToCart = useCallback(
     async (variantId: string, quantity = 1) => {
@@ -239,9 +337,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addToCart,
       updateItemQuantity,
       removeItem,
+      updateCart,
+      updateCheckoutContact,
+      addShippingMethod,
       refreshCart,
     }),
-    [cart, itemCount, loading, error, addToCart, updateItemQuantity, removeItem, refreshCart]
+    [
+      cart,
+      itemCount,
+      loading,
+      error,
+      addToCart,
+      updateItemQuantity,
+      removeItem,
+      updateCart,
+      updateCheckoutContact,
+      addShippingMethod,
+      refreshCart,
+    ]
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
