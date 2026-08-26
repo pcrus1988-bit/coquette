@@ -7,6 +7,8 @@ const schemaImage =
   "https://coquetteconcept.gr/media/catalog/product/sample-schema.jpg"
 const catalogImage =
   "https://coquetteconcept.gr/media/catalog/product/sample-gallery.jpg"
+const relatedImage =
+  "https://coquetteconcept.gr/media/catalog/product/related-product.jpg"
 const ogImage =
   "https://coquetteconcept.gr/media/catalog/product/sample-social.jpg"
 const logoImage = "https://coquetteconcept.gr/media/logo/stores/1/logo.png"
@@ -44,7 +46,12 @@ const html = `<!doctype html>
     <a href="/default/clothing.html">Clothing</a>
   </nav>
   <img src="${logoImage}" alt="Logo">
-  <img class="product-image-photo" src="${catalogImage}" alt="Sample Dress">
+  <div class="gallery-placeholder" data-gallery-role="gallery-placeholder">
+    <img class="product-image-photo" src="${catalogImage}" alt="Sample Dress">
+  </div>
+  <section class="related-products">
+    <img class="product-image-photo" src="${relatedImage}" alt="Related Dress">
+  </section>
   <img src="${footerImage}" alt="Footer card">
 
   <div data-role="swatch-options"></div>
@@ -67,6 +74,7 @@ assert.deepEqual(structure.galleryMedia.sort(), [
   ogImage,
   schemaImage,
 ].sort())
+assert.ok(!structure.galleryMedia.includes(relatedImage))
 assert.ok(!structure.galleryMedia.includes(logoImage))
 assert.ok(!structure.galleryMedia.includes(footerImage))
 
@@ -96,6 +104,7 @@ const ambiguousSimpleHtml = `<!doctype html>
 const ambiguous = extractPublicProductStructure(ambiguousSimpleHtml, pageUrl)
 assert.equal(ambiguous.typeHint, undefined)
 assert.equal(ambiguous.typeEvidence, undefined)
+assert.deepEqual(ambiguous.galleryMedia, [])
 
 const foreignMediaHtml = `<!doctype html>
 <html><head>
@@ -104,7 +113,9 @@ const foreignMediaHtml = `<!doctype html>
   {"@type":"Product","image":"https://example.com/foreign-schema.jpg"}
   </script>
 </head><body>
-  <img src="https://example.com/foreign-product.jpg">
+  <div data-gallery-role="gallery-placeholder">
+    <img src="https://example.com/foreign-product.jpg">
+  </div>
 </body></html>`
 const foreign = extractPublicProductStructure(foreignMediaHtml, pageUrl)
 assert.deepEqual(foreign.galleryMedia, [])
