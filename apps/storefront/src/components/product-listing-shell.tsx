@@ -7,7 +7,11 @@ import {
   type CatalogueState,
   type CategoryCatalogueState,
 } from "../lib/catalogue"
-import { getBrandProducts } from "../lib/brands"
+import {
+  getBrandProductIds,
+  getBrandProducts,
+  getBrands,
+} from "../lib/brands"
 import { getSaleProducts } from "../lib/sale"
 import { CatalogueControls } from "./catalogue-controls"
 import { ProductCard } from "./product-card"
@@ -31,6 +35,7 @@ type ProductListingShellProps = {
   query?: string
   sort?: CatalogueSort
   optionValueIds?: string[]
+  designer?: string
 }
 
 const copy = {
@@ -128,12 +133,14 @@ function pageHref({
   query,
   sort,
   optionValueIds,
+  designer,
 }: {
   hrefBase: string
   page: number
   query?: string
   sort?: CatalogueSort
   optionValueIds?: string[]
+  designer?: string
 }) {
   const params = new URLSearchParams()
 
@@ -147,6 +154,9 @@ function pageHref({
     if (optionId) {
       params.append("option", optionId)
     }
+  }
+  if (designer) {
+    params.set("designer", designer)
   }
   if (page > 1) {
     params.set("page", String(page))
@@ -173,32 +183,56 @@ export async function ProductListingShell({
   query,
   sort = "",
   optionValueIds = [],
+  designer = "",
 }: ProductListingShellProps) {
   const labels = copy[language]
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
   const offset = (safePage - 1) * pageSize
   const supportsNativeCatalogueQuery = !saleOnly && !brandHandle && (Boolean(categoryHandle) || loadAll)
+  const designerFilterResult =
+    supportsNativeCatalogueQuery && designer
+      ? await getBrandProductIds(designer)
+      : null
   const nativeQuery = supportsNativeCatalogueQuery
     ? {
         q: query,
         order: sort,
         optionValueIds,
+        ...(designer
+          ? {
+              productIds:
+                designerFilterResult?.state === "ready"
+                  ? designerFilterResult.productIds
+                  : [],
+            }
+          : {}),
       }
     : undefined
 
-  const result = saleOnly
-    ? await getSaleProducts(pageSize, offset, locale)
-    : brandHandle
-      ? await getBrandProducts(brandHandle, pageSize, offset, locale)
-      : categoryHandle
-        ? await getCategoryProducts(categoryHandle, pageSize, offset, locale, nativeQuery)
-        : loadAll
-          ? await getCatalogueProducts(pageSize, offset, locale, nativeQuery)
-          : null
+  const designerLookupFailed =
+    designerFilterResult &&
+    (designerFilterResult.state === "unconfigured" ||
+      designerFilterResult.state === "unavailable")
 
-  const filterOptionsResult = supportsNativeCatalogueQuery
-    ? await getProductFilterOptions(locale)
-    : null
+  const result = designerLookupFailed
+    ? {
+        state: designerFilterResult.state,
+        products: [],
+        count: 0,
+      }
+    : saleOnly
+      ? await getSaleProducts(pageSize, offset, locale)
+      : brandHandle
+        ? await getBrandProducts(brandHandle, pageSize, offset, locale)
+        : categoryHandle
+          ? await getCategoryProducts(categoryHandle, pageSize, offset, locale, nativeQuery)
+          : loadAll
+            ? await getCatalogueProducts(pageSize, offset, locale, nativeQuery)
+            : null
+
+  const [filterOptionsResult, brandDirectoryResult] = supportsNativeCatalogueQuery
+    ? await Promise.all([getProductFilterOptions(locale), getBrands()])
+    : [null, null]
   const totalPages = result
     ? Math.max(1, Math.ceil(result.count / pageSize))
     : 1
@@ -237,9 +271,11 @@ export async function ProductListingShell({
       {supportsNativeCatalogueQuery ? (
         <CatalogueControls
           action={hrefBase}
+          designers={brandDirectoryResult?.brands ?? []}
           language={language}
           options={filterOptionsResult?.options ?? []}
           query={query}
+          selectedDesigner={designer}
           selectedOptionValueIds={optionValueIds}
           sort={sort}
         />
@@ -316,6 +352,7 @@ export async function ProductListingShell({
                   query,
                   sort,
                   optionValueIds,
+                  designer,
                 })}
               >
                 {labels.previous}
@@ -334,6 +371,7 @@ export async function ProductListingShell({
                   query,
                   sort,
                   optionValueIds,
+                  designer,
                 })}
               >
                 {labels.next}
