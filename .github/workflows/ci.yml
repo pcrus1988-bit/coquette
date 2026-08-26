@@ -96,6 +96,12 @@ jobs:
       - name: Validate indexed recovery evidence contract
         run: pnpm --filter @coquette/backend indexed-recovery:contract
 
+      - name: Validate recovery candidate safety contract
+        run: pnpm --filter @coquette/backend recovery-candidates:contract
+
+      - name: Generate current indexed recovery candidates
+        run: pnpm --filter @coquette/backend indexed-recovery:candidates > /tmp/coquette-indexed-recovery-candidates.json
+
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
 
