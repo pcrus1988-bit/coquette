@@ -1,4 +1,5 @@
 import Link from "next/link"
+import type { StoreBrand } from "../lib/brands"
 import type {
   CatalogueProductOption,
   CatalogueSort,
@@ -12,7 +13,9 @@ type CatalogueControlsProps = {
   query?: string
   sort?: CatalogueSort
   selectedOptionValueIds?: string[]
+  selectedDesigner?: string
   options: CatalogueProductOption[]
+  designers: StoreBrand[]
 }
 
 const copy = {
@@ -29,6 +32,7 @@ const copy = {
     size: "Μέγεθος",
     price: "Τιμή",
     designer: "Σχεδιαστής",
+    allDesigners: "Όλοι οι σχεδιαστές",
     later: "επόμενο φίλτρο",
     apply: "Εφαρμογή",
     clear: "Καθαρισμός",
@@ -47,6 +51,7 @@ const copy = {
     size: "Size",
     price: "Price",
     designer: "Designer",
+    allDesigners: "All designers",
     later: "next filter",
     apply: "Apply",
     clear: "Clear",
@@ -81,7 +86,9 @@ export function CatalogueControls({
   query = "",
   sort = "",
   selectedOptionValueIds = [],
+  selectedDesigner = "",
   options,
+  designers,
 }: CatalogueControlsProps) {
   const labels = copy[language]
   const selected = new Set(selectedOptionValueIds)
@@ -151,17 +158,26 @@ export function CatalogueControls({
             selected={selected}
             values={sizes}
           />
+          <label className="flex items-center gap-2 border border-neutral-300 px-3 py-1.5 text-[11px] uppercase tracking-[0.12em]">
+            <span>{labels.designer}</span>
+            <select
+              className="max-w-48 bg-transparent py-1 text-[11px] normal-case tracking-normal outline-none"
+              defaultValue={selectedDesigner}
+              name="designer"
+            >
+              <option value="">{labels.allDesigners}</option>
+              {designers.map((designer) => (
+                <option key={designer.id} value={designer.handle}>
+                  {designer.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <span
             className="cursor-not-allowed border border-neutral-200 px-4 py-2 text-[11px] uppercase tracking-[0.12em] text-neutral-400"
             title={labels.later}
           >
             {labels.price} +
-          </span>
-          <span
-            className="cursor-not-allowed border border-neutral-200 px-4 py-2 text-[11px] uppercase tracking-[0.12em] text-neutral-400"
-            title={labels.later}
-          >
-            {labels.designer} +
           </span>
         </div>
       </form>
