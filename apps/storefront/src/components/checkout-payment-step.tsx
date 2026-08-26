@@ -1,8 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import {
+  buildKlarnaPaymentSessionData,
+  KlarnaCartPayloadError,
+} from "../lib/klarna"
 import { medusa } from "../lib/medusa"
 import { useCart } from "../providers/cart"
+import { KlarnaAuthorization } from "./klarna-authorization"
 import { PayPalApprovalButton } from "./paypal-approval-button"
 
 type StorefrontLanguage = "el" | "en"
@@ -30,6 +35,12 @@ const copy = {
       "Η PayPal παραγγελία δημιουργήθηκε από το COQUETTE backend. Συνέχισε με το ασφαλές PayPal παράθυρο για έγκριση και η Medusa θα δημιουργήσει την παραγγελία μόνο μετά από επιτυχημένη έγκριση.",
     paypalOrderMissing:
       "Η PayPal συνεδρία δεν περιέχει έγκυρο PayPal order ID. Επανεκκίνησε τον τρόπο πληρωμής πριν συνεχίσεις.",
+    klarnaReady:
+      "Η Klarna συνεδρία δημιουργήθηκε από το COQUETTE backend. Η τελική έγκριση γίνεται μέσω του ασφαλούς Klarna widget και η παραγγελία δημιουργείται μόνο αφού επιβεβαιωθεί και το server callback.",
+    klarnaTokenMissing:
+      "Η Klarna συνεδρία δεν περιέχει έγκυρο client token. Επανεκκίνησε τον τρόπο πληρωμής πριν συνεχίσεις.",
+    klarnaPayloadError:
+      "Το checkout περιέχει σύνολο, φόρο ή έκπτωση που δεν μπορεί ακόμη να χαρτογραφηθεί με ασφάλεια στη Klarna. Δεν έγινε καμία πληρωμή.",
     providerUiPending:
       "Το provider-specific βήμα για αυτόν τον τρόπο πληρωμής δεν είναι ενεργό ακόμη. Δεν θα ολοκληρωθεί παραγγελία ούτε θα χρεωθεί ποσό από αυτή την οθόνη.",
     zeroTotal:
@@ -53,6 +64,12 @@ const copy = {
       "The PayPal order was created by the COQUETTE backend. Continue in the secure PayPal flow for approval; Medusa creates the order only after successful approval.",
     paypalOrderMissing:
       "The PayPal session does not contain a valid PayPal order ID. Re-initialize the payment method before continuing.",
+    klarnaReady:
+      "The Klarna session was created by the COQUETTE backend. Final approval runs through the secure Klarna widget and the order is created only after the server callback is confirmed as well.",
+    klarnaTokenMissing:
+      "The Klarna session does not contain a valid client token. Re-initialize the payment method before continuing.",
+    klarnaPayloadError:
+      "This checkout contains a total, tax, or discount component that cannot yet be mapped safely to Klarna. No payment was attempted.",
     providerUiPending:
       "The provider-specific authorization/redirect step for this method is not active yet. This screen cannot complete an order or charge the customer.",
     zeroTotal:
@@ -69,6 +86,10 @@ function isManualProvider(providerId: string) {
 
 function isPayPalProvider(providerId: string) {
   return providerId.toLowerCase().includes("paypal")
+}
+
+function isKlarnaProvider(providerId: string) {
+  return providerId.toLowerCase().includes("klarna")
 }
 
 function paymentProviderTitle(providerId: string) {
@@ -98,6 +119,15 @@ function paymentProviderTitle(providerId: string) {
     .replace(/^pp_/, "")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function paymentDataString(data: unknown, key: string) {
+  if (!data || typeof data !== "object") {
+    return null
+  }
+
+  const value = (data as Record<string, unknown>)[key]
+  return typeof value === "string" && value.length > 0 ? value : null
 }
 
 function payPalOrderId(data: unknown) {
@@ -197,21 +227,35 @@ export function CheckoutPaymentStep({
   ])
 
   const initialize = async () => {
-    if (!selectedProviderId || !paymentEligible) {
+    if (!selectedProviderId || !paymentEligible || !cart) {
       return
     }
 
     setLocalError(null)
     try {
-      await initiatePaymentSession({ provider_id: selectedProviderId })
+      const data = isKlarnaProvider(selectedProviderId)
+        ? buildKlarnaPaymentSessionData(cart, language)
+        : undefined
+
+      await initiatePaymentSession({
+        provider_id: selectedProviderId,
+        ...(data ? { data } : {}),
+      })
     } catch (reason) {
       console.error("COQUETTE payment-session step failed", reason)
-      setLocalError(labels.error)
+      setLocalError(
+        reason instanceof KlarnaCartPayloadError
+          ? labels.klarnaPayloadError
+          : labels.error
+      )
     }
   }
 
   const activePayPalOrderId = activeSession && isPayPalProvider(activeSession.provider_id)
     ? payPalOrderId(activeSession.data)
+    : null
+  const activeKlarnaClientToken = activeSession && isKlarnaProvider(activeSession.provider_id)
+    ? paymentDataString(activeSession.data, "client_token")
     : null
 
   return (
@@ -286,7 +330,9 @@ export function CheckoutPaymentStep({
               <p className="text-sm leading-6 text-neutral-700">
                 {isPayPalProvider(activeSession.provider_id)
                   ? labels.paypalReady
-                  : labels.ready}
+                  : isKlarnaProvider(activeSession.provider_id)
+                    ? labels.klarnaReady
+                    : labels.ready}
               </p>
 
               {isPayPalProvider(activeSession.provider_id) ? (
@@ -298,6 +344,18 @@ export function CheckoutPaymentStep({
                 ) : (
                   <p className="mt-3 text-sm leading-6 text-red-700">
                     {labels.paypalOrderMissing}
+                  </p>
+                )
+              ) : isKlarnaProvider(activeSession.provider_id) ? (
+                activeKlarnaClientToken ? (
+                  <KlarnaAuthorization
+                    clientToken={activeKlarnaClientToken}
+                    language={language}
+                    paymentSessionId={activeSession.id}
+                  />
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-red-700">
+                    {labels.klarnaTokenMissing}
                   </p>
                 )
               ) : (
