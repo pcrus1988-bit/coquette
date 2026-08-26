@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import { getProductByHandle } from "../lib/catalogue"
+import { isMedusaSalePrice } from "../lib/pricing"
 
 type StorefrontLanguage = "el" | "en"
 
@@ -138,10 +139,7 @@ export async function ProductDetailShell({
   const amount = calculatedPrice?.calculated_amount
   const originalAmount = calculatedPrice?.original_amount
   const currencyCode = calculatedPrice?.currency_code || "eur"
-  const isSale =
-    amount != null &&
-    originalAmount != null &&
-    Number(originalAmount) > Number(amount)
+  const isSale = isMedusaSalePrice(calculatedPrice)
   const variants = product.variants ?? []
   const isInStock = variants.some(
     (variant: ProductVariant) =>
@@ -184,7 +182,7 @@ export async function ProductDetailShell({
           {amount != null ? (
             <div className="mt-5 flex items-baseline gap-3 text-xl">
               <span>{formatPrice(Number(amount), currencyCode, language)}</span>
-              {isSale ? (
+              {isSale && originalAmount != null ? (
                 <span className="text-base text-neutral-400 line-through">
                   {formatPrice(Number(originalAmount), currencyCode, language)}
                 </span>
