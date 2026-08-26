@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation"
+import { ProductListingShell } from "../../components/product-listing-shell"
+import {
+  parseCatalogueSearchParams,
+  type CatalogueSearchParams,
+} from "../../lib/catalogue-search-params"
 
 const pages: Record<string, { title: string; body: string }> = {
-  search: { title: "Αναζήτηση", body: "Η νέα αναζήτηση θα συνδεθεί με το Medusa catalogue και θα υποστηρίζει προϊόντα, designers, κατηγορίες και βασικά χαρακτηριστικά." },
   account: { title: "Λογαριασμός", body: "Σύνδεση, εγγραφή, ανάκτηση κωδικού, διευθύνσεις, παραγγελίες και wishlist θα υλοποιηθούν χωρίς τα Magento account overlays." },
   cart: { title: "Το καλάθι μου", body: "Το ενιαίο cart και checkout flow θα συνδεθεί με τις πραγματικές payment και shipping integrations στη φάση checkout." },
   contact: { title: "Επικοινωνία", body: "Coquette Concept · Βρασίδου 119, ΤΚ 23100 · Αρχαία Σπάρτη · 2731 0 20404." },
@@ -11,8 +15,36 @@ const pages: Record<string, { title: string; body: string }> = {
   privacy: { title: "Πολιτική Απορρήτου", body: "Το privacy content θα μεταφερθεί στο νέο content model και θα επανελεγχθεί πριν το production cutover." },
 }
 
-export default async function UtilityPage({ params }: { params: Promise<{ utility: string }> }) {
-  const { utility } = await params
+export default async function UtilityPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ utility: string }>
+  searchParams: Promise<CatalogueSearchParams>
+}) {
+  const [{ utility }, rawSearchParams] = await Promise.all([params, searchParams])
+
+  if (utility === "search") {
+    const parsed = parseCatalogueSearchParams(rawSearchParams)
+    const title = parsed.query
+      ? `Αποτελέσματα για «${parsed.query}»`
+      : "Αναζήτηση προϊόντων"
+
+    return (
+      <ProductListingShell
+        description="Αναζήτησε στον πραγματικό κατάλογο προϊόντων και περιόρισε τα αποτελέσματα με τις μεταφερμένες global επιλογές χρώματος και μεγέθους."
+        eyebrow="Αναζήτηση"
+        hrefBase="/search"
+        loadAll
+        optionValueIds={parsed.optionValueIds}
+        page={parsed.page}
+        query={parsed.query}
+        sort={parsed.sort}
+        title={title}
+      />
+    )
+  }
+
   const page = pages[utility]
 
   if (!page) {
