@@ -12,19 +12,6 @@ export type KlarnaOrderLine = {
   total_tax_amount: number
 }
 
-export type KlarnaAddress = {
-  given_name?: string
-  family_name?: string
-  email?: string
-  phone?: string
-  street_address?: string
-  street_address2?: string
-  postal_code?: string
-  city?: string
-  region?: string
-  country?: string
-}
-
 export class KlarnaCartPayloadError extends Error {
   constructor(message: string) {
     super(message)
@@ -126,45 +113,6 @@ export function buildKlarnaPaymentSessionData(
     purchase_country: purchaseCountry,
     locale: language === "en" ? "en-GR" : "el-GR",
   }
-}
-
-export function buildKlarnaAuthorizationData(cart: StoreCart) {
-  const shippingAddress = toKlarnaAddress(cart.shipping_address, cart.email)
-  const billingAddress = toKlarnaAddress(
-    cart.billing_address || cart.shipping_address,
-    cart.email
-  )
-
-  return {
-    ...(billingAddress ? { billing_address: billingAddress } : {}),
-    ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
-  }
-}
-
-function toKlarnaAddress(
-  address: StoreCart["shipping_address"] | StoreCart["billing_address"],
-  email?: string
-): KlarnaAddress | undefined {
-  if (!address) {
-    return undefined
-  }
-
-  const result: KlarnaAddress = {
-    ...(address.first_name ? { given_name: address.first_name } : {}),
-    ...(address.last_name ? { family_name: address.last_name } : {}),
-    ...(email ? { email } : {}),
-    ...(address.phone ? { phone: address.phone } : {}),
-    ...(address.address_1 ? { street_address: address.address_1 } : {}),
-    ...(address.address_2 ? { street_address2: address.address_2 } : {}),
-    ...(address.postal_code ? { postal_code: address.postal_code } : {}),
-    ...(address.city ? { city: address.city } : {}),
-    ...(address.province ? { region: address.province } : {}),
-    ...(address.country_code
-      ? { country: address.country_code.toUpperCase() }
-      : {}),
-  }
-
-  return Object.keys(result).length ? result : undefined
 }
 
 function toMinorUnits(amount: number | null | undefined) {
