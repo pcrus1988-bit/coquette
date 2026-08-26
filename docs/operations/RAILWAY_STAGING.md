@@ -73,6 +73,8 @@ Healthcheck path:
 /health
 ```
 
+Railway injects `PORT` automatically and performs the healthcheck on that port. Medusa honors the `PORT` environment variable, but its default `HOST` is `localhost`. Railway must be able to reach the process over the container network, so set `HOST=0.0.0.0` on the backend service. Do not add a manual `PORT` unless Railway's generated port behavior is intentionally overridden.
+
 Pre-deploy command:
 
 ```sh
@@ -85,6 +87,7 @@ Variables:
 
 ```text
 NODE_ENV=production
+HOST=0.0.0.0
 DATABASE_URL=<Supabase Session Pooler URL, port 5432>
 REDIS_URL=${{Redis.REDIS_URL}}
 JWT_SECRET=<dedicated random COQUETTE secret>
