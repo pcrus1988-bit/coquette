@@ -109,6 +109,39 @@ assert.notEqual(
   readyEntry?.planningChecksum
 )
 
+const changedPriceInventoryCandidate = buildRecoveryProductCandidate(
+  "ready-el-price-inventory-change",
+  [
+    {
+      ...readyObservation(
+        "https://coquetteconcept.gr/default/product-ready.html",
+        "READY-1"
+      ),
+      observedAt: "2026-08-26T22:00:00.000Z",
+      fields: {
+        ...readyObservation(
+          "https://coquetteconcept.gr/default/product-ready.html",
+          "READY-1"
+        ).fields,
+        stockState: "out_of_stock",
+        regularPrice: 125,
+        salePrice: 90,
+        currencyCode: "EUR",
+      },
+    },
+  ]
+)
+const priceInventoryPlan = buildProductImportPlan([changedPriceInventoryCandidate])
+assert.equal(priceInventoryPlan.totals.ready, 1)
+assert.equal(
+  priceInventoryPlan.entries[0].sourceChecksum,
+  readyEntry?.sourceChecksum
+)
+assert.notEqual(
+  priceInventoryPlan.entries[0].planningChecksum,
+  readyEntry?.planningChecksum
+)
+
 const duplicateSkuPlan = buildProductImportPlan([
   buildRecoveryProductCandidate("dup-el", [
     readyObservation(
