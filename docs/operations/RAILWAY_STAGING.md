@@ -158,7 +158,7 @@ The repository contains an idempotent Medusa CLI bootstrap for the initial Greec
 pnpm --filter @coquette/backend staging:bootstrap
 ```
 
-The command is intentionally **not** part of the normal Railway pre-deploy command. It must be run explicitly when establishing or repairing a staging commerce environment so routine application releases cannot silently overwrite merchant-controlled commerce settings.
+The command is intentionally **not** part of the normal Railway pre-deploy command. It must be run explicitly when establishing or repairing a staging commerce environment so routine application releases cannot silently overwrite merchant-controlled commerce settings. Deploying or syncing the `staging` branch makes this command available on Railway; it does **not** execute the command against the live staging database automatically.
 
 The bootstrap safely ensures the following baseline:
 
