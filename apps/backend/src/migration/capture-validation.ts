@@ -14,6 +14,12 @@ export type CaptureValidationResult = {
   isValid: boolean
 }
 
+type ValidatedSourceRecord = {
+  kind: "page" | "product" | "media"
+  url?: string
+  path?: string
+}
+
 function isValidTimestamp(value?: string) {
   return Boolean(value) && !Number.isNaN(Date.parse(value!))
 }
@@ -79,15 +85,19 @@ export function validateCaptureArtifactBundle(
     })
   }
 
-  const sourceCollections = [
+  const sourceCollections: ValidatedSourceRecord[] = [
     ...bundle.pages.map((record) => ({
-      kind: "page",
+      kind: "page" as const,
       url: record.sourceUrl,
       path: record.pageFile,
     })),
-    ...bundle.products.map((record) => ({ kind: "product", url: record.sourceUrl })),
+    ...bundle.products.map((record) => ({
+      kind: "product" as const,
+      url: record.sourceUrl,
+      path: undefined,
+    })),
     ...bundle.media.map((record) => ({
-      kind: "media",
+      kind: "media" as const,
       url: record.sourceUrl,
       path: record.mediaFile,
     })),
