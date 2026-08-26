@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { medusa } from "../lib/medusa"
 import { useCart } from "../providers/cart"
+import { PayPalApprovalButton } from "./paypal-approval-button"
 
 type StorefrontLanguage = "el" | "en"
 type PaymentProvidersResponse = Awaited<
@@ -24,9 +25,13 @@ const copy = {
     initialize: "Συνέχεια με αυτόν τον τρόπο πληρωμής",
     initializing: "Προετοιμασία πληρωμής…",
     ready:
-      "Η συνεδρία πληρωμής δημιουργήθηκε στο Medusa. Η εξουσιοδότηση από τον πραγματικό provider είναι το επόμενο βήμα και δεν έχει εκτελεστεί ακόμη.",
+      "Η συνεδρία πληρωμής δημιουργήθηκε στο Medusa και είναι έτοιμη για το provider-specific βήμα.",
+    paypalReady:
+      "Η PayPal παραγγελία δημιουργήθηκε από το COQUETTE backend. Συνέχισε με το ασφαλές PayPal παράθυρο για έγκριση και η Medusa θα δημιουργήσει την παραγγελία μόνο μετά από επιτυχημένη έγκριση.",
+    paypalOrderMissing:
+      "Η PayPal συνεδρία δεν περιέχει έγκυρο PayPal order ID. Επανεκκίνησε τον τρόπο πληρωμής πριν συνεχίσεις.",
     providerUiPending:
-      "Το provider-specific βήμα για εξουσιοδότηση/redirect δεν είναι ενεργό ακόμη. Δεν θα ολοκληρωθεί παραγγελία ούτε θα χρεωθεί ποσό από αυτή την οθόνη.",
+      "Το provider-specific βήμα για αυτόν τον τρόπο πληρωμής δεν είναι ενεργό ακόμη. Δεν θα ολοκληρωθεί παραγγελία ούτε θα χρεωθεί ποσό από αυτή την οθόνη.",
     zeroTotal:
       "Δεν δημιουργείται online payment session για checkout με μηδενικό σύνολο.",
     error:
@@ -43,9 +48,13 @@ const copy = {
     initialize: "Continue with this payment method",
     initializing: "Preparing payment…",
     ready:
-      "The Medusa payment session is initialized. Authorization with the real provider is the next step and has not happened yet.",
+      "The Medusa payment session is initialized and ready for the provider-specific step.",
+    paypalReady:
+      "The PayPal order was created by the COQUETTE backend. Continue in the secure PayPal flow for approval; Medusa creates the order only after successful approval.",
+    paypalOrderMissing:
+      "The PayPal session does not contain a valid PayPal order ID. Re-initialize the payment method before continuing.",
     providerUiPending:
-      "The provider-specific authorization/redirect step is not active yet. This screen cannot complete an order or charge the customer.",
+      "The provider-specific authorization/redirect step for this method is not active yet. This screen cannot complete an order or charge the customer.",
     zeroTotal:
       "An online payment session is not initialized for a zero-total checkout.",
     error:
@@ -56,6 +65,10 @@ const copy = {
 
 function isManualProvider(providerId: string) {
   return providerId.startsWith("pp_system_default")
+}
+
+function isPayPalProvider(providerId: string) {
+  return providerId.toLowerCase().includes("paypal")
 }
 
 function paymentProviderTitle(providerId: string) {
@@ -85,6 +98,16 @@ function paymentProviderTitle(providerId: string) {
     .replace(/^pp_/, "")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function payPalOrderId(data: unknown) {
+  if (!data || typeof data !== "object") {
+    return null
+  }
+
+  const paymentData = data as Record<string, unknown>
+  const value = paymentData.order_id || paymentData.orderId || paymentData.id
+  return typeof value === "string" && value.length > 0 ? value : null
 }
 
 export function CheckoutPaymentStep({
@@ -187,6 +210,10 @@ export function CheckoutPaymentStep({
     }
   }
 
+  const activePayPalOrderId = activeSession && isPayPalProvider(activeSession.provider_id)
+    ? payPalOrderId(activeSession.data)
+    : null
+
   return (
     <section className="border border-neutral-200 bg-white p-6 sm:p-8">
       <h2 className="font-serif text-2xl">{labels.title}</h2>
@@ -256,10 +283,28 @@ export function CheckoutPaymentStep({
 
           {activeSession ? (
             <div className="border border-neutral-200 bg-[#f7f5f2] p-4">
-              <p className="text-sm leading-6 text-neutral-700">{labels.ready}</p>
-              <p className="mt-2 text-xs leading-5 text-neutral-500">
-                {paymentProviderTitle(activeSession.provider_id)} · {labels.providerUiPending}
+              <p className="text-sm leading-6 text-neutral-700">
+                {isPayPalProvider(activeSession.provider_id)
+                  ? labels.paypalReady
+                  : labels.ready}
               </p>
+
+              {isPayPalProvider(activeSession.provider_id) ? (
+                activePayPalOrderId ? (
+                  <PayPalApprovalButton
+                    language={language}
+                    orderId={activePayPalOrderId}
+                  />
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-red-700">
+                    {labels.paypalOrderMissing}
+                  </p>
+                )
+              ) : (
+                <p className="mt-2 text-xs leading-5 text-neutral-500">
+                  {paymentProviderTitle(activeSession.provider_id)} · {labels.providerUiPending}
+                </p>
+              )}
             </div>
           ) : null}
         </div>
