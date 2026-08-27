@@ -119,6 +119,16 @@ export default async function studioPlacementTaxonomyContract({
           status: "draft",
           shipping_profile_id: defaults.shippingProfileId,
           sales_channels: [{ id: defaults.salesChannelId }],
+          options: [{ title: "Size", values: ["One Size"] }],
+          variants: [
+            {
+              title: "One Size",
+              sku: `COQ-PLACEMENT-${suffix}`,
+              options: { Size: "One Size" },
+              manage_inventory: false,
+              allow_backorder: false,
+            },
+          ],
           metadata: {
             coquette_studio_origin: "quick_draft",
             coquette_studio_wizard_step: "6",
