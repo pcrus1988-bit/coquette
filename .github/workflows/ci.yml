@@ -96,6 +96,9 @@ jobs:
       - name: Validate operator direct-capture evidence package integrity
         run: pnpm --filter @coquette/backend capture-evidence-package:contract
 
+      - name: Validate single-file operator capture handoff
+        run: pnpm --filter @coquette/backend capture-handoff:contract
+
       - name: Validate indexed recovery evidence contract
         run: pnpm --filter @coquette/backend indexed-recovery:contract
 
