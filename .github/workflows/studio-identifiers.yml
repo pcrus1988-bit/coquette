@@ -1,0 +1,144 @@
+name: COQUETTE Studio Identifiers CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "apps/studio/new-piece-identifiers.js"
+      - "apps/studio/new-piece-identifiers.css"
+      - "apps/studio/public/new-piece-identifiers.js"
+      - "apps/studio/public/new-piece-identifiers.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/variant-identifiers-*.js"
+      - "apps/backend/src/api/admin/studio/variant-identifiers/**"
+      - "apps/backend/src/lib/studio-variant-identifiers.ts"
+      - "apps/backend/src/workflows/apply-studio-variant-identifiers.ts"
+      - "apps/backend/src/scripts/studio-variant-identifiers-contract.ts"
+      - ".github/workflows/studio-identifiers.yml"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/studio/new-piece-identifiers.js"
+      - "apps/studio/new-piece-identifiers.css"
+      - "apps/studio/public/new-piece-identifiers.js"
+      - "apps/studio/public/new-piece-identifiers.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/variant-identifiers-*.js"
+      - "apps/backend/src/api/admin/studio/variant-identifiers/**"
+      - "apps/backend/src/lib/studio-variant-identifiers.ts"
+      - "apps/backend/src/workflows/apply-studio-variant-identifiers.ts"
+      - "apps/backend/src/scripts/studio-variant-identifiers-contract.ts"
+      - ".github/workflows/studio-identifiers.yml"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coquette-studio-identifiers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+
+      - name: Validate identifier JavaScript syntax
+        run: |
+          node --check apps/studio/new-piece-identifiers.js
+          node --check apps/studio/public/new-piece-identifiers.js
+          node --check apps/studio/api/studio/variant-identifiers-state.js
+          node --check apps/studio/api/studio/variant-identifiers-plan.js
+          node --check apps/studio/api/studio/variant-identifiers-apply.js
+
+      - name: Enforce production asset parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s apps/studio/new-piece-identifiers.js
+          test -s apps/studio/new-piece-identifiers.css
+          cmp -s apps/studio/new-piece-identifiers.js apps/studio/public/new-piece-identifiers.js
+          cmp -s apps/studio/new-piece-identifiers.css apps/studio/public/new-piece-identifiers.css
+          cmp -s apps/studio/studio.html apps/studio/public/studio.html
+          grep -q '/new-piece-identifiers.css' apps/studio/studio.html
+          grep -q '/new-piece-identifiers.js' apps/studio/studio.html
+          grep -q '/new-piece-identifiers.css' apps/studio/public/studio.html
+          grep -q '/new-piece-identifiers.js' apps/studio/public/studio.html
+
+      - name: Enforce guarded identifier review and write boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          domain=apps/backend/src/lib/studio-variant-identifiers.ts
+          workflow=apps/backend/src/workflows/apply-studio-variant-identifiers.ts
+          contract=apps/backend/src/scripts/studio-variant-identifiers-contract.ts
+          plan=apps/backend/src/api/admin/studio/variant-identifiers/plan/route.ts
+          apply=apps/backend/src/api/admin/studio/variant-identifiers/apply/route.ts
+          client=apps/studio/new-piece-identifiers.js
+
+          grep -q 'STUDIO_IDENTIFIER_FIELDS' "$domain"
+          grep -q 'createHash("sha256")' "$domain"
+          grep -q 'gtinCheckDigitValid' "$domain"
+          grep -q 'valid EAN-8 or EAN-13' "$domain"
+          grep -q 'valid 12-digit UPC-A' "$domain"
+          grep -q 'Every current variant must have exactly one explicit identifier row' "$domain"
+          grep -q 'already assigned to another Medusa variant' "$domain"
+          grep -q 'stale_identifier_plan' "$domain"
+          grep -q 'applyStudioVariantIdentifiersWorkflow' "$domain"
+
+          grep -q 'createWorkflow' "$workflow"
+          grep -q 'updateProductVariantsWorkflow.runAsStep' "$workflow"
+
+          grep -q 'buildStudioVariantIdentifierPlan' "$plan"
+          grep -q 'expected_updated_at' "$plan"
+          grep -q 'Modules.LOCKING' "$apply"
+          grep -q 'coquette-studio-variant-identifiers' "$apply"
+          grep -q 'identifier_hash' "$apply"
+          grep -q 'applyStudioVariantIdentifierPlan' "$apply"
+
+          grep -q '/api/studio/variant-identifiers-state' "$client"
+          grep -q '/api/studio/variant-identifiers-plan' "$client"
+          grep -q '/api/studio/variant-identifiers-apply' "$client"
+          grep -q 'Apply reviewed codes' "$client"
+          grep -q 'identifier_hash' "$client"
+          grep -q 'expected_updated_at' "$client"
+          grep -q 'Codes are optional, but never inferred' "$client"
+
+          grep -q 'change_count, 0' "$contract"
+          grep -q 'valid EAN-8 or EAN-13' "$contract"
+          grep -q 'already assigned to another Medusa variant' "$contract"
+          grep -q 'status, "draft"' "$contract"
+          grep -q 'manage_inventory === false' "$contract"
+          grep -q 'allow_backorder === false' "$contract"
+
+          if grep -R -n -E 'inventory_quantity|inventory_items|sales_channels|sales_channel_id|allow_backorder:[[:space:]]*true|manage_inventory:[[:space:]]*true' \
+            apps/backend/src/api/admin/studio/variant-identifiers apps/backend/src/lib/studio-variant-identifiers.ts apps/backend/src/workflows/apply-studio-variant-identifiers.ts apps/studio/new-piece-identifiers.js; then
+            echo 'Studio identifiers must not mutate inventory, backorders or sales-channel visibility.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E "status:[[:space:]]*\"published\"|status:[[:space:]]*'published'" \
+            apps/backend/src/api/admin/studio/variant-identifiers apps/backend/src/lib/studio-variant-identifiers.ts apps/backend/src/workflows/apply-studio-variant-identifiers.ts apps/studio/new-piece-identifiers.js; then
+            echo 'Studio identifiers must not publish products.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E 'localStorage|sessionStorage|Bearer|authorization' apps/studio/new-piece-identifiers.js; then
+            echo 'Identifier browser code must not hold Medusa credentials or browser token state.' >&2
+            exit 1
+          fi
