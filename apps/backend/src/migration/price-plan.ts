@@ -49,6 +49,8 @@ export type PricePlan = {
   isReconciled: boolean
 }
 
+const priceConflictFields = new Set(["regularPrice", "salePrice", "currencyCode"])
+
 function duplicateValues(values: Array<string | undefined>) {
   const counts = new Map<string, number>()
   for (const value of values) {
@@ -186,6 +188,21 @@ function initialPriceEntry(productEntry: ProductImportPlanEntry): PricePlanEntry
       )
       return entry
     }
+  }
+
+  const priceConflicts = productEntry.conflicts.filter((conflict) =>
+    priceConflictFields.has(conflict.field)
+  )
+  if (priceConflicts.length > 0) {
+    const fields = [...new Set(priceConflicts.map((conflict) => conflict.field))]
+      .sort()
+      .join(", ")
+    block(
+      entry,
+      "price_evidence_conflict_requires_review",
+      `Recovered pricing evidence conflicts on: ${fields}. The structural product may proceed, but pricing requires explicit resolution.`
+    )
+    return entry
   }
 
   const reconstructedPrice: ReconstructedPrice = {
