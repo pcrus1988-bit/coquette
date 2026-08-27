@@ -27,6 +27,7 @@
     "archived-product-structure:contract": "ts-node src/scripts/archived-product-structure-contract.ts",
     "import-plan:contract": "ts-node src/scripts/import-plan-contract.ts",
     "price-plan:contract": "ts-node src/scripts/price-plan-contract.ts",
+    "inventory-plan:contract": "ts-node src/scripts/inventory-plan-contract.ts",
     "staging-product-execution:contract": "ts-node src/scripts/staging-product-execution-contract.ts",
     "staging-price-execution:contract": "ts-node src/scripts/staging-price-execution-contract.ts",
     "capture:ingest": "ts-node src/scripts/ingest-capture-artifact.ts",
