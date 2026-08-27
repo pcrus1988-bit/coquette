@@ -249,10 +249,11 @@ assert.ok(
     `brand_mapping_missing:${brandSourceId}`
   )
 )
-assert.ok(
+assert.equal(
   missingBrandPlan.entries[0].blockers.includes(
     "brand_link_execution_not_implemented"
-  )
+  ),
+  false
 )
 
 const mappedBrandPlan = buildStagingProductExecutionPlan({
@@ -268,12 +269,23 @@ const mappedBrandPlan = buildStagingProductExecutionPlan({
   ],
   allowedMediaHosts: ["coquette-media.example"],
 })
-assert.equal(mappedBrandPlan.isExecutable, false)
+assert.equal(mappedBrandPlan.isExecutable, true)
+assert.equal(mappedBrandPlan.entries[0].action, "create")
 assert.equal(mappedBrandPlan.entries[0].brandTargetId, "brand_fixture")
-assert.ok(
-  mappedBrandPlan.entries[0].blockers.includes(
-    "brand_link_execution_not_implemented"
-  )
+assert.deepEqual(mappedBrandPlan.entries[0].blockers, [])
+const brandedMedusaInput = prepareMedusaSimpleProductInput(
+  mappedBrandPlan.entries[0],
+  {
+    defaultSalesChannelId: "sc_fixture",
+    defaultShippingProfileId: "sp_fixture",
+  }
+)
+assert.equal(brandedMedusaInput.variants[0].sku, "EXEC-1")
+assert.equal("brand" in brandedMedusaInput, false)
+assert.equal("brand_id" in brandedMedusaInput, false)
+assert.equal(
+  Object.values(brandedMedusaInput.metadata).includes("brand_fixture"),
+  false
 )
 
 assert.throws(
