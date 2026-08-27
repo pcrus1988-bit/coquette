@@ -1,8 +1,11 @@
 const COOKIE_NAME = 'coquette_studio_session'
+const DEFAULT_STAGING_MEDUSA_BACKEND_URL = 'https://coquette-backend-production-8b4f.up.railway.app'
 
 function backendUrl() {
-  const value = process.env.MEDUSA_BACKEND_URL || process.env.COQUETTE_MEDUSA_BACKEND_URL
-  if (!value) throw new Error('MEDUSA_BACKEND_URL is not configured')
+  const value = process.env.MEDUSA_BACKEND_URL
+    || process.env.COQUETTE_MEDUSA_BACKEND_URL
+    || process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL
+    || DEFAULT_STAGING_MEDUSA_BACKEND_URL
   return value.replace(/\/$/, '')
 }
 
