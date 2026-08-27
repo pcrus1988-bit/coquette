@@ -1,3 +1,4 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import { sourceChecksum } from "./checksum"
 import { buildInventoryPlan, type InventoryPlan } from "./inventory-plan"
 import { buildProductImportPlan, type ProductImportPlan } from "./import-plan"
@@ -178,6 +179,7 @@ export function buildMigrationInputReconciliation(input: {
   }
 
   const sourceProductPlan = report.importPlan ?? rebuiltSourceProductPlan
+  void suppliedSourceProductPlan
   const reviewPlan = buildReconstructionReviewPlan({
     candidates,
     productPlan: sourceProductPlan,
@@ -355,7 +357,8 @@ export function assertMigrationInputReconciliationReady(
 ) {
   const verification = verifyMigrationInputReconciliationBundle(bundle)
   if (!verification.valid) {
-    throw new Error(
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
       `Migration input reconciliation bundle is not ready: ${verification.errors.join(", ")}`
     )
   }
