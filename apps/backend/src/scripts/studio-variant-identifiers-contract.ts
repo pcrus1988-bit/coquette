@@ -243,11 +243,13 @@ export default async function studioVariantIdentifiersContract({ container }: Ex
           status: "draft",
           shipping_profile_id: defaults.shippingProfileId,
           sales_channels: [{ id: defaults.salesChannelId }],
+          options: [{ title: "Type", values: ["Default"] }],
           variants: [
             {
               title: "Default",
               sku: `FOREIGN-${suffix}`,
               barcode: `FOREIGN-BAR-${suffix}`,
+              options: { Type: "Default" },
               manage_inventory: false,
               allow_backorder: false,
             },
