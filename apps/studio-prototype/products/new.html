@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="el">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f0ea" />
+    <title>Νέο κομμάτι — COQUETTE Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/boutique.css" />
+  </head>
+  <body class="wizard-page">
+    <main class="wizard-shell" id="product-wizard">
+      <aside class="wizard-rail" aria-label="Product creation progress">
+        <a class="wizard-brand" href="/today" aria-label="COQUETTE Studio home"><img src="/assets/coquette-logo-transparent.png" alt="COQUETTE Concept Store" /></a>
+        <a class="wizard-exit" href="/products">← Πίσω στην boutique</a>
+
+        <div class="wizard-progress" id="wizard-progress">
+          <div class="wizard-step-link active" data-step-link="0"><span class="wizard-step-number">1</span><span><strong>Ταυτότητα</strong><small>Τι παρουσιάζουμε;</small></span></div>
+          <div class="wizard-step-link" data-step-link="1"><span class="wizard-step-number">2</span><span><strong>Visual story</strong><small>Η πρώτη εικόνα</small></span></div>
+          <div class="wizard-step-link" data-step-link="2"><span class="wizard-step-number">3</span><span><strong>Ιστορία</strong><small>Τι πρέπει να γνωρίζει;</small></span></div>
+          <div class="wizard-step-link" data-step-link="3"><span class="wizard-step-number">4</span><span><strong>Επιλογές</strong><small>Μέγεθος · χρώμα</small></span></div>
+          <div class="wizard-step-link" data-step-link="4"><span class="wizard-step-number">5</span><span><strong>Τιμή & stock</strong><small>Πώς θα πωληθεί;</small></span></div>
+          <div class="wizard-step-link" data-step-link="5"><span class="wizard-step-number">6</span><span><strong>Placement</strong><small>Πού θα το βρουν;</small></span></div>
+          <div class="wizard-step-link" data-step-link="6"><span class="wizard-step-number">7</span><span><strong>Search</strong><small>Πώς θα εμφανίζεται;</small></span></div>
+          <div class="wizard-step-link" data-step-link="7"><span class="wizard-step-number">8</span><span><strong>Review</strong><small>Μια τελευταία ματιά</small></span></div>
+        </div>
+
+        <div class="wizard-save-state" id="wizard-save-state">Saved locally · prototype</div>
+      </aside>
+
+      <section class="wizard-main">
+        <header class="wizard-topbar">
+          <p>Νέο κομμάτι · Draft</p>
+          <button type="button" id="save-and-exit">Save & exit</button>
+        </header>
+
+        <div class="wizard-body">
+          <div class="wizard-content">
+            <section class="wizard-step active" data-step="0">
+              <div class="wizard-title"><p class="eyebrow">1 · Identity</p><h1>Τι παρουσιάζουμε;</h1><p>Ξεκινήστε με ό,τι θα έλεγε μια πελάτισσα για να το βρει. Τα τεχνικά μπορούν να περιμένουν.</p></div>
+
+              <label class="wizard-field"><span>Όνομα προϊόντος</span><input id="piece-name" type="text" placeholder="π.χ. Silk Evening Dress" autocomplete="off" /></label>
+              <div class="wizard-field-row">
+                <label class="wizard-field"><span>Designer / Brand</span><input id="piece-designer" type="text" placeholder="π.χ. Elena K" autocomplete="off" /></label>
+                <label class="wizard-field"><span>Κατηγορία</span><select id="piece-category"><option value="">Επιλέξτε</option><option>Φορέματα</option><option>Jackets & Blazers</option><option>Tops</option><option>Παντελόνια</option><option>Πλεκτά</option><option>Accessories</option></select></label>
+              </div>
+              <div class="wizard-field-row">
+                <label class="wizard-field"><span>SKU · optional</span><input id="piece-sku" type="text" placeholder="CQT-…" /></label>
+                <label class="wizard-field"><span>Barcode · optional</span><input id="piece-barcode" type="text" inputmode="numeric" placeholder="EAN / GTIN" /></label>
+              </div>
+              <p class="wizard-helper">Το SKU και το barcode μπορούν να προστεθούν αργότερα. Δεν εμποδίζουν τη δημιουργία του draft.</p>
+
+              <div class="quick-draft">Βιάζεστε; <button type="button" id="quick-draft">Δημιουργήστε ένα minimal draft και ολοκληρώστε το αργότερα.</button></div>
+            </section>
+
+            <section class="wizard-step" data-step="1">
+              <div class="wizard-title"><p class="eyebrow">2 · Visual story</p><h1>Δείξτε το στα καλύτερά του.</h1><p>Η πρώτη εικόνα είναι μέρος της πώλησης. Επιλέξτε το cover και αφήστε τις λεπτομέρειες να ακολουθήσουν.</p></div>
+              <label class="media-drop" id="media-drop">
+                <input id="media-input" class="sr-only" type="file" accept="image/*" multiple />
+                <span><strong>Ρίξτε εδώ τις φωτογραφίες</strong><span>ή επιλέξτε αρχεία από τη συσκευή σας. Στο production θα αποθηκεύονται στο COQUETTE media storage.</span><em>Choose images</em></span>
+              </label>
+              <p class="wizard-helper" id="media-summary">Καμία εικόνα ακόμη. Μπορείτε να συνεχίσετε και να επιστρέψετε αργότερα.</p>
+            </section>
+
+            <section class="wizard-step" data-step="2">
+              <div class="wizard-title"><p class="eyebrow">3 · Story & details</p><h1>Τι πρέπει να γνωρίζει;</h1><p>Γράψτε όπως θα μιλούσατε σε μια πελάτισσα μέσα στην boutique — μετά προσθέστε μόνο τις λεπτομέρειες που είναι πραγματικά χρήσιμες.</p></div>
+              <label class="wizard-field"><span>Editorial description</span><textarea id="piece-description" placeholder="Η αίσθηση, η γραμμή, πότε και πώς φοριέται…"></textarea></label>
+              <div class="copy-assist"><div><strong>Θέλετε βοήθεια με το wording;</strong><span>Στο production, η AI βοήθεια θα χρησιμοποιεί μόνο facts που έχετε ήδη δώσει.</span></div><button type="button" id="copy-draft">Draft suggestion</button></div>
+              <div class="wizard-field-row">
+                <label class="wizard-field"><span>Σύνθεση / Υλικά</span><input id="piece-material" type="text" placeholder="π.χ. 100% silk" /></label>
+                <label class="wizard-field"><span>Fit</span><input id="piece-fit" type="text" placeholder="π.χ. relaxed fit" /></label>
+              </div>
+              <div class="wizard-field-row">
+                <label class="wizard-field"><span>Care</span><input id="piece-care" type="text" placeholder="Οδηγίες φροντίδας" /></label>
+                <label class="wizard-field"><span>Model note</span><input id="piece-model" type="text" placeholder="π.χ. wears size S" /></label>
+              </div>
+            </section>
+
+            <section class="wizard-step" data-step="3">
+              <div class="wizard-title"><p class="eyebrow">4 · Choices</p><h1>Πώς μπορεί να το επιλέξει;</h1><p>Δεν χρειάζεται να στήσετε “variants”. Πείτε απλώς ποιες επιλογές έχει η πελάτισσα.</p></div>
+              <div class="choice-grid" id="choice-grid">
+                <button class="choice-card selected" type="button" data-choice="size"><strong>Μέγεθος</strong><span>XS, S, M, L ή ό,τι χρειάζεται το συγκεκριμένο piece.</span></button>
+                <button class="choice-card" type="button" data-choice="color"><strong>Χρώμα</strong><span>Όταν το ίδιο piece υπάρχει σε περισσότερα χρώματα.</span></button>
+                <button class="choice-card" type="button" data-choice="one"><strong>One size</strong><span>Χωρίς matrix επιλογών.</span></button>
+              </div>
+              <p class="eyebrow">Sizes</p>
+              <div class="pill-editor" id="size-pills"><span class="option-pill">XS <button type="button">×</button></span><span class="option-pill">S <button type="button">×</button></span><span class="option-pill">M <button type="button">×</button></span><span class="option-pill">L <button type="button">×</button></span><button class="option-pill add-pill" type="button" id="add-size">+ Add size</button></div>
+              <p class="wizard-helper">Το Studio θα μετατρέψει αυτές τις επιλογές στο σωστό Medusa product/variant model στο παρασκήνιο.</p>
+            </section>
+
+            <section class="wizard-step" data-step="4">
+              <div class="wizard-title"><p class="eyebrow">5 · Price & availability</p><h1>Πώς θα το πουλήσουμε;</h1><p>Τιμή και πραγματική διαθεσιμότητα πρώτα. Οι μηχανισμοί pricing και inventory μένουν πίσω από ασφαλή defaults.</p></div>
+              <div class="wizard-field-row">
+                <label class="wizard-field"><span>Τιμή · EUR</span><input id="piece-price" type="number" min="0" step="0.01" placeholder="0.00" /></label>
+                <label class="wizard-field"><span>Sale price · optional</span><input id="piece-sale-price" type="number" min="0" step="0.01" placeholder="—" /></label>
+              </div>
+              <p class="eyebrow">Stock by size</p>
+              <table class="stock-matrix"><thead><tr><th>Size</th><th>Available</th><th>SKU override</th></tr></thead><tbody id="stock-body"><tr><td>XS</td><td><input type="number" value="2" min="0" /></td><td><input type="text" placeholder="optional" /></td></tr><tr><td>S</td><td><input type="number" value="3" min="0" /></td><td><input type="text" placeholder="optional" /></td></tr><tr><td>M</td><td><input type="number" value="2" min="0" /></td><td><input type="text" placeholder="optional" /></td></tr><tr><td>L</td><td><input type="number" value="1" min="0" /></td><td><input type="text" placeholder="optional" /></td></tr></tbody></table>
+            </section>
+
+            <section class="wizard-step" data-step="5">
+              <div class="wizard-title"><p class="eyebrow">6 · Boutique placement</p><h1>Πού θέλετε να το ανακαλύψουν;</h1><p>Διαλέξτε τη θέση του μέσα στην COQUETTE εμπειρία. Δεν χρειάζεται να σκεφτείτε sales channels ή internal IDs.</p></div>
+              <div class="placement-list">
+                <label class="placement-option"><div><strong>New In</strong><span>Να εμφανιστεί στη ροή των νέων αφίξεων.</span></div><input id="placement-new" type="checkbox" checked /></label>
+                <label class="placement-option"><div><strong>Featured candidate</strong><span>Να μπορεί να επιλεγεί για homepage/editorial προβολή.</span></div><input id="placement-featured" type="checkbox" /></label>
+                <label class="placement-option"><div><strong>September Edit</strong><span>Να προστεθεί στη συγκεκριμένη συλλογή.</span></div><input id="placement-collection" type="checkbox" /></label>
+                <label class="placement-option"><div><strong>Publish later</strong><span>Κρατήστε το ως draft ή προγραμματίστε ημερομηνία.</span></div><input id="placement-scheduled" type="checkbox" /></label>
+              </div>
+            </section>
+
+            <section class="wizard-step" data-step="6">
+              <div class="wizard-title"><p class="eyebrow">7 · Search presence</p><h1>Πώς θα εμφανίζεται στην αναζήτηση;</h1><p>Το Studio ξεκινά από το πραγματικό product content και σας βοηθά να το παρουσιάσετε καθαρά σε Google και onsite search.</p></div>
+              <label class="wizard-field"><span>URL handle</span><input id="piece-handle" type="text" placeholder="silk-evening-dress" /></label>
+              <label class="wizard-field"><span>SEO title</span><input id="piece-seo-title" type="text" placeholder="Silk Evening Dress | COQUETTE" /></label>
+              <label class="wizard-field"><span>Meta description</span><textarea id="piece-seo-description" placeholder="A concise, factual search description…"></textarea></label>
+              <div class="seo-preview"><small>coquetteconcept.gr / product / <span id="seo-handle-preview">new-piece</span></small><strong id="seo-title-preview">New Piece | COQUETTE</strong><p id="seo-description-preview">Η περιγραφή αναζήτησης θα εμφανιστεί εδώ καθώς τη γράφετε.</p></div>
+            </section>
+
+            <section class="wizard-step" data-step="7">
+              <div class="wizard-title"><p class="eyebrow">8 · Review</p><h1>Μια τελευταία ματιά.</h1><p>Όχι validation report. Μόνο όσα πρόκειται πραγματικά να δει και να αγοράσει η πελάτισσα — και ό,τι χρειάζεται δική σας απόφαση.</p></div>
+              <div class="review-list">
+                <div class="review-row"><span>Piece</span><strong id="review-piece">Untitled piece</strong><button type="button" data-edit-step="0">Edit</button></div>
+                <div class="review-row"><span>Designer</span><strong id="review-designer">Not set</strong><button type="button" data-edit-step="0">Edit</button></div>
+                <div class="review-row"><span>Visuals</span><strong id="review-media">No images yet</strong><button type="button" data-edit-step="1">Edit</button></div>
+                <div class="review-row"><span>Price</span><strong id="review-price">Not set</strong><button type="button" data-edit-step="4">Edit</button></div>
+                <div class="review-row"><span>Choices</span><strong id="review-options">XS · S · M · L</strong><button type="button" data-edit-step="3">Edit</button></div>
+                <div class="review-row"><span>Placement</span><strong id="review-placement">New In</strong><button type="button" data-edit-step="5">Edit</button></div>
+                <div class="review-row"><span>Search</span><strong id="review-search">Needs review</strong><button type="button" data-edit-step="6">Edit</button></div>
+              </div>
+              <p class="wizard-helper" style="margin-top:22px">Prototype only: Publish does not create or change any Medusa product.</p>
+            </section>
+          </div>
+
+          <aside class="wizard-preview" aria-label="Live product preview">
+            <p class="preview-label">Live boutique preview</p>
+            <article class="live-card">
+              <div class="live-card-image" id="live-card-image"></div>
+              <div class="live-card-copy"><small id="preview-designer">Designer</small><h3 id="preview-name">New Piece</h3><p id="preview-price">Price not set</p><p class="preview-note" id="preview-note">Draft · not visible to clients</p></div>
+            </article>
+          </aside>
+        </div>
+
+        <footer class="wizard-footer">
+          <button class="wizard-back" id="wizard-back" type="button">← Previous</button>
+          <div class="wizard-footer-right"><span class="wizard-position" id="wizard-position">Step 1 of 8</span><button class="wizard-primary" id="wizard-next" type="button">Continue →</button></div>
+        </footer>
+      </section>
+    </main>
+
+    <script src="/product-wizard.js" defer></script>
+  </body>
+</html>
