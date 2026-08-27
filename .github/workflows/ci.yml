@@ -99,6 +99,9 @@ jobs:
       - name: Validate single-file operator capture handoff
         run: pnpm --filter @coquette/backend capture-handoff:contract
 
+      - name: Validate verified handoff reconciliation intake
+        run: pnpm --filter @coquette/backend capture-handoff:intake:contract
+
       - name: Validate indexed recovery evidence contract
         run: pnpm --filter @coquette/backend indexed-recovery:contract
 
