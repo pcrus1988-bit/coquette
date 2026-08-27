@@ -229,8 +229,9 @@ export default async function studioVariantIdentifiersContract({ container }: Ex
       index === 0 ? { ...line, ean: "4006381333932" } : line
     ),
   }
+  const invalidEanUpdatedAt = await productUpdatedAt(container, productId)
   await assert.rejects(
-    () => buildStudioVariantIdentifierPlan(container, productId, secondUpdatedAt, invalidEan),
+    () => buildStudioVariantIdentifierPlan(container, productId, invalidEanUpdatedAt, invalidEan),
     /valid EAN-8 or EAN-13/
   )
 
