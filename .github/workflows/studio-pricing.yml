@@ -1,0 +1,146 @@
+name: COQUETTE Studio Pricing CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "apps/studio/new-piece-pricing.js"
+      - "apps/studio/new-piece-pricing.css"
+      - "apps/studio/public/new-piece-pricing.js"
+      - "apps/studio/public/new-piece-pricing.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/pricing-*.js"
+      - "apps/backend/src/api/admin/studio/pricing/**"
+      - "apps/backend/src/lib/studio-pricing.ts"
+      - "apps/backend/src/lib/studio-pricing-state.ts"
+      - ".github/workflows/studio-pricing.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/studio/new-piece-pricing.js"
+      - "apps/studio/new-piece-pricing.css"
+      - "apps/studio/public/new-piece-pricing.js"
+      - "apps/studio/public/new-piece-pricing.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/pricing-*.js"
+      - "apps/backend/src/api/admin/studio/pricing/**"
+      - "apps/backend/src/lib/studio-pricing.ts"
+      - "apps/backend/src/lib/studio-pricing-state.ts"
+      - ".github/workflows/studio-pricing.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coquette-studio-pricing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+
+      - name: Validate pricing JavaScript syntax
+        run: |
+          node --check apps/studio/new-piece-pricing.js
+          node --check apps/studio/public/new-piece-pricing.js
+          node --check apps/studio/api/studio/pricing-state.js
+          node --check apps/studio/api/studio/pricing-plan.js
+          node --check apps/studio/api/studio/pricing-apply.js
+
+      - name: Enforce production asset parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s apps/studio/new-piece-pricing.js
+          test -s apps/studio/new-piece-pricing.css
+          cmp -s apps/studio/new-piece-pricing.js apps/studio/public/new-piece-pricing.js
+          cmp -s apps/studio/new-piece-pricing.css apps/studio/public/new-piece-pricing.css
+          cmp -s apps/studio/studio.html apps/studio/public/studio.html
+          grep -q '/new-piece-pricing.css' apps/studio/studio.html
+          grep -q '/new-piece-pricing.js' apps/studio/studio.html
+          grep -q '/new-piece-pricing.css' apps/studio/public/studio.html
+          grep -q '/new-piece-pricing.js' apps/studio/public/studio.html
+
+      - name: Enforce guarded pricing review and write boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          domain=apps/backend/src/lib/studio-pricing.ts
+          state=apps/backend/src/lib/studio-pricing-state.ts
+          plan=apps/backend/src/api/admin/studio/pricing/plan/route.ts
+          apply=apps/backend/src/api/admin/studio/pricing/apply/route.ts
+          client=apps/studio/new-piece-pricing.js
+
+          grep -q 'coquette_studio_origin' "$domain"
+          grep -q 'coquette_studio_variants_generated' "$domain"
+          grep -q 'createHash("sha256")' "$domain"
+          grep -q 'STUDIO_PRICING_CURRENCY = "eur"' "$domain"
+          grep -q 'updateProductVariantsWorkflow' "$domain"
+          grep -q 'batchPriceListPricesWorkflow' "$domain"
+          grep -q 'findStudioSalePriceList' "$domain"
+          grep -q 'ensureStudioSalePriceList' "$domain"
+          grep -q 'foreign active' "$domain"
+          grep -q 'readStudioPricingState' "$state"
+          grep -q 'foreign_pricing_present' "$state"
+
+          grep -q 'buildStudioPricingPlan' "$plan"
+          grep -q 'expected_updated_at' "$plan"
+          grep -q 'Modules.LOCKING' "$apply"
+          grep -q 'pricing_hash' "$apply"
+          grep -q 'stale_pricing_plan' "$apply"
+          grep -q 'applyStudioPricingPlan' "$apply"
+
+          grep -q '/api/studio/pricing-state' "$client"
+          grep -q '/api/studio/pricing-plan' "$client"
+          grep -q '/api/studio/pricing-apply' "$client"
+          grep -q 'Apply reviewed prices' "$client"
+          grep -q 'pricing_hash' "$client"
+          grep -q 'expected_updated_at' "$client"
+          grep -q 'same price for every choice\|Same price for every choice' "$client"
+          grep -q 'Price choices separately' "$client"
+
+          if grep -R -n -E 'inventory_quantity|inventory_items|sales_channels|sales_channel_id|allow_backorder:[[:space:]]*true|manage_inventory:[[:space:]]*true' \
+            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/backend/src/lib/studio-pricing-state.ts apps/studio/new-piece-pricing.js; then
+            echo 'Studio pricing must not mutate inventory, backorders or sales-channel visibility.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E 'status:[[:space:]]*["'"']published["'"']' \
+            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/studio/new-piece-pricing.js; then
+            echo 'Studio pricing must not publish products.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E 'localStorage|sessionStorage|Bearer|authorization' apps/studio/new-piece-pricing.js; then
+            echo 'Pricing browser code must not hold Medusa credentials or browser token state.' >&2
+            exit 1
+          fi
+
+      - name: Enforce explicit amount semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          domain=apps/backend/src/lib/studio-pricing.ts
+          grep -q 'must be entered explicitly' "$domain"
+          grep -q 'Sale price must be lower than the regular price' "$domain"
+          grep -q 'at most two decimals' "$domain"
+          grep -q 'Every variant must have one explicit pricing row' "$domain"
+          if grep -n -E 'regular[[:space:]]*\?\?|sale[[:space:]]*\?\?|defaultPrice|fallbackPrice|infer.*price' "$domain"; then
+            echo 'Studio pricing must not infer or default monetary amounts.' >&2
+            exit 1
+          fi
