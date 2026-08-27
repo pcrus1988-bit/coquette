@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { englishPrimaryNavigation, primaryNavigation } from "../lib/navigation"
@@ -33,8 +34,19 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-5 py-5 lg:px-8">
         <div className="hidden min-w-40 text-xs text-neutral-600 lg:block">2731 0 20404</div>
 
-        <Link href={isEnglish ? "/en" : "/"} className="text-center text-2xl font-medium tracking-[0.35em] sm:text-3xl">
-          COQUETTE
+        <Link
+          href={isEnglish ? "/en" : "/"}
+          className="flex shrink-0 items-center justify-center"
+          aria-label="COQUETTE Concept Store"
+        >
+          <Image
+            src="/coquette-logo.svg"
+            alt="COQUETTE Concept Store"
+            width={338}
+            height={64}
+            priority
+            className="h-auto w-[230px] sm:w-[300px]"
+          />
         </Link>
 
         <nav aria-label="Utility" className="flex min-w-40 justify-end gap-4 text-xs uppercase tracking-[0.1em]">
