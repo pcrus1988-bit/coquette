@@ -26,6 +26,7 @@
     "product-structure:contract": "ts-node src/scripts/product-structure-contract.ts",
     "archived-product-structure:contract": "ts-node src/scripts/archived-product-structure-contract.ts",
     "import-plan:contract": "ts-node src/scripts/import-plan-contract.ts",
+    "price-plan:contract": "ts-node src/scripts/price-plan-contract.ts",
     "staging-product-execution:contract": "ts-node src/scripts/staging-product-execution-contract.ts",
     "capture:ingest": "ts-node src/scripts/ingest-capture-artifact.ts",
     "staging-product-import": "medusa exec ./src/scripts/staging-product-import.ts",
@@ -63,6 +64,8 @@
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-i18next": "13.5.0",
+    "react-router-dom": "7.18.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2",
     "vite": "^7.3.6"
