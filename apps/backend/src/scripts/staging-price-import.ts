@@ -40,28 +40,9 @@ type VariantRecord = {
   product_id?: string | null
 }
 
-type VariantPriceRecord = {
+type VariantPriceSetRecord = {
   id: string
-  amount?: unknown
-  currency_code?: string | null
-  min_quantity?: unknown
-  max_quantity?: unknown
-  price_list?: {
-    id?: string
-    type?: string | null
-    status?: string | null
-    starts_at?: string | Date | null
-    ends_at?: string | Date | null
-    rules_count?: number | null
-    metadata?: Record<string, unknown> | null
-  } | null
-}
-
-type VariantPricingGraphRecord = {
-  id: string
-  product_id?: string | null
-  sku?: string | null
-  prices?: VariantPriceRecord[] | null
+  price_set?: { id?: string } | null
 }
 
 type SalePriceListRecord = {
@@ -74,6 +55,22 @@ type SalePriceListRecord = {
   ends_at?: string | Date | null
   rules_count?: number | null
   metadata?: Record<string, unknown> | null
+}
+
+type PricingPriceRecord = {
+  id: string
+  amount?: unknown
+  currency_code?: string | null
+  min_quantity?: unknown
+  max_quantity?: unknown
+  price_set_id?: string
+  price_list?: SalePriceListRecord | null
+}
+
+type VariantPricingState = {
+  variantId: string
+  priceSetId: string
+  prices: PricingPriceRecord[]
 }
 
 function unexpectedState(message: string) {
@@ -179,7 +176,7 @@ function numberValue(value: unknown, label: string) {
   return numeric
 }
 
-function isBaseCurrencyPrice(price: VariantPriceRecord) {
+function isBaseCurrencyPrice(price: PricingPriceRecord) {
   return (
     price.currency_code?.toLowerCase() === "eur" &&
     !price.price_list &&
@@ -189,7 +186,7 @@ function isBaseCurrencyPrice(price: VariantPriceRecord) {
 }
 
 function isMigrationSalePrice(
-  price: VariantPriceRecord,
+  price: PricingPriceRecord,
   migrationSaleListId: string | undefined
 ) {
   return (
@@ -206,13 +203,17 @@ function priceListMarker(value: Record<string, unknown> | null | undefined) {
   return typeof marker === "string" ? marker : undefined
 }
 
-function priceListCurrentlyActive(priceList: VariantPriceRecord["price_list"]) {
+function priceListCurrentlyActive(priceList: SalePriceListRecord | null | undefined) {
   if (!priceList || priceList.type !== "sale" || priceList.status !== "active") {
     return false
   }
   const now = Date.now()
-  const starts = priceList.starts_at ? new Date(priceList.starts_at).getTime() : undefined
-  const ends = priceList.ends_at ? new Date(priceList.ends_at).getTime() : undefined
+  const starts = priceList.starts_at
+    ? new Date(priceList.starts_at).getTime()
+    : undefined
+  const ends = priceList.ends_at
+    ? new Date(priceList.ends_at).getTime()
+    : undefined
   if (starts !== undefined && Number.isFinite(starts) && starts > now) return false
   if (ends !== undefined && Number.isFinite(ends) && ends <= now) return false
   return true
@@ -239,61 +240,65 @@ async function resolveVariantBySku(
   return variant
 }
 
-async function variantPricingGraph(
+async function variantPriceSetId(
   container: ExecArgs["container"],
   variantId: string
-): Promise<VariantPricingGraphRecord> {
+) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "variant",
-    fields: [
-      "id",
-      "sku",
-      "product_id",
-      "prices.id",
-      "prices.amount",
-      "prices.currency_code",
-      "prices.min_quantity",
-      "prices.max_quantity",
-      "prices.price_list.id",
-      "prices.price_list.type",
-      "prices.price_list.status",
-      "prices.price_list.starts_at",
-      "prices.price_list.ends_at",
-      "prices.price_list.rules_count",
-      "prices.price_list.metadata",
-    ],
+    fields: ["id", "price_set.id"],
     filters: { id: variantId },
   })
   if (data.length !== 1) {
     throw unexpectedState(
-      `Expected exactly one pricing graph record for variant ${variantId}, found ${data.length}`
+      `Expected exactly one variant while resolving price set for ${variantId}, found ${data.length}`
     )
   }
-  return data[0] as VariantPricingGraphRecord
+  const priceSetId = (data[0] as VariantPriceSetRecord).price_set?.id
+  if (!priceSetId) {
+    throw unexpectedState(`Variant ${variantId} has no linked Medusa price set`)
+  }
+  return priceSetId
+}
+
+async function variantPricingState(
+  container: ExecArgs["container"],
+  variantId: string
+): Promise<VariantPricingState> {
+  const priceSetId = await variantPriceSetId(container, variantId)
+  const pricingModule = container.resolve<IPricingModuleService>(Modules.PRICING)
+  const prices = await pricingModule.listPrices(
+    {
+      price_set_id: [priceSetId],
+      currency_code: "eur",
+    },
+    {
+      relations: ["price_list"],
+      take: 100,
+    }
+  )
+
+  return {
+    variantId,
+    priceSetId,
+    prices: prices as PricingPriceRecord[],
+  }
 }
 
 async function findMigrationSalePriceList(
   container: ExecArgs["container"]
 ): Promise<SalePriceListRecord | undefined> {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "price_list",
-    fields: [
-      "id",
-      "title",
-      "description",
-      "type",
-      "status",
-      "starts_at",
-      "ends_at",
-      "rules_count",
-      "metadata",
-    ],
-    filters: { type: "sale" },
-  })
-  const matches = (data as SalePriceListRecord[]).filter(
+  const pricingModule = container.resolve<IPricingModuleService>(Modules.PRICING)
+  const priceLists = await pricingModule.listPriceLists(
+    {},
+    {
+      take: 500,
+    }
+  )
+  const matches = (priceLists as SalePriceListRecord[]).filter(
     (record) =>
+      record.type === "sale" &&
       priceListMarker(record.metadata) === MIGRATION_SALE_LIST_MARKER_VALUE
   )
   if (matches.length > 1) {
@@ -348,10 +353,10 @@ async function ensureMigrationSalePriceList(
 }
 
 function assertNoForeignActiveSalePrice(
-  graph: VariantPricingGraphRecord,
+  state: VariantPricingState,
   migrationSaleListId: string | undefined
 ) {
-  const foreign = (graph.prices ?? []).filter(
+  const foreign = state.prices.filter(
     (price) =>
       price.currency_code?.toLowerCase() === "eur" &&
       price.price_list?.id !== migrationSaleListId &&
@@ -360,7 +365,7 @@ function assertNoForeignActiveSalePrice(
   )
   if (foreign.length > 0) {
     throw unexpectedState(
-      `Variant ${graph.id} already has ${foreign.length} active unrestricted EUR sale price(s) outside the COQUETTE migration sale list`
+      `Variant ${state.variantId} already has ${foreign.length} active unrestricted EUR sale price(s) outside the COQUETTE migration sale list`
     )
   }
 }
@@ -381,10 +386,10 @@ async function applyExpectedPriceState(
     entry.sku,
     entry.productTargetId
   )
-  let graph = await variantPricingGraph(container, variant.id)
-  assertNoForeignActiveSalePrice(graph, migrationSaleList?.id)
+  let state = await variantPricingState(container, variant.id)
+  assertNoForeignActiveSalePrice(state, migrationSaleList?.id)
 
-  const basePrices = (graph.prices ?? []).filter(isBaseCurrencyPrice)
+  let basePrices = state.prices.filter(isBaseCurrencyPrice)
   if (basePrices.length > 1) {
     throw unexpectedState(
       `Variant ${variant.id} has multiple unrestricted base EUR prices`
@@ -395,8 +400,10 @@ async function applyExpectedPriceState(
   const regularPrice = entry.reconstructedPrice.regularPrice
   if (
     basePrices.length === 0 ||
-    numberValue(basePrices[0].amount, `Base EUR price ${basePrices[0]?.id ?? "<missing>"}`) !==
-      regularPrice
+    numberValue(
+      basePrices[0].amount,
+      `Base EUR price ${basePrices[0]?.id ?? "<missing>"}`
+    ) !== regularPrice
   ) {
     await updateProductVariantsWorkflow(container).run({
       input: {
@@ -409,10 +416,12 @@ async function applyExpectedPriceState(
       },
     })
     changed = true
-    graph = await variantPricingGraph(container, variant.id)
+    state = await variantPricingState(container, variant.id)
+    assertNoForeignActiveSalePrice(state, migrationSaleList?.id)
+    basePrices = state.prices.filter(isBaseCurrencyPrice)
   }
 
-  const migrationSalePrices = (graph.prices ?? []).filter((price) =>
+  const migrationSalePrices = state.prices.filter((price) =>
     isMigrationSalePrice(price, migrationSaleList?.id)
   )
   if (migrationSalePrices.length > 1) {
@@ -485,9 +494,9 @@ async function applyExpectedPriceState(
     changed = true
   }
 
-  const verified = await variantPricingGraph(container, variant.id)
+  const verified = await variantPricingState(container, variant.id)
   assertNoForeignActiveSalePrice(verified, migrationSaleList?.id)
-  const verifiedBase = (verified.prices ?? []).filter(isBaseCurrencyPrice)
+  const verifiedBase = verified.prices.filter(isBaseCurrencyPrice)
   if (
     verifiedBase.length !== 1 ||
     numberValue(verifiedBase[0].amount, `Verified base EUR price ${variant.id}`) !==
@@ -498,7 +507,7 @@ async function applyExpectedPriceState(
     )
   }
 
-  const verifiedMigrationSale = (verified.prices ?? []).filter((price) =>
+  const verifiedMigrationSale = verified.prices.filter((price) =>
     isMigrationSalePrice(price, migrationSaleList?.id)
   )
   if (expectedSale === undefined) {
