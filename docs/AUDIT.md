@@ -2,28 +2,41 @@
 
 **Status:** Canonical project audit and recovery reference  
 **Audit date:** 2026-08-27  
-**Canonical blueprint:** `docs/ROADMAP.md`  
+**Last verified update:** 2026-08-27  
+**Canonical Blueprint:** `docs/ROADMAP.md`  
+**Current execution snapshot:** `docs/CURRENT_STATUS.md`  
 **Repository:** `pcrus1988-bit/coquette`
 
-This document is the canonical infrastructure/readiness audit for COQUETTE. Within this project, **AUDIT** means this document. It complements the Blueprint (`docs/ROADMAP.md`): the Blueprint defines the intended delivery path; AUDIT records the verified current state, drift, immediate corrective actions, and human/external dependencies.
+Within this project, **AUDIT** means this document.
+
+AUDIT complements the Blueprint: the Blueprint defines intended architecture, delivery phases and acceptance gates; AUDIT records verified current state, drift, corrective actions and external/manual dependencies. `CURRENT_STATUS.md` is the shorter execution snapshot derived from both.
+
+---
 
 ## Executive conclusion
 
-COQUETTE has a sound core architecture and is materially ahead of several original Blueprint phase labels, but it is not yet a complete staging shop and is not production-ready.
+COQUETTE has a sound architecture and is materially ahead of several original sequential Blueprint labels, but it is not yet a complete staging shop and is not production-ready.
 
-Verified state at the audit boundary:
+The major release-topology drift identified at the initial AUDIT boundary has now been corrected.
 
-- architecture: strong and consistent with the Blueprint;
-- GitHub codebase and CI: strong;
-- Vercel storefront: deployed and healthy;
-- Vercel COQUETTE Studio: deployed and healthy;
-- Supabase PostgreSQL/storage: healthy and correctly isolated;
+### Verified current state
+
+- architecture: consistent with Blueprint;
+- GitHub application baseline and CI: green on the validated merged application head;
+- Vercel storefront: healthy;
+- COQUETTE Studio: healthy and formally part of Phase 5 architecture;
+- Supabase PostgreSQL/storage: isolated and healthy;
 - Medusa foundation: healthy;
-- Railway architecture: correct, but the documented Railway release branch is behind/diverged from `main` and must be realigned;
+- Railway `coquette-backend`: healthy on release commit `398074bc5355b80a318b0b5f8637272ee8566976`;
+- Railway `coquette-worker`: healthy on the same release commit;
+- Railway `main`/`staging` release-history drift: **resolved through controlled merge/release operations**;
+- Phase 4U dependency-provisioning evidence: shipped and validated;
+- Studio guarded Size/Colour variant generation: shipped and validated;
 - real legacy catalogue: not yet written into COQUETTE staging;
-- production cutover: intentionally not reached.
+- production cutover: intentionally not reached;
+- obsolete Vercel `backend`: still present/failing and remains a cleanup item, not a real backend failure.
 
-The highest-priority recovery action is to restore release alignment between validated `main` and the Railway `staging` release branch before adding further runtime-dependent features.
+The next true critical path is no longer infrastructure drift. It is the authoritative legacy browser capture → verified intake → dependency provisioning → guarded real staging reconstruction.
 
 ---
 
@@ -33,21 +46,21 @@ The highest-priority recovery action is to restore release alignment between val
 
 **Status: COMPLETE**
 
-Dedicated repository, database/storage boundaries, environment separation and project-specific runtime state are in place.
+Dedicated repository, database/storage boundaries, environments and project-specific runtime state are in place.
 
 ## Phase 1 — Legacy audit / architecture
 
 **Status: COMPLETE; public audit remains continuous**
 
-Medusa v2 + Next.js remains the approved architecture. The public Magento storefront remains the legitimate reconstruction evidence source because private Magento administrative/database/filesystem/API access is unavailable.
+Medusa v2 + Next.js remains approved. COQUETTE Studio is now explicitly the primary merchant experience over Medusa. The public Magento storefront remains the legitimate reconstruction evidence source because private Magento administrative/database/filesystem/API access is unavailable.
 
 ## Phase 2 — Executable commerce foundation
 
 **Status: COMPLETE**
 
-Medusa backend/Admin, Next.js storefront, reproducible dependency/build gates and CI are established.
+Medusa backend/Admin, Next.js storefront, reproducible dependency/build gates, clean database contracts and CI are established.
 
-## Phase 3 — COQUETTE domain model and managed infrastructure
+## Phase 3 — Domain model and managed infrastructure
 
 **Status: TECHNICAL EXIT GATE COMPLETE**
 
@@ -55,13 +68,12 @@ Verified foundation includes:
 
 - dedicated Supabase PostgreSQL/storage;
 - Medusa schema;
-- Designer/Brand domain;
-- Website Content domain;
+- Designer/Brand and Website Content domains;
 - Greece/EUR region;
-- stock-location and fulfillment foundation;
-- Railway server/worker design with dedicated Redis;
-- Vercel storefront integration;
-- managed S3-compatible product media.
+- stock-location/fulfillment foundation;
+- Railway server/worker + dedicated Redis;
+- Vercel storefront/Studio surfaces;
+- managed S3-compatible media.
 
 Operational hardening such as backup/restore rehearsal and repository protection remains outstanding.
 
@@ -69,21 +81,23 @@ Operational hardening such as backup/restore rehearsal and repository protection
 
 **Status: VERY ADVANCED TECHNICALLY; REAL LEGACY DATA NOT YET IMPORTED**
 
-The reconstruction framework now covers evidence capture, URL inventory, checksums, products, categories, designers/brands, media, structural plans, pricing, qualitative inventory evidence, review decisions, dependency reconciliation, guarded staging execution and portable handoffs.
+The reconstruction framework covers evidence capture, URL inventory, checksums, products, categories, designers/brands, media, structural plans, pricing, qualitative inventory evidence, review decisions, checksum-bound bundles, handoff creation/intake, dependency reconciliation, dependency provisioning evidence and guarded staging execution.
 
-At the audit boundary, no real legacy catalogue reconstruction write had yet been performed against COQUETTE staging. Live Supabase commerce counts confirmed zero products and zero product variants.
+### Corrected phase drift
 
-Phase 4T has moved beyond the older status document and is effectively shipped into `main`. Phase 4U dependency-provisioning evidence is open work.
+- Phase 4T verified handoff reconciliation intake is shipped.
+- Phase 4U dependency-provisioning evidence is shipped.
+- no real legacy catalogue reconstruction write has yet been performed against staging.
 
 ## Phase 5 — Merchant back-office parity
 
 **Status: MATERIAL IMPLEMENTATION UNDERWAY VIA COQUETTE STUDIO**
 
-COQUETTE Studio was not explicitly named in the original Blueprint. It is now the preferred merchant-facing evolution of Phase 5, with Medusa remaining the authoritative commerce engine and technical administration foundation.
+COQUETTE Studio is now a formal project direction, not an incidental feature. It is the primary day-to-day merchant experience while Medusa remains the authoritative commerce engine/API and technical administration foundation.
 
 ## Phase 6 onward
 
-Storefront parity, search, cart, checkout and payment foundations are materially ahead of the original sequential plan, but final acceptance cannot be granted until real catalogue data is present and staging E2E/UAT gates pass.
+Storefront parity, search, cart, checkout and payment foundations are materially ahead of the original sequence, but final acceptance remains blocked on real reconstructed data plus staging E2E/UAT.
 
 ---
 
@@ -92,63 +106,70 @@ Storefront parity, search, cart, checkout and payment foundations are materially
 ## GitHub
 
 - repository: `pcrus1988-bit/coquette`;
-- default branch: `main`;
-- audit-time `main` head: `5a2cdc896d57a9376798f12b41e89c93c2cb8f60` before this AUDIT document was committed;
-- code CI is green on validated heads;
-- aggregate GitHub deployment status can appear red because of the obsolete Vercel `backend` project;
-- `main` and `staging` were unprotected at the audit boundary.
+- default implementation branch: `main`;
+- validated application merge: `7a50b104de1af1f34479ec92c218a880bab01ebb`;
+- exact-head COQUETTE CI: green on that application merge;
+- exact-head COQUETTE Studio CI: green on that application merge;
+- aggregate deployment status can still appear red because of obsolete Vercel `backend`;
+- branch/ruleset protection remains an account-level hardening item.
 
-### Release-branch drift
+### Release-branch drift — RESOLVED
 
-The documented Railway release source is `staging`.
+Initial AUDIT found `main` and Railway release branch `staging` badly diverged.
 
-Audit-time `staging` head:
+Recovery actions completed:
 
-`b68397a1796e11b9f1e80e67b7586f66019d89e8`
+1. histories were reconciled through normal controlled merges rather than force-resetting `staging`;
+2. Railway picked up the reconciled staging release;
+3. backend and worker both completed successfully;
+4. Phase 4U was then validated/merged to `main`;
+5. Studio guarded variant generation was refreshed onto current `main`, revalidated and merged;
+6. a second controlled staging release was issued;
+7. both Railway services now report success on the same release commit `398074bc5355b80a318b0b5f8637272ee8566976`.
 
-GitHub comparison showed `main` and `staging` diverged. `main` contained roughly 180 commits not present in `staging`, while `staging` contained 9 history commits not present in `main`.
-
-The staging tip tree matched the earlier merge-base tree, so the unique staging history did not represent a newer application tree. Nevertheless, the histories must be reconciled through a controlled merge/release operation rather than treating Railway as if it already follows current `main`.
+This restores the invariant that Railway staging is a deliberate release of validated implementation state rather than a stale parallel history.
 
 ## Vercel — storefront
 
 **Status: HEALTHY**
 
-The real customer storefront deploys successfully from current `main`. No standalone redeployment is required unless new changes are merged.
+Customer storefront deploys successfully.
 
 ## Vercel — COQUETTE Studio
 
 **Status: HEALTHY**
 
-The Studio project deploys successfully from current `main`. The frontend can nevertheless become functionally ahead of Railway when new Studio API/backend code has not yet reached the Railway release branch.
+Studio's shipped backend-dependent functionality is now aligned with the released Railway Medusa API surface after the controlled release recovery.
 
 ## Vercel — `backend`
 
-**Status: OBSOLETE / WRONG DEPLOYMENT TARGET**
+**Status: OBSOLETE / WRONG DEPLOYMENT TARGET / CLEANUP REQUIRED**
 
-This project is not the Medusa runtime. Medusa belongs on Railway. The obsolete Vercel backend project fails its builds and pollutes GitHub deployment status.
+This project is not the Medusa runtime. Medusa belongs on Railway. The obsolete project fails its builds and pollutes GitHub deployment status.
 
-Correct action: remove/disconnect it; do not attempt to make Medusa run there.
+Correct action: remove/disconnect the project or its Git integration. Do not move Medusa to Vercel merely to satisfy this false signal.
 
 ## Railway
 
 **Architecture: HEALTHY**  
-**Release alignment: NEEDS ACTION**
+**Release alignment: RESTORED**
 
 Canonical topology:
 
 - `coquette-backend` — Medusa server;
 - `coquette-worker` — Medusa worker;
 - dedicated Redis;
-- Supabase PostgreSQL and storage;
-- migrations run server-side only;
-- worker and server must run the same release commit.
+- Supabase PostgreSQL/storage;
+- migrations server-side only;
+- server and worker on the same controlled release commit.
 
-The last documented Railway verification (2026-08-26) reported backend, worker, healthcheck, Medusa Admin, PostgreSQL and Redis operational. The audit did not have direct private Railway deployment/log access, so the currently running container SHA could not be independently read. Because the documented Git source is `staging` and that branch was stale/diverged, release realignment is required.
+Current verified release commit: `398074bc5355b80a318b0b5f8637272ee8566976`.
+
+Both backend and worker report success on that release.
 
 ## Supabase
 
-**Status: HEALTHY**
+**Status: HEALTHY AT AUDIT BASELINE**
 
 Dedicated project:
 
@@ -158,26 +179,13 @@ Dedicated project:
 - `coquette-media` public managed-media bucket;
 - `coquette-imports` private reconstruction/import bucket.
 
-Audit-time commerce baseline:
+Audit baseline had zero real legacy Products/Product Variants/Brands imported. This is intentional until the verified reconstruction chain reaches the real staging-write gate.
 
-- Product: 0;
-- Product Variant: 0;
-- Brand: 0;
-- Website Content Page: 0;
-- Store: 1;
-- Region: 1 (Greece / EUR);
-- Sales Channel: 1;
-- Stock Location: 1;
-- Admin User: 1;
-- API Keys: 2.
-
-Supabase security advisor reported no security lints. Performance advisor findings were primarily low-value unused-index/unindexed-FK observations expected on an essentially empty Medusa staging database, plus one duplicate-index warning. These are not launch blockers at this stage and Medusa-generated indexes must not be deleted merely to clear advisory noise.
+The security advisor had no high-severity security lint at the audit boundary. Low-value unused-index/unindexed-FK observations on an essentially empty Medusa staging database are not launch blockers and Medusa-generated indexes must not be removed only to silence advisory noise.
 
 ---
 
 # 3. COQUETTE Studio architectural status
-
-COQUETTE Studio is now an official project direction and should be treated as part of the Blueprint's merchant back-office phase.
 
 Architectural rule:
 
@@ -188,80 +196,102 @@ Implemented/merged foundations include:
 - branded merchant experience;
 - Today/dashboard direction;
 - guarded Quick Draft product creation;
-- Guided New Piece eight-step editorial flow;
+- Guided New Piece editorial flow;
 - autosave/resume against Medusa drafts;
 - optimistic concurrency;
 - managed media upload, ordering and cover selection;
-- fail-closed protection against accidental publication, pricing, inventory and sales-channel mutations.
+- fail-closed guards against accidental price/inventory/publication/sales-channel mutations;
+- human Size/Colour blueprint review;
+- guarded conversion into real Medusa option/variant graphs;
+- locking, hash/fingerprint and stale-write safeguards;
+- post-workflow structural verification;
+- source/deployed Studio static parity validation.
 
-Open/current Studio work includes guarded conversion of saved human Size/Colour intent into a validated Medusa option/variant graph.
+Still incomplete at the Studio layer:
 
-Still incomplete at the Studio layer include production-ready pricing, sale pricing, SKU/barcode management, inventory quantities/location policy, category/designer application, merchandising/SEO application, explicit publish/schedule/archive lifecycle and the broader daily order/customer/refund/fulfillment/fiscal operations required for full Phase 5 exit.
+- regular/sale pricing workflows;
+- SKU/barcode management;
+- inventory quantities/location policy;
+- category/designer application;
+- merchandising/SEO application;
+- explicit publish/schedule/archive lifecycle;
+- broader order/customer/refund/fulfillment/payment/shipping/fiscal daily operations;
+- final merchant UAT.
 
 ---
 
-# 4. Immediate corrective sequence
+# 4. Recovery sequence status
 
-This sequence governs the return-to-track work following AUDIT.
+## 1. Restore deployment topology alignment — RESOLVED
 
-1. **Restore deployment topology alignment**
-   - reconcile validated `main` into the Railway `staging` release branch without discarding release history;
-   - require exact-head CI before release;
-   - deploy/release Medusa server and worker from the reconciled staging head;
-   - verify backend health, Admin, Store API, worker/Redis and Studio API compatibility where externally observable.
+- controlled `main` → `staging` reconciliation complete;
+- exact-head validation enforced before releases;
+- backend/worker same-release success confirmed;
+- Studio backend/API compatibility restored to released state.
 
-2. **Remove false Vercel backend signal**
-   - disconnect/delete the obsolete Vercel `backend` project or its Git integration;
-   - do not move Medusa to Vercel.
+## 2. Remove false Vercel backend signal — OPEN
 
-3. **Reconcile current open implementation work**
-   - review/rebase/merge Phase 4U and Studio variant generation only after current-base validation;
-   - perform a second controlled Railway staging release after backend-relevant merges.
+- obsolete Vercel `backend` still fails;
+- removal/disconnection remains account cleanup if connected tooling cannot perform deletion.
 
-4. **Keep Blueprint/status documentation synchronized**
-   - Blueprint and AUDIT are the two canonical project references;
-   - `CURRENT_STATUS.md` must reflect implemented phase advancement and runtime state;
-   - future project decisions should be checked against both documents.
+## 3. Reconcile current implementation work — RESOLVED
 
-5. **Acquire the real legacy browser capture**
-   - this is the principal unavoidable external/human acquisition boundary;
-   - once the authoritative handoff exists, receiver-side reconstruction, reconciliation, dependency planning and guarded staging import remain automated/checksum-bound.
+- Phase 4U merged after validation;
+- Studio guarded variant generation refreshed/revalidated/merged;
+- second controlled Railway release completed successfully.
 
-6. **Execute real staging reconstruction**
-   - verified handoff intake;
-   - evidence-only blocker resolution;
-   - category/Brand/media provisioning;
-   - guarded product import;
-   - guarded price import;
-   - reconciliation.
+## 4. Synchronize project documentation — IN PROGRESS IN DOCS SYNC
 
-7. **Finish merchant/storefront work against real data**
-   - catalogue UAT;
-   - Studio pricing/inventory/publication;
-   - final PLP/PDP/search;
-   - checkout/payments;
-   - shipping/courier;
-   - orders/returns;
-   - fiscal pipeline;
-   - SEO/redirects;
-   - backup/restore and rollback rehearsal.
+Canonical references are:
+
+- `docs/ROADMAP.md` — Blueprint;
+- `docs/AUDIT.md` — verified-state/recovery reference;
+- `docs/CURRENT_STATUS.md` — current execution snapshot.
+
+They must agree before further phase-status conclusions are treated as authoritative.
+
+## 5. Acquire real legacy browser capture — NEXT EXTERNAL BOUNDARY
+
+The authoritative capture must come from an environment/browser satisfying required operator-local provenance.
+
+## 6. Execute real staging reconstruction — NEXT TECHNICAL CRITICAL PATH
+
+- verified handoff intake;
+- evidence-only blocker resolution;
+- exact category/Brand/media provisioning;
+- verified dependency mapping plan;
+- backup/restore rehearsal;
+- guarded product import;
+- guarded price import;
+- reconciliation.
+
+## 7. Finish merchant/storefront work against real data — PENDING
+
+- catalogue/Studio UAT;
+- final PLP/PDP/search;
+- checkout/payments;
+- shipping/courier;
+- orders/returns;
+- fiscal pipeline;
+- SEO/redirects;
+- backup/restore and rollback rehearsal.
 
 ---
 
 # 5. Human/external dependencies
 
-## Needed soon
+## Needed next
 
 ### Authoritative legacy browser capture
 
-The real public-storefront acquisition must come from an environment/browser that can satisfy the project's required operator-browser provenance. This is the main immediate human/external boundary.
+This is the principal unavoidable external acquisition boundary.
 
-### Account-level cleanup that may require owner UI access
+### Account-level cleanup
 
-- remove/disconnect the obsolete Vercel `backend` project if no connected administrative action is available;
-- enable appropriate GitHub branch/ruleset protection if no connected administrative action is available.
+May require owner UI access if connected administrative actions are unavailable:
 
-These are account-administration tasks, not application-development tasks.
+- remove/disconnect obsolete Vercel `backend`;
+- configure appropriate GitHub branch/ruleset protection.
 
 ## Not required before development continues
 
@@ -272,16 +302,16 @@ Do not yet:
 - activate production payment credentials;
 - activate production AADE;
 - activate production courier credentials;
-- expose staging as the production shop;
-- manually recreate products in Medusa.
+- expose staging as production;
+- manually recreate legacy products in Medusa.
 
 Magento remains production until Blueprint launch gates pass.
 
 ## Later business/account dependencies
 
-Human-approved information will eventually be required for:
+Human-approved inputs will eventually be required for:
 
-- final shipping rates/free-shipping policy;
+- shipping rates/free-shipping policy;
 - production PayPal/Klarna/card credentials;
 - courier credentials/contracts;
 - AADE/myDATA credentials and mappings;
@@ -294,14 +324,20 @@ Human-approved information will eventually be required for:
 
 # 6. Definition of being back on track
 
-COQUETTE is considered back on track after the immediate recovery sequence has restored these invariants:
+The original AUDIT recovery objective is now **substantially satisfied**.
+
+Verified invariants:
 
 - `main` is the validated implementation baseline;
-- Railway `staging` is a deliberate reconciled release of that baseline, not a stale parallel history;
-- Railway server and worker run the same reconciled release;
-- storefront and Studio are compatible with the deployed Medusa API surface;
-- obsolete Vercel backend failures no longer represent project health;
-- AUDIT, Blueprint and current-status documentation agree;
-- the next critical path is the real Phase 4 legacy capture/import rather than infrastructure drift.
+- Railway `staging` is a deliberate reconciled release path rather than stale parallel history;
+- Railway server and worker run the same successful release;
+- storefront and Studio are compatible with the released Medusa API surface;
+- the next critical path is real Phase 4 legacy capture/import rather than runtime drift.
 
-Until then, new feature work should not outrun runtime release alignment again.
+Remaining cleanup before declaring the recovery chapter fully closed:
+
+- obsolete Vercel `backend` no longer produces false project-health failures;
+- Blueprint/AUDIT/CURRENT_STATUS docs sync is merged;
+- branch/ruleset hardening is addressed or explicitly deferred with owner rationale.
+
+Once those cleanup items are resolved or explicitly owner-deferred, new feature work may proceed while preserving release alignment as a standing invariant.
