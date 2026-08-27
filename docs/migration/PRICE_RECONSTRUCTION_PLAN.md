@@ -20,6 +20,19 @@ The following remain independent migration concerns:
 
 A change to price must not alter the structural product checksum. A structural copy/media/category change must not alter the price checksum when SKU and recovered price facts are unchanged.
 
+### Recovery boundary
+
+Public recovery keeps price and inventory observations attached to the candidate for provenance, but domain-specific defects no longer decide structural product readiness.
+
+In particular:
+
+- missing price currency does not make a structurally complete product incomplete;
+- conflicting regular/sale/currency observations remain recorded but do not block structural product reconstruction;
+- invalid sale-vs-regular relationships remain recorded but are adjudicated by the price plan;
+- unsafe indexed stock evidence remains recorded and excluded from selected stock state, but does not block an otherwise structurally complete product.
+
+The downstream price plan explicitly inspects retained pricing conflicts and fails closed with `price_evidence_conflict_requires_review`. Inventory will receive the same independent-accountability treatment in its own migration plan. This means domain separation applies to readiness and execution—not only to checksums.
+
 ## Accepted public price evidence
 
 A price entry may be planned automatically only when:
@@ -29,7 +42,8 @@ A price entry may be planned automatically only when:
 3. an explicit regular price is recovered;
 4. the explicit currency is `EUR`;
 5. the regular price is finite and strictly positive;
-6. an optional sale price is finite, strictly positive and strictly lower than the regular price.
+6. an optional sale price is finite, strictly positive and strictly lower than the regular price;
+7. no unresolved pricing-evidence conflict remains for regular price, sale price or currency.
 
 No currency is inferred from deployment region or shop defaults during migration.
 
@@ -51,6 +65,7 @@ The plan fails closed for conditions including:
 - missing/unsupported currency;
 - zero, negative or non-finite regular/sale price;
 - sale price equal to or above the regular price;
+- unresolved regular/sale/currency evidence conflicts;
 - duplicate price SKU/source/runtime-manifest identity.
 
 Ambiguous sale markup is reviewed rather than silently normalized.
@@ -107,7 +122,9 @@ Price planning does not set stock quantities and does not convert public `in_sto
 - price checksum stability across structural-only changes;
 - checksum change when price changes;
 - explicit `unavailable` behavior when public price is missing;
-- rejection of sale-without-regular, missing currency, zero price and non-discounting sale values;
+- structural readiness remains intact for missing/invalid price-only data;
+- rejection of sale-without-regular, missing currency, zero price and non-discounting sale values in the price domain;
+- retained pricing-evidence conflicts block price planning rather than structural product planning;
 - blocking when structural product identity is not ready.
 
 ## Non-goals
