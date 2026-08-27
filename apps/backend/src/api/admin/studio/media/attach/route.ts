@@ -147,7 +147,7 @@ export const POST = async (
       products: [
         {
           id: productId,
-          images: nextImages,
+          images: nextImages.map((url) => ({ url })),
           thumbnail,
         },
       ],
