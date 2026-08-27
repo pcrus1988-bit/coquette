@@ -517,7 +517,7 @@ export async function buildStudioPricingPlan(
     version: STUDIO_PRICING_VERSION,
     product_id: product!.id,
     expected_updated_at: product!.updated_at || "",
-    currency_code: STUDIO_PRICING_CURRENCY,
+    currency_code: "eur" as const,
     mode: request.mode,
     studio_sale_price_list_id: studioSaleList?.id || null,
     variants: variants.map((line) => ({
