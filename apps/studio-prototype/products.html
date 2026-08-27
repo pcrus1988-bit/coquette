@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="el">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f0ea" />
+    <title>Boutique — COQUETTE Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/boutique.css" />
+  </head>
+  <body class="studio-page">
+    <div class="studio-shell" id="studio-shell">
+      <aside class="studio-sidebar" aria-label="COQUETTE Studio navigation">
+        <div class="sidebar-head">
+          <a href="/today" class="brand-link" aria-label="COQUETTE Studio home">
+            <img src="/assets/coquette-logo-transparent.png" alt="COQUETTE Concept Store" />
+          </a>
+          <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="Collapse navigation" aria-expanded="true">
+            <span></span><span></span>
+          </button>
+        </div>
+
+        <nav class="studio-nav">
+          <a class="nav-primary" href="/today"><span class="nav-dot"></span><span class="nav-label">Σήμερα</span></a>
+
+          <div class="nav-group open">
+            <button class="nav-group-toggle" type="button" aria-expanded="true"><span>Μπουτίκ</span><span class="chevron">⌄</span></button>
+            <div class="nav-group-items">
+              <a href="/products" style="color:var(--ink)">Προϊόντα</a>
+              <a href="#collections">Συλλογές</a>
+              <a href="#designers">Designers</a>
+              <a href="#inventory">Απόθεμα</a>
+              <a href="#pricing">Τιμές</a>
+            </div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false"><span>Παραγγελίες</span><span class="chevron">⌄</span></button>
+            <div class="nav-group-items">
+              <a href="#orders">Όλες οι παραγγελίες</a><a href="#returns">Επιστροφές</a><a href="#shipments">Αποστολές</a><a href="#drafts">Draft orders</a>
+            </div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false"><span>Πελάτες</span><span class="chevron">⌄</span></button>
+            <div class="nav-group-items"><a href="#clients">Πελάτες</a><a href="#segments">Ομάδες</a><a href="#inquiries">Ερωτήματα</a></div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false"><span>Studio</span><span class="chevron">⌄</span></button>
+            <div class="nav-group-items"><a href="#homepage">Homepage</a><a href="#pages">Σελίδες</a><a href="#lookbooks">Lookbooks</a><a href="#media">Media</a><a href="#seo">SEO</a></div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false"><span>Ανάπτυξη</span><span class="chevron">⌄</span></button>
+            <div class="nav-group-items"><a href="#campaigns">Campaigns</a><a href="#discounts">Εκπτώσεις</a><a href="#insights">Insights</a></div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false"><span>Λειτουργία</span><span class="chevron">⌄</span></button>
+            <div class="nav-group-items"><a href="#payments">Πληρωμές</a><a href="#shipping">Αποστολές</a><a href="#aade">AADE / myDATA</a><a href="#integrations">Integrations</a></div>
+          </div>
+        </nav>
+
+        <div class="sidebar-foot">
+          <button class="sidebar-settings" type="button"><span class="nav-dot"></span><span class="nav-label">Ρυθμίσεις</span></button>
+          <span class="preview-chip">DESIGN PREVIEW</span>
+        </div>
+      </aside>
+
+      <main class="studio-main">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation">Menu</button>
+          <button class="command-trigger" type="button" aria-label="Open command palette"><span>Βρείτε κάτι ή ξεκινήστε μια ενέργεια…</span><kbd>⌘ K</kbd></button>
+          <div class="topbar-actions"><button class="icon-action" type="button" aria-label="Notifications">2</button><a class="quick-create" href="/products/new" style="text-decoration:none;display:inline-flex;align-items:center">+ Νέο</a></div>
+        </header>
+
+        <div class="boutique-wrap">
+          <section class="boutique-hero">
+            <div class="boutique-hero-copy">
+              <p class="eyebrow">Boutique</p>
+              <h1>Τα κομμάτια σας.</h1>
+              <p>Δείτε τη συλλογή όπως τη βλέπετε στο κατάστημα — και αφήστε το Studio να σας δείξει μόνο ό,τι χρειάζεται φροντίδα.</p>
+            </div>
+            <a class="new-piece-button" href="/products/new">+ Νέο κομμάτι</a>
+          </section>
+
+          <div class="boutique-search-row">
+            <label class="boutique-search">
+              <span class="sr-only">Search products</span>
+              <input id="product-search" type="search" placeholder="Όνομα, SKU, barcode, designer, χρώμα…" autocomplete="off" />
+            </label>
+            <div class="view-switch" aria-label="Product view">
+              <button type="button" class="active" data-view="cards">Κάρτες</button>
+              <button type="button" data-view="list">Λίστα</button>
+            </div>
+          </div>
+
+          <div class="boutique-filter-row" aria-label="Product filters">
+            <button class="filter-chip active" data-filter="all">Όλα</button>
+            <button class="filter-chip" data-filter="attention">Χρειάζονται προσοχή · 4</button>
+            <button class="filter-chip" data-filter="published">Live · 84</button>
+            <button class="filter-chip" data-filter="draft">Drafts · 6</button>
+            <button class="filter-chip" data-filter="low">Low stock · 3</button>
+            <button class="filter-chip" data-filter="soldout">Sold out · 2</button>
+            <button class="filter-chip" data-filter="scheduled">Scheduled · 1</button>
+          </div>
+
+          <section class="boutique-exceptions" aria-label="Boutique attention summary">
+            <article class="exception-item"><span>Χρειάζονται προσοχή</span><strong>4</strong><small>2 stock · 1 draft · 1 scheduled</small></article>
+            <article class="exception-item"><span>Live pieces</span><strong>84</strong><small>στην boutique αυτή τη στιγμή</small></article>
+            <article class="exception-item"><span>Drafts</span><strong>6</strong><small>2 μπορούν να ολοκληρωθούν γρήγορα</small></article>
+            <article class="exception-item"><span>New In</span><strong>12</strong><small>4 προστέθηκαν αυτή την εβδομάδα</small></article>
+          </section>
+
+          <section aria-labelledby="collection-title">
+            <div class="product-section-head">
+              <div><p class="eyebrow">The current edit</p><h2 id="collection-title">Η συλλογή</h2></div>
+              <span class="product-count" id="product-count">8 κομμάτια στο preview</span>
+            </div>
+
+            <div class="product-grid" id="product-grid">
+              <article class="product-card" data-state="attention low published" data-search="black satin blazer noir atelier blazer black sku cqt-101">
+                <div class="product-image"><span class="product-state attention">1 left</span></div>
+                <div class="product-info"><span class="product-designer">NOIR ATELIER</span><a class="product-name" href="#">Black Satin Blazer</a><div class="product-meta"><span class="product-price">€285</span><span class="product-signal">1 τεμάχιο · υψηλή κίνηση</span></div><a class="product-next" href="#">Έλεγχος αποθέματος →</a></div>
+              </article>
+
+              <article class="product-card" data-state="attention soldout published" data-search="ivory draped top maison vela top ivory sku cqt-204">
+                <div class="product-image"><span class="product-state attention">Sold out</span></div>
+                <div class="product-info"><span class="product-designer">MAISON VELA</span><a class="product-name" href="#">Ivory Draped Top</a><div class="product-meta"><span class="product-price">€165</span><span class="product-signal">6 wishlist saves</span></div><a class="product-next" href="#">Δείτε τη ζήτηση →</a></div>
+              </article>
+
+              <article class="product-card" data-state="attention draft" data-search="silk evening dress elena k dress silk brown sku cqt-311">
+                <div class="product-image"><span class="product-state">Draft</span></div>
+                <div class="product-info"><span class="product-designer">ELENA K</span><a class="product-name" href="/products/new">Silk Evening Dress</a><div class="product-meta"><span class="product-price">€390</span><span class="product-signal">λείπει SEO description</span></div><a class="product-next" href="/products/new">Συνέχεια →</a></div>
+              </article>
+
+              <article class="product-card" data-state="scheduled" data-search="soft wool coat studio line coat taupe sku cqt-407">
+                <div class="product-image"><span class="product-state">01 Sep · 10:00</span></div>
+                <div class="product-info"><span class="product-designer">STUDIO LINE</span><a class="product-name" href="#">Soft Wool Coat</a><div class="product-meta"><span class="product-price">€465</span><span class="product-signal">scheduled</span></div><a class="product-next" href="#">Preview →</a></div>
+              </article>
+
+              <article class="product-card" data-state="published" data-search="sculpted mini dress noire dress black sku cqt-509">
+                <div class="product-image"><span class="product-state">Live</span></div>
+                <div class="product-info"><span class="product-designer">NOIRE</span><a class="product-name" href="#">Sculpted Mini Dress</a><div class="product-meta"><span class="product-price">€245</span><span class="product-signal">8 διαθέσιμα</span></div><a class="product-next" href="#">Άνοιγμα →</a></div>
+              </article>
+
+              <article class="product-card" data-state="published" data-search="sand silk shirt atelier 19 shirt beige sku cqt-610">
+                <div class="product-image"><span class="product-state">Live</span></div>
+                <div class="product-info"><span class="product-designer">ATELIER 19</span><a class="product-name" href="#">Sand Silk Shirt</a><div class="product-meta"><span class="product-price">€195</span><span class="product-signal">12 διαθέσιμα</span></div><a class="product-next" href="#">Άνοιγμα →</a></div>
+              </article>
+
+              <article class="product-card" data-state="published low" data-search="muse tailored trousers muse trousers brown sku cqt-712">
+                <div class="product-image"><span class="product-state">3 left</span></div>
+                <div class="product-info"><span class="product-designer">MUSE</span><a class="product-name" href="#">Tailored Trousers</a><div class="product-meta"><span class="product-price">€220</span><span class="product-signal">3 τεμάχια</span></div><a class="product-next" href="#">Άνοιγμα →</a></div>
+              </article>
+
+              <article class="product-card" data-state="draft" data-search="pearl knit cardigan linea knit ivory sku cqt-815">
+                <div class="product-image"><span class="product-state">Draft</span></div>
+                <div class="product-info"><span class="product-designer">LINEA</span><a class="product-name" href="/products/new">Pearl Knit Cardigan</a><div class="product-meta"><span class="product-price">—</span><span class="product-signal">επόμενο: προσθέστε τιμή</span></div><a class="product-next" href="/products/new">Συνέχεια →</a></div>
+              </article>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="/app.js" defer></script>
+    <script>
+      (() => {
+        const search = document.querySelector('#product-search')
+        const cards = [...document.querySelectorAll('.product-card')]
+        const count = document.querySelector('#product-count')
+        let currentFilter = 'all'
+
+        function refresh() {
+          const q = (search?.value || '').trim().toLowerCase()
+          let visible = 0
+          cards.forEach((card) => {
+            const state = card.dataset.state || ''
+            const haystack = card.dataset.search || ''
+            const matchesFilter = currentFilter === 'all' || state.split(' ').includes(currentFilter)
+            const matchesSearch = !q || haystack.includes(q)
+            const show = matchesFilter && matchesSearch
+            card.hidden = !show
+            if (show) visible += 1
+          })
+          if (count) count.textContent = `${visible} ${visible === 1 ? 'κομμάτι' : 'κομμάτια'} στο preview`
+        }
+
+        search?.addEventListener('input', refresh)
+        document.querySelectorAll('.filter-chip').forEach((chip) => chip.addEventListener('click', () => {
+          document.querySelectorAll('.filter-chip').forEach((item) => item.classList.remove('active'))
+          chip.classList.add('active')
+          currentFilter = chip.dataset.filter || 'all'
+          refresh()
+        }))
+      })()
+    </script>
+  </body>
+</html>
