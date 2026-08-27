@@ -90,16 +90,5 @@ export function validateNormalizedProduct(
     })
   }
 
-  if (
-    product.regularPrice !== undefined &&
-    product.salePrice !== undefined &&
-    product.salePrice > product.regularPrice
-  ) {
-    issues.push({
-      field: "salePrice",
-      message: "Sale price cannot exceed regular price for automatic import.",
-    })
-  }
-
   return issues
 }
