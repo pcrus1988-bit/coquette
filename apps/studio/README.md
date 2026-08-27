@@ -30,9 +30,11 @@ The Studio Vercel project must use `apps/studio` as its root directory.
 - adaptive navigation, floating dock, command palette, focus mode and assistant drawer
 - approved COQUETTE logo and luxury login
 
-## First guarded write path
+## Guarded New Piece creation
 
-The `New Piece` quick action can now create one **unpublished Medusa product draft** through `/api/studio/product-drafts`.
+### Quick Draft
+
+The top-level `New Piece` quick action creates one **unpublished Medusa product draft** through `/api/studio/product-drafts`.
 
 The route is deliberately narrow:
 
@@ -43,4 +45,19 @@ The route is deliberately narrow:
 - does not expose a generic admin proxy
 - verifies the returned product did not leave draft state
 
-This is the safe shortcut defined in the Product Experience blueprint. Full variants, media, pricing, inventory, merchandising and publish/schedule actions remain separate guarded phases.
+### Guided New Piece
+
+Boutique now also exposes an eight-step guided creation workspace.
+
+It can resume Studio-created drafts and autosave descriptive/editorial progress without browser persistence. The guarded update endpoint:
+
+- verifies the product is still a draft before each write
+- verifies it originated from the Studio draft flow
+- uses optimistic concurrency through `expected_updated_at`
+- allow-lists title, subtitle, description, handle and finite `coquette_studio_*` metadata fields
+- rejects stale writes instead of silently overwriting another session
+- verifies the product remains unpublished after every update
+
+The wizard currently captures identity, visual direction, story/details, choice blueprint, placement intent, search intent and a final review. Price, stock, variant creation, sales-channel visibility and publication remain explicitly locked for their own guarded workflows.
+
+See `docs/studio/NEW_PIECE_WIZARD_FOUNDATION.md` for the boundary and next phases.
