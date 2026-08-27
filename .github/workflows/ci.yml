@@ -120,6 +120,9 @@ jobs:
       - name: Validate deterministic inventory evidence plan
         run: pnpm --filter @coquette/backend inventory-plan:contract
 
+      - name: Validate reconstruction review decision safety
+        run: pnpm --filter @coquette/backend review-decisions:contract
+
       - name: Validate staging structural product execution preflight
         run: pnpm --filter @coquette/backend staging-product-execution:contract
 
