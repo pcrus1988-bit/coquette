@@ -58,10 +58,13 @@ const applyStudioInventoryWorkflow = createWorkflow(
       ({ createdItems, input }) =>
         createdItems.map((item, index) => ({
           [Modules.PRODUCT]: {
-            product_variant_id: input.create_items[index].variant_id,
+            variant_id: input.create_items[index].variant_id,
           },
           [Modules.INVENTORY]: {
             inventory_item_id: item.id,
+          },
+          data: {
+            required_quantity: 1,
           },
         }))
     )
