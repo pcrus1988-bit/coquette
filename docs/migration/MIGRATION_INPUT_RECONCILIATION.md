@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 4N creates the frozen, checksum-bound migration input bundle that must sit between public reconstruction/review and any future staging execution handoff.
+Phase 4N creates the frozen, checksum-bound migration input bundle that sits between public reconstruction/review and staging execution.
 
 It does **not** write Medusa products, prices, inventory, content, customers, orders, or any other commerce state.
 
@@ -114,18 +114,29 @@ The command always writes the reconciliation result for auditability. It exits w
 
 It never writes a Medusa runtime manifest.
 
-## Current executor boundary
+## Executor boundary after Phase 4O
 
-Phase 4N establishes the canonical bundle and verifier.
+Phase 4O closes the historical raw-report execution gap.
 
-The existing Phase 4G/4J staging executors still have their historical Phase 4F report interfaces at the moment Phase 4N is introduced. The next execution-hardening step must replace those raw-report interfaces with the verified Phase 4N bundle before any real staging migration write is authorized.
+The guarded structural product and price staging executors now require:
 
-Therefore **no real staging write should be run from a raw Phase 4F report**.
+```text
+COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE=/path/reconciliation-bundle.json
+COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM=<exact bundleChecksum>
+```
+
+Both executors verify the Phase 4N bundle and its independently pinned checksum before building their execution plan.
+
+The historical variables `COQUETTE_STAGING_PRODUCT_IMPORT_REPORT` and `COQUETTE_STAGING_PRICE_IMPORT_REPORT` are explicitly rejected when present.
+
+Structural product execution consumes only `bundle.productPlan`; pricing execution consumes only `bundle.pricePlan`.
+
+Canonical executor detail: `docs/migration/STAGING_MIGRATION_INPUT.md`.
 
 ## Production boundary
 
-Phase 4N is not a production migration or cutover tool.
+Phase 4N is not a production migration or cutover tool, and Phase 4O's executor hardening does not itself authorize a real staging migration.
 
 `coquetteconcept.gr` remains the production shop until the full reconstruction, UAT, payment/courier/fiscal, SEO, rollback, backup/restore, and blueprint cutover gates pass.
 
-No real COQUETTE staging or production migration writes are performed by this phase.
+No real COQUETTE staging or production migration writes are performed by Phase 4N/4O validation.
