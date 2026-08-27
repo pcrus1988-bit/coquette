@@ -42,12 +42,17 @@ function observation(
   }
 }
 
+function productPlanFor(
+  candidateKey: string,
+  observations: RecoveryProductObservation[]
+) {
+  return buildProductImportPlan([
+    buildRecoveryProductCandidate(candidateKey, observations),
+  ])
+}
+
 function planFor(candidateKey: string, item: RecoveryProductObservation) {
-  return buildPricePlan(
-    buildProductImportPlan([
-      buildRecoveryProductCandidate(candidateKey, [item]),
-    ])
-  )
+  return buildPricePlan(productPlanFor(candidateKey, [item]))
 }
 
 const regularPlan = planFor(
@@ -94,22 +99,20 @@ assert.deepEqual(salePlan.entries[0].reconstructedPrice, {
 })
 
 const structuralChangePlan = buildPricePlan(
-  buildProductImportPlan([
-    buildRecoveryProductCandidate("regular-structural-change", [
-      {
+  productPlanFor("regular-structural-change", [
+    {
+      ...observation(
+        "https://coquetteconcept.gr/default/regular.html",
+        "REGULAR-1"
+      ),
+      fields: {
         ...observation(
           "https://coquetteconcept.gr/default/regular.html",
           "REGULAR-1"
-        ),
-        fields: {
-          ...observation(
-            "https://coquetteconcept.gr/default/regular.html",
-            "REGULAR-1"
-          ).fields,
-          description: "Changed structural description with the same public price",
-        },
+        ).fields,
+        description: "Changed structural description with the same public price",
       },
-    ]),
+    },
   ])
 )
 assert.equal(structuralChangePlan.totals.ready, 1)
@@ -150,14 +153,15 @@ assert.deepEqual(unavailablePlan.entries[0].warnings, [
   "public_price_not_recovered",
 ])
 
-const saleWithoutRegularPlan = planFor(
-  "sale-without-regular",
+const saleWithoutRegularProductPlan = productPlanFor("sale-without-regular", [
   observation(
     "https://coquetteconcept.gr/default/sale-without-regular.html",
     "SALE-NO-REGULAR",
     { salePrice: 80, currencyCode: "EUR" }
-  )
-)
+  ),
+])
+assert.equal(saleWithoutRegularProductPlan.totals.ready, 1)
+const saleWithoutRegularPlan = buildPricePlan(saleWithoutRegularProductPlan)
 assert.equal(saleWithoutRegularPlan.totals.blocked, 1)
 assert.ok(
   saleWithoutRegularPlan.entries[0].blockers.includes(
@@ -167,14 +171,16 @@ assert.ok(
 assert.equal(saleWithoutRegularPlan.runtimeManifestEntries.length, 0)
 assert.equal(saleWithoutRegularPlan.isReconciled, false)
 
-const missingCurrencyPlan = planFor(
-  "missing-currency",
+const missingCurrencyProductPlan = productPlanFor("missing-currency", [
   observation(
     "https://coquetteconcept.gr/default/missing-currency.html",
     "NO-CURRENCY",
     { regularPrice: 90 }
-  )
-)
+  ),
+])
+assert.equal(missingCurrencyProductPlan.totals.ready, 1)
+assert.equal(missingCurrencyProductPlan.entries[0].validationIssues.length, 0)
+const missingCurrencyPlan = buildPricePlan(missingCurrencyProductPlan)
 assert.equal(missingCurrencyPlan.totals.blocked, 1)
 assert.ok(
   missingCurrencyPlan.entries[0].blockers.includes(
@@ -182,17 +188,38 @@ assert.ok(
   )
 )
 
-const equalSalePlan = planFor(
-  "equal-sale",
+const equalSaleProductPlan = productPlanFor("equal-sale", [
   observation(
     "https://coquetteconcept.gr/default/equal-sale.html",
     "EQUAL-SALE",
     { regularPrice: 100, salePrice: 100, currencyCode: "EUR" }
-  )
-)
+  ),
+])
+assert.equal(equalSaleProductPlan.totals.ready, 1)
+const equalSalePlan = buildPricePlan(equalSaleProductPlan)
 assert.equal(equalSalePlan.totals.blocked, 1)
 assert.ok(
   equalSalePlan.entries[0].blockers.includes("non_discounting_sale_price")
+)
+
+const higherSaleProductPlan = productPlanFor("higher-sale", [
+  observation(
+    "https://coquetteconcept.gr/default/higher-sale.html",
+    "HIGHER-SALE",
+    { regularPrice: 100, salePrice: 120, currencyCode: "EUR" }
+  ),
+])
+assert.equal(higherSaleProductPlan.totals.ready, 1)
+assert.equal(higherSaleProductPlan.entries[0].validationIssues.length, 0)
+assert.ok(
+  higherSaleProductPlan.entries[0].conflicts.some(
+    (conflict) => conflict.field === "salePrice" && conflict.reason === "invalid_value"
+  )
+)
+const higherSalePlan = buildPricePlan(higherSaleProductPlan)
+assert.equal(higherSalePlan.totals.blocked, 1)
+assert.ok(
+  higherSalePlan.entries[0].blockers.includes("non_discounting_sale_price")
 )
 
 const zeroPricePlan = planFor(
@@ -205,6 +232,38 @@ const zeroPricePlan = planFor(
 )
 assert.equal(zeroPricePlan.totals.blocked, 1)
 assert.ok(zeroPricePlan.entries[0].blockers.includes("invalid_regular_price"))
+
+const conflictedPriceProductPlan = productPlanFor("conflicted-price", [
+  observation(
+    "https://coquetteconcept.gr/default/conflicted-price.html",
+    "PRICE-CONFLICT",
+    { regularPrice: 100, currencyCode: "EUR" }
+  ),
+  {
+    ...observation(
+      "https://coquetteconcept.gr/default/conflicted-price.html",
+      "PRICE-CONFLICT",
+      { regularPrice: 110, currencyCode: "EUR" }
+    ),
+    observedAt: "2026-08-27T05:05:00.000Z",
+  },
+])
+assert.equal(conflictedPriceProductPlan.totals.ready, 1)
+assert.ok(
+  conflictedPriceProductPlan.entries[0].conflicts.some(
+    (conflict) =>
+      conflict.field === "regularPrice" &&
+      conflict.reason === "same_authority_conflict"
+  )
+)
+const conflictedPricePlan = buildPricePlan(conflictedPriceProductPlan)
+assert.equal(conflictedPricePlan.totals.blocked, 1)
+assert.ok(
+  conflictedPricePlan.entries[0].blockers.includes(
+    "price_evidence_conflict_requires_review"
+  )
+)
+assert.equal(conflictedPricePlan.runtimeManifestEntries.length, 0)
 
 const structurallyBlockedProduct = buildRecoveryProductCandidate(
   "structurally-blocked",
