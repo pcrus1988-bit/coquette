@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { buildDependencyMappingReconciliationPlan } from "../migration/dependency-mapping-reconciliation"
 import {
   buildRecoveryProductCandidate,
   type RecoveryProductObservation,
@@ -73,7 +74,7 @@ export default async function stagingProductImportContract({ container }: ExecAr
   const brandModuleService = container.resolve<BrandModuleService>(BRAND_MODULE)
   const root = await mkdtemp(join(tmpdir(), "coquette-staging-import-contract-"))
   const bundlePath = join(root, "migration-input-bundle.json")
-  const dependenciesPath = join(root, "dependencies.json")
+  const dependencyPlanPath = join(root, "dependency-plan.json")
   const manifestPath = join(root, "product-manifest.json")
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const handle = `coquette-migration-contract-${suffix}`
@@ -92,6 +93,10 @@ export default async function stagingProductImportContract({ container }: ExecAr
       process.env.COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE,
     COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM:
       process.env.COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM,
+    COQUETTE_STAGING_DEPENDENCY_MAPPING_PLAN:
+      process.env.COQUETTE_STAGING_DEPENDENCY_MAPPING_PLAN,
+    COQUETTE_STAGING_DEPENDENCY_MAPPING_CHECKSUM:
+      process.env.COQUETTE_STAGING_DEPENDENCY_MAPPING_CHECKSUM,
     COQUETTE_STAGING_PRODUCT_IMPORT_REPORT:
       process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT,
     COQUETTE_STAGING_PRICE_IMPORT_REPORT:
@@ -155,6 +160,12 @@ export default async function stagingProductImportContract({ container }: ExecAr
         targetId: brand.id,
       },
     ]
+    const dependencyPlan = buildDependencyMappingReconciliationPlan({
+      bundle: migrationInput,
+      mappings: dependencies,
+      allowedMediaHosts: ["coquette-media.example"],
+    })
+    assert.equal(dependencyPlan.isReconciled, true)
 
     await writeFile(
       bundlePath,
@@ -162,8 +173,8 @@ export default async function stagingProductImportContract({ container }: ExecAr
       "utf8"
     )
     await writeFile(
-      dependenciesPath,
-      `${JSON.stringify(dependencies, null, 2)}\n`,
+      dependencyPlanPath,
+      `${JSON.stringify(dependencyPlan, null, 2)}\n`,
       "utf8"
     )
 
@@ -180,9 +191,12 @@ export default async function stagingProductImportContract({ container }: ExecAr
     process.env.COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE = bundlePath
     process.env.COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM =
       migrationInput.bundleChecksum
+    process.env.COQUETTE_STAGING_DEPENDENCY_MAPPING_PLAN = dependencyPlanPath
+    process.env.COQUETTE_STAGING_DEPENDENCY_MAPPING_CHECKSUM =
+      dependencyPlan.planChecksum
     delete process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT
     delete process.env.COQUETTE_STAGING_PRICE_IMPORT_REPORT
-    process.env.COQUETTE_STAGING_PRODUCT_DEPENDENCIES = dependenciesPath
+    delete process.env.COQUETTE_STAGING_PRODUCT_DEPENDENCIES
     process.env.COQUETTE_STAGING_PRODUCT_MANIFEST = manifestPath
 
     await stagingProductImport({ container } as ExecArgs)
@@ -229,7 +243,7 @@ export default async function stagingProductImportContract({ container }: ExecAr
     assert.equal(secondManifest[0].attempts, 1)
 
     console.log(
-      "COQUETTE clean-database reconciled-bundle structural product + Product Brand link idempotency contract passed"
+      "COQUETTE clean-database verified dependency-plan structural product + Product Brand link idempotency contract passed"
     )
   } finally {
     for (const [key, value] of Object.entries(priorEnvironment)) {
