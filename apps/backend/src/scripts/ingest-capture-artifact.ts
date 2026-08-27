@@ -1,10 +1,14 @@
 import { readFile, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
+import { verifyCaptureEvidencePackage } from "../migration/capture-evidence-package"
 import {
   buildDirectCaptureProductCandidates,
   readCaptureArtifactBundle,
 } from "../migration/capture-ingestion"
-import { validateCaptureArtifactBundle } from "../migration/capture-validation"
+import {
+  validateCaptureArtifactBundle,
+  type CaptureValidationIssue,
+} from "../migration/capture-validation"
 import { buildProductImportPlan } from "../migration/import-plan"
 import type { IndexedRecoveryBaseline } from "../migration/indexed-recovery"
 import { buildReconstructionUrlUniverse } from "../migration/url-universe"
@@ -45,8 +49,28 @@ async function main() {
     await readFile(baselinePath, "utf8")
   ) as IndexedRecoveryBaseline
 
-  const bundle = await readCaptureArtifactBundle(resolve(captureDir))
-  const validation = validateCaptureArtifactBundle(bundle)
+  const resolvedCaptureDir = resolve(captureDir)
+  const evidencePackageValidation = await verifyCaptureEvidencePackage(
+    resolvedCaptureDir
+  )
+  const bundle = await readCaptureArtifactBundle(resolvedCaptureDir)
+  const artifactValidation = validateCaptureArtifactBundle(bundle)
+  const packageIssues: CaptureValidationIssue[] =
+    evidencePackageValidation.issues.map((issue) => ({
+      severity: issue.severity,
+      code: issue.code,
+      message: issue.path ? `${issue.message} (${issue.path})` : issue.message,
+    }))
+  const issues = [...artifactValidation.issues, ...packageIssues]
+  const critical = issues.filter((issue) => issue.severity === "critical").length
+  const review = issues.filter((issue) => issue.severity === "review").length
+  const validation = {
+    issues,
+    critical,
+    review,
+    isValid: critical === 0,
+  }
+
   const manualUnavailable = await optionalManualUnavailable(
     process.env.COQUETTE_UNAVAILABLE_URLS_FILE
   )
@@ -59,6 +83,7 @@ async function main() {
   )
   const productStructures = bundle.productStructures ?? {}
   const structures = Object.values(productStructures)
+  const evidencePackage = evidencePackageValidation.package
 
   const report = {
     schemaVersion: 3,
@@ -71,6 +96,16 @@ async function main() {
       declaredComplete: bundle.manifest.complete,
       failureReason: bundle.manifest.failureReason,
       validation,
+      evidencePackage: {
+        isValid: evidencePackageValidation.isValid,
+        packageChecksum: evidencePackage?.packageChecksum,
+        provenanceMode: evidencePackage?.provenance.mode,
+        transport: evidencePackage?.provenance.transport,
+        browserMode: evidencePackage?.provenance.browserMode,
+        codeRevision: evidencePackage?.provenance.codeRevision,
+        files: evidencePackage?.totals.files,
+        bytes: evidencePackage?.totals.bytes,
+      },
       pages: bundle.pages.length,
       products: bundle.products.length,
       media: bundle.media.length,
