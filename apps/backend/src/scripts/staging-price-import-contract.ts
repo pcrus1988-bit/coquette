@@ -1,4 +1,7 @@
-import type { ExecArgs } from "@medusajs/framework/types"
+import type {
+  ExecArgs,
+  IPricingModuleService,
+} from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
@@ -27,25 +30,31 @@ const servingMediaUrl =
 const saleListMarkerKey = "coquette_migration_price_list"
 const saleListMarkerValue = "legacy-public-sale-v1"
 
-type VariantPriceGraph = {
+type VariantPriceSetRecord = {
   id: string
-  product_id?: string | null
-  prices?: Array<{
-    id: string
-    amount?: unknown
-    currency_code?: string | null
-    min_quantity?: unknown
-    max_quantity?: unknown
-    price_list?: {
-      id?: string
-      type?: string | null
-      status?: string | null
-      starts_at?: string | Date | null
-      ends_at?: string | Date | null
-      rules_count?: number | null
-      metadata?: Record<string, unknown> | null
-    } | null
-  }> | null
+  price_set?: { id?: string } | null
+}
+
+type PriceRecord = {
+  id: string
+  amount?: unknown
+  currency_code?: string | null
+  min_quantity?: unknown
+  max_quantity?: unknown
+  price_list?: {
+    id?: string
+    type?: string | null
+    status?: string | null
+    starts_at?: string | Date | null
+    ends_at?: string | Date | null
+    rules_count?: number | null
+    metadata?: Record<string, unknown> | null
+  } | null
+}
+
+type PricingState = {
+  priceSetId: string
+  prices: PriceRecord[]
 }
 
 function candidateObservation(
@@ -96,33 +105,36 @@ async function writeReport(
   return report
 }
 
-async function variantGraph(
+async function pricingState(
   container: ExecArgs["container"],
   variantId: string
-): Promise<VariantPriceGraph> {
+): Promise<PricingState> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "variant",
-    fields: [
-      "id",
-      "product_id",
-      "prices.id",
-      "prices.amount",
-      "prices.currency_code",
-      "prices.min_quantity",
-      "prices.max_quantity",
-      "prices.price_list.id",
-      "prices.price_list.type",
-      "prices.price_list.status",
-      "prices.price_list.starts_at",
-      "prices.price_list.ends_at",
-      "prices.price_list.rules_count",
-      "prices.price_list.metadata",
-    ],
+    fields: ["id", "price_set.id"],
     filters: { id: variantId },
   })
   assert.equal(data.length, 1)
-  return data[0] as VariantPriceGraph
+  const priceSetId = (data[0] as VariantPriceSetRecord).price_set?.id
+  assert.ok(priceSetId)
+
+  const pricingModule = container.resolve<IPricingModuleService>(Modules.PRICING)
+  const prices = await pricingModule.listPrices(
+    {
+      price_set_id: [priceSetId],
+      currency_code: "eur",
+    },
+    {
+      relations: ["price_list"],
+      take: 100,
+    }
+  )
+
+  return {
+    priceSetId,
+    prices: prices as PriceRecord[],
+  }
 }
 
 function numeric(value: unknown) {
@@ -131,8 +143,8 @@ function numeric(value: unknown) {
   return amount
 }
 
-function baseEurPrices(graph: VariantPriceGraph) {
-  return (graph.prices ?? []).filter(
+function baseEurPrices(state: PricingState) {
+  return state.prices.filter(
     (price) =>
       price.currency_code?.toLowerCase() === "eur" &&
       !price.price_list &&
@@ -141,8 +153,8 @@ function baseEurPrices(graph: VariantPriceGraph) {
   )
 }
 
-function migrationSalePrices(graph: VariantPriceGraph) {
-  return (graph.prices ?? []).filter(
+function migrationSalePrices(state: PricingState) {
+  return state.prices.filter(
     (price) =>
       price.currency_code?.toLowerCase() === "eur" &&
       price.price_list?.type === "sale" &&
@@ -256,9 +268,9 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
 
     await stagingPriceImport({ container } as ExecArgs)
 
-    let graph = await variantGraph(container, variantId)
-    let basePrices = baseEurPrices(graph)
-    let salePrices = migrationSalePrices(graph)
+    let state = await pricingState(container, variantId)
+    let basePrices = baseEurPrices(state)
+    let salePrices = migrationSalePrices(state)
     assert.equal(basePrices.length, 1)
     assert.equal(numeric(basePrices[0].amount), 199)
     assert.equal(salePrices.length, 1)
@@ -280,9 +292,9 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
 
     await stagingPriceImport({ container } as ExecArgs)
 
-    graph = await variantGraph(container, variantId)
-    basePrices = baseEurPrices(graph)
-    salePrices = migrationSalePrices(graph)
+    state = await pricingState(container, variantId)
+    basePrices = baseEurPrices(state)
+    salePrices = migrationSalePrices(state)
     assert.equal(basePrices.length, 1)
     assert.equal(numeric(basePrices[0].amount), 199)
     assert.equal(salePrices.length, 1)
@@ -306,9 +318,9 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
 
     await stagingPriceImport({ container } as ExecArgs)
 
-    graph = await variantGraph(container, variantId)
-    basePrices = baseEurPrices(graph)
-    salePrices = migrationSalePrices(graph)
+    state = await pricingState(container, variantId)
+    basePrices = baseEurPrices(state)
+    salePrices = migrationSalePrices(state)
     assert.equal(basePrices.length, 1)
     assert.equal(numeric(basePrices[0].amount), 209)
     assert.equal(salePrices.length, 1)
@@ -337,9 +349,9 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
 
     await stagingPriceImport({ container } as ExecArgs)
 
-    graph = await variantGraph(container, variantId)
-    basePrices = baseEurPrices(graph)
-    salePrices = migrationSalePrices(graph)
+    state = await pricingState(container, variantId)
+    basePrices = baseEurPrices(state)
+    salePrices = migrationSalePrices(state)
     assert.equal(basePrices.length, 1)
     assert.equal(numeric(basePrices[0].amount), 209)
     assert.equal(salePrices.length, 0)
