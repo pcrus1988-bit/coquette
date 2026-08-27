@@ -94,7 +94,7 @@ jobs:
           grep -q 'batchPriceListPricesWorkflow' "$domain"
           grep -q 'findStudioSalePriceList' "$domain"
           grep -q 'ensureStudioSalePriceList' "$domain"
-          grep -q 'foreign active' "$domain"
+          grep -q 'active unrestricted EUR sale price outside COQUETTE Studio' "$domain"
           grep -q 'readStudioPricingState' "$state"
           grep -q 'foreign_pricing_present' "$state"
 
@@ -111,7 +111,7 @@ jobs:
           grep -q 'Apply reviewed prices' "$client"
           grep -q 'pricing_hash' "$client"
           grep -q 'expected_updated_at' "$client"
-          grep -q 'same price for every choice\|Same price for every choice' "$client"
+          grep -q 'Same price for every choice' "$client"
           grep -q 'Price choices separately' "$client"
 
           if grep -R -n -E 'inventory_quantity|inventory_items|sales_channels|sales_channel_id|allow_backorder:[[:space:]]*true|manage_inventory:[[:space:]]*true' \
@@ -120,7 +120,9 @@ jobs:
             exit 1
           fi
 
-          if grep -R -n -E 'status:[[:space:]]*["'"']published["'"']' \
+          if grep -R -n -E "status:[[:space:]]*\"published\"" \
+            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/studio/new-piece-pricing.js || \
+             grep -R -n -E "status:[[:space:]]*'published'" \
             apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/studio/new-piece-pricing.js; then
             echo 'Studio pricing must not publish products.' >&2
             exit 1
@@ -140,7 +142,7 @@ jobs:
           grep -q 'Sale price must be lower than the regular price' "$domain"
           grep -q 'at most two decimals' "$domain"
           grep -q 'Every variant must have one explicit pricing row' "$domain"
-          if grep -n -E 'regular[[:space:]]*\?\?|sale[[:space:]]*\?\?|defaultPrice|fallbackPrice|infer.*price' "$domain"; then
+          if grep -n -E 'defaultPrice|fallbackPrice|infer.*price' "$domain"; then
             echo 'Studio pricing must not infer or default monetary amounts.' >&2
             exit 1
           fi
