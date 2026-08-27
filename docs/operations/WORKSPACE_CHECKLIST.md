@@ -46,7 +46,9 @@
 - [x] Keep Magento migration/export material outside public Git history
 - [x] Run Medusa core + COQUETTE staging migrations
 - [x] Verify live Medusa commerce schema exists in the dedicated database
+- [x] Add a Medusa-native `storage:smoke` command for an S3 upload + public-read check
 - [ ] Independently verify dedicated S3 credentials are installed only in the backend runtime
+- [ ] Run the live S3 storage smoke and verify the object is readable through `coquette-media`
 - [ ] Verify an actual Medusa Admin media upload + public read through `coquette-media`
 - [ ] Finalize backup/restore policy and perform a restore rehearsal
 
@@ -66,12 +68,16 @@
 - [x] Create one store, one sales channel and one EUR Greece region
 - [x] Add explicit idempotent `staging:bootstrap` command for Greece commerce configuration
 - [x] CI validates the bootstrap twice from a clean database, including a synthetic shipping-option creation path
-- [ ] Run `pnpm --filter @coquette/backend staging:bootstrap` once against the real Railway staging runtime. This is deliberately separate from normal deploy/pre-deploy and is not executed merely by syncing the branch.
-- [ ] Verify live store name/default region/default location/default sales channel after bootstrap
-- [ ] Verify live `el-GR` and `en-GB` store locale links after bootstrap
-- [ ] Verify Greece is assigned to the Medusa region after bootstrap
-- [ ] Verify stock location + sales-channel link after bootstrap
-- [ ] Verify Greece fulfillment set/service zone/geo-zone after bootstrap
+- [x] Execute the bootstrap once against the real Railway staging runtime through a temporary server-only pre-deploy hook
+- [x] Restore Railway staging to migration-only pre-deploy immediately after bootstrap verification
+- [x] Verify live store is `COQUETTE` with Greece as default region, `COQUETTE Greece` as default location and the default sales channel retained
+- [x] Verify live `el-GR` and `en-GB` store locale links
+- [x] Verify Greece (`gr`) is assigned to the EUR Medusa region
+- [x] Verify `COQUETTE Greece` stock location + sales-channel link
+- [x] Verify stock location + `manual_manual` fulfillment-provider link
+- [x] Verify `COQUETTE Greece delivery` fulfillment set, location link, Greece service zone and `gr` country geo-zone
+- [x] Verify no customer-facing shipping option was invented during bootstrap
+- [x] Verify live Greece region currently uses only `pp_system_default`; PayPal/Klarna are not yet activated in staging
 - [ ] Choose the real COQUETTE standard shipping price/policy before creating a customer-facing shipping option
 - [ ] Enable and verify PayPal Sandbox / Klarna Playground on the staging region only when real staging credentials are present
 - [ ] Verify Store API product query, media upload and worker operation

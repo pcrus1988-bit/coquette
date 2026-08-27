@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="el">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f0ea" />
+    <title>Today — COQUETTE Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="studio-page">
+    <div class="studio-shell" id="studio-shell">
+      <aside class="studio-sidebar" aria-label="COQUETTE Studio navigation">
+        <div class="sidebar-head">
+          <a href="/today" class="brand-link" aria-label="COQUETTE Studio home">
+            <img src="/assets/coquette-logo-transparent.png" alt="COQUETTE Concept Store" />
+          </a>
+          <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="Collapse navigation" aria-expanded="true">
+            <span></span><span></span>
+          </button>
+        </div>
+
+        <nav class="studio-nav">
+          <a class="nav-primary active" href="/today">
+            <span class="nav-dot"></span><span class="nav-label">Σήμερα</span>
+          </a>
+
+          <div class="nav-group open">
+            <button class="nav-group-toggle" type="button" aria-expanded="true">
+              <span>Μπουτίκ</span><span class="chevron">⌄</span>
+            </button>
+            <div class="nav-group-items">
+              <a href="#products">Προϊόντα</a>
+              <a href="#collections">Συλλογές</a>
+              <a href="#designers">Designers</a>
+              <a href="#inventory">Απόθεμα</a>
+              <a href="#pricing">Τιμές</a>
+            </div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false">
+              <span>Παραγγελίες</span><span class="chevron">⌄</span>
+            </button>
+            <div class="nav-group-items">
+              <a href="#orders">Όλες οι παραγγελίες</a>
+              <a href="#returns">Επιστροφές</a>
+              <a href="#shipments">Αποστολές</a>
+              <a href="#drafts">Draft orders</a>
+            </div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false">
+              <span>Πελάτες</span><span class="chevron">⌄</span>
+            </button>
+            <div class="nav-group-items">
+              <a href="#clients">Πελάτες</a>
+              <a href="#segments">Ομάδες</a>
+              <a href="#inquiries">Ερωτήματα</a>
+            </div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false">
+              <span>Studio</span><span class="chevron">⌄</span>
+            </button>
+            <div class="nav-group-items">
+              <a href="#homepage">Homepage</a>
+              <a href="#pages">Σελίδες</a>
+              <a href="#lookbooks">Lookbooks</a>
+              <a href="#media">Media</a>
+              <a href="#seo">SEO</a>
+            </div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false">
+              <span>Ανάπτυξη</span><span class="chevron">⌄</span>
+            </button>
+            <div class="nav-group-items">
+              <a href="#campaigns">Campaigns</a>
+              <a href="#discounts">Εκπτώσεις</a>
+              <a href="#insights">Insights</a>
+            </div>
+          </div>
+
+          <div class="nav-group">
+            <button class="nav-group-toggle" type="button" aria-expanded="false">
+              <span>Λειτουργία</span><span class="chevron">⌄</span>
+            </button>
+            <div class="nav-group-items">
+              <a href="#payments">Πληρωμές</a>
+              <a href="#shipping">Αποστολές</a>
+              <a href="#aade">AADE / myDATA</a>
+              <a href="#integrations">Integrations</a>
+            </div>
+          </div>
+        </nav>
+
+        <div class="sidebar-foot">
+          <button class="sidebar-settings" type="button"><span class="nav-dot"></span><span class="nav-label">Ρυθμίσεις</span></button>
+          <span class="preview-chip">DESIGN PREVIEW</span>
+        </div>
+      </aside>
+
+      <main class="studio-main">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation">Menu</button>
+          <button class="command-trigger" type="button" aria-label="Open command palette">
+            <span>Τι θέλετε να κάνετε;</span><kbd>⌘ K</kbd>
+          </button>
+          <div class="topbar-actions">
+            <button class="icon-action" type="button" aria-label="Notifications">2</button>
+            <button class="quick-create" type="button">+ Νέο</button>
+          </div>
+        </header>
+
+        <div class="dashboard-wrap">
+          <section class="assistant-intro">
+            <p class="eyebrow" id="today-date">Τετάρτη, 26 Αυγούστου</p>
+            <h1>Καλησπέρα.</h1>
+            <p class="assistant-summary">
+              Από την τελευταία σας σύνδεση, η boutique είχε <strong>8 νέες παραγγελίες</strong> και υπάρχουν
+              <strong>3 πράγματα</strong> που αξίζουν την προσοχή σας.
+            </p>
+          </section>
+
+          <section class="attention-section" aria-labelledby="attention-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Προτεραιότητα</p>
+                <h2 id="attention-title">Χρειάζεται την προσοχή σας</h2>
+              </div>
+              <a href="#all-tasks" class="quiet-link">Όλα τα tasks</a>
+            </div>
+
+            <div class="attention-grid">
+              <article class="attention-card urgent-soft">
+                <div class="card-meta"><span>Παραγγελίες</span><span>πριν 38′</span></div>
+                <h3>2 παραγγελίες είναι έτοιμες για αποστολή</h3>
+                <p>Έχουν ολοκληρωθεί οι πληρωμές και περιμένουν μόνο την προετοιμασία αποστολής.</p>
+                <button type="button">Προετοιμασία αποστολής <span>→</span></button>
+              </article>
+
+              <article class="attention-card">
+                <div class="card-meta"><span>Απόθεμα</span><span>σήμερα</span></div>
+                <h3>Το Black Satin Blazer έμεινε στο 1 τεμάχιο</h3>
+                <p>Το προϊόν είχε 4 πωλήσεις τις τελευταίες 48 ώρες.</p>
+                <button type="button">Έλεγχος αποθέματος <span>→</span></button>
+              </article>
+
+              <article class="attention-card">
+                <div class="card-meta"><span>Studio</span><span>λήγει αύριο</span></div>
+                <h3>Το weekend banner χρειάζεται αντικατάσταση</h3>
+                <p>Η τρέχουσα προβολή στην αρχική σελίδα ολοκληρώνεται αύριο στις 23:59.</p>
+                <button type="button">Άνοιγμα homepage <span>→</span></button>
+              </article>
+            </div>
+          </section>
+
+          <section class="pulse-section" aria-labelledby="pulse-title">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">Boutique pulse</p>
+                <h2 id="pulse-title">Μια γρήγορη εικόνα</h2>
+              </div>
+              <span class="quiet-note">Από την τελευταία σύνδεση</span>
+            </div>
+            <div class="pulse-row">
+              <div class="pulse-item"><span>Τζίρος</span><strong>€1.840</strong><small>+12% από το προηγούμενο διάστημα</small></div>
+              <div class="pulse-item"><span>Παραγγελίες</span><strong>8</strong><small>2 έτοιμες για αποστολή</small></div>
+              <div class="pulse-item"><span>Μέση αξία</span><strong>€230</strong><small>σταθερή</small></div>
+              <div class="pulse-item"><span>Returning clients</span><strong>38%</strong><small>3 πελάτισσες επέστρεψαν</small></div>
+            </div>
+          </section>
+
+          <div class="editorial-grid">
+            <section class="editorial-panel since-panel">
+              <div class="section-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Από την τελευταία φορά</p>
+                  <h2>Τι συνέβη</h2>
+                </div>
+                <a class="quiet-link" href="#activity">Πλήρης δραστηριότητα</a>
+              </div>
+              <ol class="activity-list">
+                <li><time>19:42</time><p><strong>Νέα παραγγελία €420</strong><span>Returning client · 3 προϊόντα</span></p></li>
+                <li><time>18:15</time><p><strong>Sold out: Ivory Draped Top</strong><span>Το τελευταίο τεμάχιο πουλήθηκε</span></p></li>
+                <li><time>16:03</time><p><strong>Η συλλογή New In ενημερώθηκε</strong><span>2 νέα προϊόντα δημοσιεύτηκαν</span></p></li>
+                <li><time>14:27</time><p><strong>Νέα παραγγελία από πελάτισσα VIP</strong><span>5η αγορά τους τελευταίους 12 μήνες</span></p></li>
+              </ol>
+            </section>
+
+            <section class="editorial-panel radar-panel">
+              <div class="section-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Merchandising radar</p>
+                  <h2>Η boutique ζητάει λίγο styling</h2>
+                </div>
+              </div>
+              <div class="radar-list">
+                <article><div class="product-thumb thumb-one"></div><div><strong>Black Satin Blazer</strong><span>1 τεμάχιο · υψηλή κίνηση</span></div><button>Άνοιγμα</button></article>
+                <article><div class="product-thumb thumb-two"></div><div><strong>Ivory Draped Top</strong><span>Sold out · 6 wishlist saves</span></div><button>Άνοιγμα</button></article>
+                <article><div class="product-thumb thumb-three"></div><div><strong>Silk Evening Dress</strong><span>Draft · λείπει SEO description</span></div><button>Συνέχεια</button></article>
+              </div>
+            </section>
+
+            <section class="editorial-panel clients-panel">
+              <div class="section-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Client moments</p>
+                  <h2>Πρόσωπα που αξίζει να προσέξετε</h2>
+                </div>
+              </div>
+              <div class="client-moment">
+                <div class="client-avatar">MK</div>
+                <div><strong>Returning client</strong><p>Νέα παραγγελία €420 · 5η αγορά μέσα σε 12 μήνες.</p></div>
+                <button type="button">Προφίλ</button>
+              </div>
+              <div class="client-moment">
+                <div class="client-avatar pale">AN</div>
+                <div><strong>Ερώτηση για μέγεθος</strong><p>Περιμένει απάντηση για το Silk Evening Dress.</p></div>
+                <button type="button">Απάντηση</button>
+              </div>
+            </section>
+
+            <section class="editorial-panel calendar-panel">
+              <div class="section-heading compact-heading">
+                <div>
+                  <p class="eyebrow">Brand rhythm</p>
+                  <h2>Τι έρχεται</h2>
+                </div>
+              </div>
+              <div class="calendar-line"><span class="date-block"><b>27</b>AUG</span><p><strong>Weekend hero ends</strong><span>Homepage · 23:59</span></p></div>
+              <div class="calendar-line"><span class="date-block"><b>01</b>SEP</span><p><strong>September Edit</strong><span>Collection scheduled to publish · 10:00</span></p></div>
+              <div class="calendar-line"><span class="date-block"><b>05</b>SEP</span><p><strong>Private client campaign</strong><span>Draft · 2 steps remaining</span></p></div>
+            </section>
+          </div>
+
+          <section class="next-actions">
+            <p class="eyebrow">Suggested next</p>
+            <div class="next-action-line">
+              <h2>Έχετε 15 λεπτά;</h2>
+              <p>Ολοκληρώστε το draft του Silk Evening Dress και αντικαταστήστε το banner που λήγει αύριο.</p>
+              <button type="button">Ξεκινήστε με το προϊόν <span>→</span></button>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

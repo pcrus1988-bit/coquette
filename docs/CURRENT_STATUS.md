@@ -1,161 +1,225 @@
 # COQUETTE — Current Delivery Status
 
-**Status date:** 2026-08-26  
-**Canonical blueprint:** `docs/ROADMAP.md`  
-**Purpose:** short operational companion showing what is actually implemented now. When this file and an older roadmap checkbox differ, use this file for delivery state and the roadmap for phase/exit-gate definitions.
+**Status date:** 2026-08-27  
+**Canonical blueprint:** `docs/ROADMAP.md`
+
+## Current baseline
+
+COQUETTE is an isolated Medusa v2.19 / Next.js commerce platform with dedicated GitHub source, Supabase PostgreSQL/storage, Railway backend/worker/Redis runtime and Vercel storefront. The legacy `coquetteconcept.gr` shop remains production until reconstruction, UAT and cutover gates pass.
+
+Magento Admin/database/filesystem/API access remains unavailable. Phase 4 reconstructs only legitimately recoverable public storefront state and never guesses private Magento-only values.
 
 ## Shipped to `main`
 
-Through merge `f94681f9e63052cc8766a1101e86b374c7813b55`:
+Through **Phase 4S** merge `c68ceddf93a6752ac5f1c23299550c4edb5af298`.
 
-- isolated COQUETTE repository/workspace and dedicated Supabase project/storage
-- pnpm/Turbo monorepo, Medusa v2.19 backend/Admin and Next.js storefront
-- Brand/Designer and bilingual Website Content custom modules with migrations
-- Medusa Translation Module and locale-aware commerce records
-- Magento migration checksum/validation/reconciliation foundation
-- production Medusa server/worker contract and deployment runbook
-- guarded Store API client and real product-detail pages
-- Greek/English Clothing and Accessories PLPs with descendant-category aggregation
-- real product cards, calculated pricing, inventory, media and pagination
-- public Brand Store API and Greek/English Brand-backed Designer PLPs
-- verified public Sale pipeline and Greek/English Sale PLPs
-- Sale badges/strike-through based on true Medusa `sale` price-list semantics
-- real Greek/English product search using Medusa `q`
-- controlled catalogue sorting using Medusa `order`
-- Color/Size filters using global Product Option value IDs
-- Designer filters using first-class Brand links intersected inside normal Store Product API queries
-- URL-driven catalogue state: `q`, `sort`, repeated `option`, `designer`, `page`
-- persistent Medusa cart with Greece-region resolution
-- explicit `el-GR` / `en-GB` cart localization
-- real PDP variant selection and Add to Cart
-- Greek `/cart` and English `/en/cart`
-- line-item quantity update/removal and live header count
-- Greek `/checkout` and English `/en/checkout`
-- customer email + shipping/billing address updates
-- country selection restricted to the active Medusa region
-- live Store API shipping-option discovery
-- calculated shipping-rate retrieval without guessed fallback prices
-- real Medusa shipping-method selection and authoritative cart totals
-- provider-agnostic payment-provider discovery by Medusa region
-- typed Medusa payment-session initialization
-- authoritative payment collection/session state reloaded into the cart
-- customer-facing manual/system payment provider hidden by default
-- custom PayPal Medusa Payment Module Provider using `@paypal/paypal-server-sdk@2.5.0`
-- conditional PayPal provider registration only when backend credentials exist
-- PayPal Sandbox-safe authorize/capture/refund/void/update/retrieve/status methods and verified webhook handling
-- PayPal React SDK v6 storefront approval using `@paypal/react-paypal-js@10.3.0`
-- browser reuses the Medusa-created PayPal order and never creates a duplicate PayPal order
-- PayPal approval verifies the provider order ID before Medusa cart completion
-- only Medusa `type === "order"` clears the persisted COQUETTE cart
-- PayPal cancel/error/completion failure leaves the cart recoverable and never fabricates an order
-- Greek `/order-confirmation/[id]` and English `/en/order-confirmation/[id]` routes exposing only the opaque order identifier
-- PayPal storefront architecture documented in `docs/architecture/PAYPAL_STOREFRONT_APPROVAL.md`
-- CI with PostgreSQL 17 + Redis, clean migrations, migration contract, payment-provider registration contract, Sale pricing-graph contract, backend production build and storefront production build
+### Platform and commerce foundation
 
-PayPal still requires a real end-to-end Sandbox test in the dedicated COQUETTE staging environment before any Live activation.
+- dedicated COQUETTE repository/workspace and environment isolation
+- Medusa backend/Admin + bilingual Next.js storefront
+- dedicated Supabase PostgreSQL/storage
+- Railway server + worker + Redis-backed Medusa modules
+- Vercel storefront connected to Railway Store API
+- Greece/EUR region and fulfillment foundation
+- Designer/Brand and bilingual Website Content modules
+- EL/EN catalogue/PDP/Designer/Sale surfaces
+- variant-aware cart/checkout
+- PayPal and Klarna foundations
+- clean PostgreSQL CI, Railway deployable-artifact build and storefront build gates
+
+### Phase 4A–4E — public reconstruction foundation
+
+- public HTML/media/URL capture with checksums and explicit incomplete states
+- indexed public recovery baseline and provenance/freshness rules
+- field-level evidence conflicts
+- archive containment/traversal safety
+- direct + indexed URL universe with unresolved/unavailable classification
+- archive-native PDP reconstruction for categories, gallery media, options and configurable hints
+- no fabricated SKU/source/type/status/visibility/category/media/brand IDs
+
+### Phase 4F–4G — structural plan and guarded product execution
+
+Phase 4G merged as `c9b97033bbad2932d1ee5cd9a49d2a8eefdb351b`.
+
+- deterministic structural ProductImportPlan
+- configurable parents remain blocked until child identity/relationships are explicitly reconstructed
+- structural checksum excludes price/inventory state
+- staging-only write mode with exact DB host/name verification
+- COQUETTE-controlled serving-media requirement
+- SKU collision protection, manifest recovery and Product↔Brand linking
+
+### Phase 4H–4J — pricing reconstruction and guarded price execution
+
+Phase 4H merged as `fc17896cfe07d9060d05bde1d17a7afae95a80dc`; Phase 4J as `891e9111331161cd22a9b1b9a1f99b0ae6024b5c`.
+
+- independent deterministic price domain
+- unavailable public price remains explicit
+- regular EUR and sale prices use supported Medusa workflows
+- no cents conversion, invented schedule or inventory quantity
+- clean PostgreSQL lifecycle proves create/idempotency/update/sale-removal behavior
+
+### Phase 4I — Product ↔ Brand link execution
+
+Merged as `aad7837d26779c333c781f23edd37993f30a80c9`.
+
+- exact mapped Brand required when source product has Brand evidence
+- conflicting link fails closed
+- relation creation and re-verification use Medusa Link service
+
+### Phase 4K — deterministic inventory evidence
+
+Merged as `f2c0dcd4d852e2750ef8d04ca894bdf7d9a58bfb`.
+
+- qualitative stock evidence never becomes numeric quantity
+- `in_stock` is never converted to `1`; `out_of_stock` is never converted to `0`
+- low-stock wording is never parsed into an invented count
+- no numeric inventory writer exists
+
+### Phase 4L–4M — review decisions and evidence-selection application
+
+Phase 4L merged as `9d51e7005c8049a2b866c312bf30d03cd5328fb7`; Phase 4M as `4ed85681c11468838bc536f7f61f38e51616a906`.
+
+- review decisions bind to exact evidence checksums
+- stale or invented evidence selections fail
+- only an actually observed value can alter reconstructed source facts
+- policy-only/unavailable/deferred decisions never masquerade as recovered Magento facts
+- reviewed candidates/ProductImportPlan are rebuilt deterministically with audit checksums
+
+### Phase 4N — checksum-bound migration input reconciliation
+
+Merged PR #58 as `bfcafa9b7e9deb254c62a19ecf987dca9628188d`.
+
+- one frozen migration input bundle for capture/review/product/price/inventory/URL-universe state
+- requires complete valid direct capture, closed reviews and fully classified URL universe
+- requires executable reviewed structural plan and reconciled price/inventory evidence
+- inventory remains non-executable
+- deterministic domain checksums plus bundle checksum detect stale/tampered inputs
+
+### Phase 4O — mandatory reconciled staging input
+
+Merged PR #59 as `cb7c7e904b240614920b199dc78ce2f08c08637f`.
+
+- product and price staging executors accept only a verified Phase 4N bundle
+- exact independently supplied bundle checksum is mandatory
+- historical raw product/price report variables are rejected
+- existing DB/write/media/dependency/manifest/Brand/variant/pricing guards remain in force
+
+### Phase 4P — operator direct-capture evidence package
+
+Merged PR #60 as `420ea7b3f3920bb5b00a31a370bbf519afbbd3b7`.
+
+- operator capture is locked to `https://coquetteconcept.gr/`
+- CI/GitHub Actions are refused; browser transport is mandatory
+- headed browser is default with challenge window
+- cross-platform Chrome/Chromium/Edge discovery
+- deterministic `evidence-package.json` covers all preserved HTML/media and JSONL inventories
+- symlink/unsafe/missing/unlisted/tampered files fail verification
+- no cookies or IP-address data are serialized
+- Phase 4N requires validated `operator_local_browser` provenance and exact package checksum
+
+Canonical detail: `docs/migration/OPERATOR_DIRECT_CAPTURE.md`.
+
+### Phase 4Q — deterministic dependency mapping reconciliation
+
+Merged PR #61 as `e2d6e9c941932ebda28274c12b3400699bb92afd`.
+
+- required category, Brand and media dependencies derive exclusively from the verified Phase 4N normalized product plan
+- shared dependencies are deduplicated while retaining every referencing candidate
+- duplicate/orphan mapping keys block reconciliation
+- category/Brand require target IDs; media requires HTTPS on explicitly allowed COQUETTE-controlled hosts
+- `coquetteconcept.gr` media hotlinks are forbidden
+- missing/unavailable/error/invalid dependency states remain explicit
+- plan binds to both Phase 4N bundle checksum and Phase 4P evidence checksum
+
+Canonical detail: `docs/migration/DEPENDENCY_MAPPING_RECONCILIATION.md`.
+
+### Phase 4R — verified dependency plan staging input
+
+Merged PR #66 as `8c7652186043b0ab4897986818f9e2b7c2085a5c` after the full current-main CI suite passed.
+
+- structural staging import no longer accepts arbitrary raw dependency arrays
+- exact Phase 4Q plan path and checksum pin are mandatory
+- plan is reverified against the accepted Phase 4N bundle and allowed COQUETTE media hosts
+- Product and price disposable-PostgreSQL write lifecycles passed
+- Railway deployable artifact and storefront build passed
+
+Canonical detail: `docs/migration/STAGING_DEPENDENCY_PLAN_INPUT.md`.
+
+### Phase 4S — one-command verified operator capture handoff
+
+Merged PR #67 as `c68ceddf93a6752ac5f1c23299550c4edb5af298` after exact-head CI passed all reconstruction, database lifecycle, Railway and storefront gates.
+
+- root command `pnpm capture:coquette`
+- browser capture → Phase 4P verification → ingestion → portable handoff packaging
+- output is one `<capture-id>.handoff.<full-sha256>.tar.gz`
+- archive filename contains the complete SHA-256
+- receiver verifies the archive checksum, semantic handoff checksum, all embedded Phase 4P files/checksums, capture provenance/completeness and ingestion↔evidence binding
+- no staging or production commerce writes occur during capture/handoff creation
+
+Canonical detail: `docs/migration/OPERATOR_CAPTURE_HANDOFF.md`.
+
+No real COQUETTE staging or production reconstruction write has yet been performed from legacy catalogue data.
 
 ## Active implementation
 
-Branch: `feature/klarna-provider-foundation`
+### Phase 4T — verified handoff reconciliation intake
 
-Implemented on branch:
+Branch: `phase4/handoff-reconciliation-intake`.
 
-- custom credential-gated Klarna Medusa Payment Module Provider
-- one shared Medusa Payment Module registration containing independently gated PayPal and Klarna providers
-- Klarna Playground as the default environment; no Live credentials in code or CI
-- EU API-region default, Greece purchase-country default and Greek locale default
-- Klarna Payments session creation with authoritative amount, currency, order lines and tax amount
-- explicit validation that payment totals/order lines come from checkout data; provider does not guess tax or line allocation
-- Klarna client token/session ID/payment categories stored in Medusa payment-session data
-- signed HMAC server authorization callback at `/hooks/klarna/authorization`
-- timing-safe callback signature validation
-- callback-to-payment-session lookup and Klarna session-ID match enforcement
-- at-least-once callback idempotency for repeated identical authorization tokens
-- rejection of conflicting authorization tokens
-- server-side persistence of Klarna authorization token before order creation
-- `authorizePayment` refuses cart completion without the stored authorization token
-- Klarna order creation uses a stable idempotency key and persists order/fraud/redirect/payment-method state
-- fraud status maps conservatively to Medusa authorized/pending or failure behavior
-- Medusa 2.19 full-capture contract honored by capturing the stored authorized order amount
-- refund, cancel/release, retrieve and payment-status operations
-- CI forces PayPal + Klarna provider registration together with inert dummy credentials and no external payment network calls
-- architecture documented in `docs/architecture/KLARNA_PAYMENT_PROVIDER.md`
+Implemented on the branch:
 
-The implementation branch has passed full branch CI at `4405968ec3dcac43124859383aed35ff632c1e7a`. Documentation-inclusive exact-head CI, protected PR CI and merge are still required before the Klarna backend foundation is considered shipped.
+- one handoff file is the only mandatory receiver-side input
+- no manual archive extraction is required
+- handoff is fully reverified before its embedded ingestion report can be consumed
+- embedded capture ID and Phase 4P evidence checksum must match the handoff manifest
+- Phase 4N migration input bundle is rebuilt directly from the verified embedded ingestion report
+- generated Phase 4N bundle is independently reverified
+- unresolved review/URL state becomes an explicit deterministic worklist
+- category/Brand/media dependency requirements are emitted only after the Phase 4N bundle is staging-ready
+- intake checksum binds archive, handoff, Phase 4P package, Phase 4N bundle, worklists and blockers
+- changing generation timestamps does not change frozen intake identity
+- Phase 4T is non-writing
 
-Klarna browser authorization is intentionally not claimed complete. It requires dedicated COQUETTE Klarna Playground credentials, an externally reachable staging backend callback, the current Klarna storefront SDK/client-token flow, customer authorize/cancel/error handling, callback/browser race testing and real end-to-end order/capture/cancel/refund tests.
+Root command:
+
+```bash
+COQUETTE_CAPTURE_HANDOFF_FILE=/path/to/handoff.tar.gz pnpm capture:coquette:intake
+```
+
+Canonical detail: `docs/migration/HANDOFF_RECONCILIATION_INTAKE.md`.
+
+## Runtime acquisition observation
+
+The current execution container has Chromium installed, but its direct runtime network currently cannot resolve `coquetteconcept.gr`; a direct browser-backed Phase 4P acquisition therefore cannot be honestly produced from that container. The public storefront remains reachable through web retrieval, but web retrieval is not treated as `operator_local_browser` provenance.
+
+The real capture therefore remains the single external acquisition boundary. After that handoff exists, receiver-side reconstruction/reconciliation is automated and checksum-bound.
 
 ## Phase status
 
-### Phase 0 — Workspace / isolation
+- **Phase 0 — Workspace/isolation:** Complete.
+- **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
+- **Phase 2 — Executable foundation:** Complete.
+- **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
+- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4S shipped, Phase 4T active.
+- **Phase 5 — Merchant back office parity:** Material implementation underway through COQUETTE Studio work.
+- **Phase 6 — Storefront parity:** Materially advanced.
+- **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of sequence.
+- **Phase 8/9 — Customer/cart/checkout/payments:** Foundations materially implemented; final staging E2E remains.
+- **Phases 10–18:** Governed by `docs/ROADMAP.md`.
 
-Implementation: **complete**, except the GitHub repository remains public and should be made private before sensitive migration work.
+## Next Phase 4 milestones
 
-### Phase 1 — Audit / architecture
+1. make Phase 4T exact-head CI fully green and merge it;
+2. acquire the real Phase 4S handoff from a browser/network that can reach `coquetteconcept.gr` with required provenance;
+3. run Phase 4T intake and resolve only evidence-backed review/URL blockers until Phase 4N is staging-ready;
+4. create/import the exact required COQUETTE category and Brand targets and upload captured media bytes to COQUETTE-owned storage;
+5. build/reconcile the real Phase 4Q mapping plan;
+6. perform backup/restore rehearsal before any real staging legacy-data write;
+7. run Phase 4R guarded product import and guarded price import against staging;
+8. complete merchant/customer/payment/courier/fiscal/SEO/rollback UAT before cutover.
 
-**Complete; continuous Magento audit remains active.**
+## Fully-working-system boundary
 
-### Phase 2 — Executable foundation
+The target is a working staging store and then a controlled cutover, not a permanent dry-run project. The external capture is now one acquisition action; after that, handoff verification, reconstruction, review reconciliation, dependency planning and guarded staging import are automated and auditable.
 
-**Complete.**
-
-### Phase 3 — Domain model / managed infrastructure
-
-**Code and managed-resource foundation substantially complete.** Remaining work is staging runtime provisioning: backend, worker, Redis, runtime-only DB/S3/payment secrets, real staging migrations, Admin user, publishable key, media-upload verification and backup/restore rehearsal.
-
-### Phase 4 — Magento extraction / migration
-
-**Pipeline foundation complete; authoritative source access pending.** Public HTML is not accepted as authoritative migration data.
-
-### Phase 5 — Merchant back office
-
-**Foundation started.** Medusa Admin plus Designer, Website Content, Translation and native pricing/price-list foundations exist. Full Magento-equivalent daily-operation parity is not complete.
-
-### Phase 6 — Storefront parity
-
-**Materially advanced.** Product detail, category PLPs, Designer PLPs, Sale PLPs, bilingual commerce data, pricing/inventory/media, pagination, catalogue discovery, cart, address/shipping checkout and PayPal order completion are shipped. Klarna browser authorization, wishlist, full editorial parity and final responsive/visual UAT remain.
-
-### Phase 7 — Search, discovery and merchandising
-
-**Substantially implemented.** Search, sorting, Color/Size and Designer filtering are shipped to `main` with URL-driven native query semantics. Context-correct Price filtering remains deferred.
-
-### Phase 8 — Cart / checkout foundation
-
-**Generic checkout/payment-session foundation, PayPal backend provider and PayPal browser order-completion flow are shipped.** Klarna backend provider foundation is active on a feature branch. Klarna storefront authorization and the final card acquirer remain separate workstreams.
-
-### Phases 9–18
-
-Remain governed by `docs/ROADMAP.md`; no phase should be marked complete without its documented exit gate.
-
-## Account-level staging gates
-
-Tracked in GitHub issue #9:
-
-1. make repository private
-2. create dedicated COQUETTE Vercel storefront project with root `apps/storefront`
-3. provision long-running Medusa server host
-4. provision separate worker process from the same release
-5. provision dedicated Redis
-6. place Supabase DB/S3 credentials only in backend hosting secrets
-7. migrate staging schema
-8. create Admin account and publishable Store API key
-9. configure supported `el-GR` and `en-GB` commerce locales
-10. configure the Greece-serving Medusa region and sales-channel relationship
-11. configure real service zones, shipping profiles/options and any fulfillment provider needed for calculated rates
-12. provision dedicated COQUETTE PayPal Sandbox merchant app and backend credentials
-13. configure PayPal webhook and `PAYPAL_WEBHOOK_ID`
-14. enable `pp_paypal_paypal` on the intended Medusa region
-15. configure storefront with the matching public PayPal Sandbox Client ID
-16. test PayPal approval, cancel, failed completion, successful order creation, capture, void, refund and webhook behavior end-to-end
-17. provision dedicated COQUETTE Klarna Playground merchant credentials
-18. confirm Klarna merchant agreement enables Greece/EUR and intended payment categories
-19. configure externally reachable Klarna authorization callback URL and independent callback secret
-20. enable the Klarna provider on the intended Medusa region
-21. implement/test Klarna storefront client-token authorization flow
-22. test Klarna callback retries/races, accepted/pending/rejected authorization, successful Medusa order creation, capture, cancel and refund
-23. connect storefront to staging backend
-24. verify `/health`, Admin, Store API, catalogue flows, translations, cart, address/shipping checkout, payment sessions, PayPal flow, Klarna flow, media upload and worker operation
-
-## Production boundary
-
-Magento remains the production shop. `coquetteconcept.gr` must not move to the replacement until migration reconciliation, UAT, checkout/payment/courier/fiscal testing, SEO redirect verification, rollback preparation and all roadmap cutover gates pass.
+The legacy shop remains production until real reconstructed data is present in COQUETTE staging and the blueprint UAT, payment/courier/fiscal, SEO redirect, rollback and backup/restore gates pass.

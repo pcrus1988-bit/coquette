@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta name="theme-color" content="#f4f0ea" />
+  <title>COQUETTE Studio</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="login-page">
+  <main class="login-shell" aria-labelledby="login-title">
+    <section class="login-main">
+      <h1 id="login-title" class="sr-only">COQUETTE Studio login</h1>
+      <img class="login-logo" src="/assets/coquette-logo.svg" alt="COQUETTE Concept Store" />
+      <form class="login-form" id="login-form" novalidate>
+        <label class="field"><span>Email</span><input id="email" name="email" type="email" autocomplete="username" inputmode="email" required /></label>
+        <label class="field"><span>Password</span><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required /><button id="reveal" type="button">Show</button></div></label>
+        <p class="form-error" id="login-error" role="alert" aria-live="polite"></p>
+        <button class="enter" id="login-button" type="submit">Enter Studio</button>
+      </form>
+    </section>
+    <footer class="quote"><p>«Ένα κορίτσι πρέπει να είναι δύο πράγματα: όποια θέλει και ό,τι θέλει.»</p><span>Coco Chanel</span></footer>
+  </main>
+  <script src="/login.js" defer></script>
+</body>
+</html>

@@ -5,7 +5,18 @@ import {
   findDuplicateManifestKeys,
   shouldReimport,
 } from "../migration/manifest"
+import {
+  buildImportedTargetMap,
+  requireImportedTargetId,
+  resolveImportedTargetId,
+} from "../migration/mapping"
 import { reconcileMigration } from "../migration/reconciliation"
+import {
+  createMigrationRun,
+  finalizeMigrationRun,
+  privateMigrationArtifactPath,
+} from "../migration/run"
+import { createNormalizedSourceRecord } from "../migration/source-record"
 import { validateNormalizedProduct } from "../migration/validation"
 import type {
   MigrationManifestEntry,
@@ -19,8 +30,11 @@ const checksumChanged = sourceChecksum({ sku: "SKU-2", nested: { a: 1, b: 2 } })
 assert.equal(checksumA, checksumB, "checksum must ignore object key order")
 assert.notEqual(checksumA, checksumChanged, "checksum must change with source data")
 
+const sourceUrl = "https://coquetteconcept.gr/default/example.html"
+const capturedAt = "2026-08-26T12:00:00.000Z"
+
 const pending = createPendingManifestEntry(
-  { entityType: "product", sourceId: "42", locale: "el" },
+  { entityType: "product", sourceId: sourceUrl, locale: "el" },
   checksumA
 )
 assert.equal(pending.status, "pending")
@@ -47,17 +61,108 @@ assert.equal(reconciliation.isReconciled, true)
 assert.equal(reconciliation.unexplainedVariance, 0)
 
 const sampleProduct: NormalizedMagentoProduct = {
-  sourceId: "42",
+  sourceId: sourceUrl,
+  canonicalUrl: sourceUrl,
   sku: "COQ-42",
-  name: "Synthetic migration fixture",
+  name: "Synthetic storefront reconstruction fixture",
   status: "enabled",
   visibility: "catalog_search",
   type: "simple",
-  categorySourceIds: ["7"],
+  categorySourceIds: ["https://coquetteconcept.gr/default/clothing.html"],
   optionValues: { size: "M" },
-  mediaSourceIds: ["media-42"],
+  mediaSourceIds: ["https://coquetteconcept.gr/media/catalog/product/example.jpg"],
+  stockState: "in_stock",
+  regularPrice: 100,
+  salePrice: 70,
+  currencyCode: "EUR",
+  evidence: [
+    {
+      sourceUrl,
+      capturedAt,
+      grade: "direct",
+      note: "Synthetic public product-page evidence",
+    },
+  ],
+  capturedAt,
 }
 
 assert.deepEqual(validateNormalizedProduct(sampleProduct), [])
 
-console.log("COQUETTE Magento migration contract checks passed")
+const normalizedRecord = createNormalizedSourceRecord(
+  { entityType: "product", sourceId: sampleProduct.sourceId, locale: "el" },
+  sampleProduct,
+  capturedAt
+)
+assert.equal(normalizedRecord.sourceChecksum, sourceChecksum(sampleProduct))
+assert.equal(normalizedRecord.data.sku, "COQ-42")
+
+const targetMap = buildImportedTargetMap([imported])
+assert.equal(targetMap.size, 1)
+assert.equal(
+  resolveImportedTargetId([imported], {
+    entityType: "product",
+    sourceId: sampleProduct.sourceId,
+    locale: "el",
+  }),
+  "prod_test"
+)
+assert.equal(
+  requireImportedTargetId([imported], {
+    entityType: "product",
+    sourceId: sampleProduct.sourceId,
+    locale: "el",
+  }),
+  "prod_test"
+)
+assert.throws(() =>
+  requireImportedTargetId([imported], {
+    entityType: "brand",
+    sourceId: "missing",
+  })
+)
+assert.throws(() =>
+  buildImportedTargetMap([
+    imported,
+    { ...imported, targetId: "prod_conflict" },
+  ])
+)
+
+const run = createMigrationRun(
+  "capture-001",
+  {
+    source: "coquetteconcept.gr",
+    evidenceMode: "public_storefront",
+    captureId: "storefront-2026-08-26",
+    baseUrl: "https://coquetteconcept.gr/",
+    capturedAt,
+    crawlerCommitSha: "0123456789abcdef",
+    urlInventorySha256: "a".repeat(64),
+    captureManifestSha256: "b".repeat(64),
+  },
+  "2026-08-26T12:05:00.000Z"
+)
+assert.equal(run.status, "running")
+assert.equal(run.sourceCapture.evidenceMode, "public_storefront")
+assert.equal(
+  privateMigrationArtifactPath(run.runId, "manifest.json"),
+  "migration-runs/capture-001/manifest.json"
+)
+assert.throws(() => privateMigrationArtifactPath("../escape", "manifest.json"))
+
+const completedRun = finalizeMigrationRun(
+  run,
+  [reconciliation],
+  "2026-08-26T12:10:00.000Z"
+)
+assert.equal(completedRun.status, "completed")
+
+const reviewRun = finalizeMigrationRun(
+  run,
+  [{ ...reconciliation, pending: 1, isReconciled: false }],
+  "2026-08-26T12:10:00.000Z",
+  ["Synthetic pending storefront record"]
+)
+assert.equal(reviewRun.status, "needs_review")
+assert.equal(reviewRun.warnings.length, 1)
+
+console.log("COQUETTE public-storefront reconstruction contract checks passed")

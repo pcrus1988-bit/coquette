@@ -87,11 +87,77 @@ jobs:
       - name: Enforce Medusa lint rules
         run: pnpm --filter @coquette/backend lint
 
-      - name: Validate Magento migration contract
+      - name: Validate storefront reconstruction migration contract
         run: pnpm --filter @coquette/backend migration:contract
+
+      - name: Validate storefront capture parser contract
+        run: pnpm --filter @coquette/backend storefront:capture:contract
+
+      - name: Validate operator direct-capture evidence package integrity
+        run: pnpm --filter @coquette/backend capture-evidence-package:contract
+
+      - name: Validate single-file operator capture handoff
+        run: pnpm --filter @coquette/backend capture-handoff:contract
+
+      - name: Validate verified handoff reconciliation intake
+        run: pnpm --filter @coquette/backend capture-handoff:intake:contract
+
+      - name: Validate indexed recovery evidence contract
+        run: pnpm --filter @coquette/backend indexed-recovery:contract
+
+      - name: Validate recovery candidate safety contract
+        run: pnpm --filter @coquette/backend recovery-candidates:contract
+
+      - name: Generate current indexed recovery candidates
+        run: pnpm --filter @coquette/backend indexed-recovery:candidates > /tmp/coquette-indexed-recovery-candidates.json
+
+      - name: Validate capture ingestion and URL universe contract
+        run: pnpm --filter @coquette/backend capture-ingestion:contract
+
+      - name: Validate public product structure evidence
+        run: pnpm --filter @coquette/backend product-structure:contract
+
+      - name: Validate archive-native product structure reconstruction
+        run: pnpm --filter @coquette/backend archived-product-structure:contract
+
+      - name: Validate deterministic product import plan
+        run: pnpm --filter @coquette/backend import-plan:contract
+
+      - name: Validate deterministic price reconstruction plan
+        run: pnpm --filter @coquette/backend price-plan:contract
+
+      - name: Validate deterministic inventory evidence plan
+        run: pnpm --filter @coquette/backend inventory-plan:contract
+
+      - name: Validate reconstruction review decision safety
+        run: pnpm --filter @coquette/backend review-decisions:contract
+
+      - name: Validate review evidence-selection application
+        run: pnpm --filter @coquette/backend review-application:contract
+
+      - name: Validate checksum-bound migration input reconciliation
+        run: pnpm --filter @coquette/backend migration-input-reconciliation:contract
+
+      - name: Validate deterministic dependency mapping reconciliation
+        run: pnpm --filter @coquette/backend dependency-mapping:contract
+
+      - name: Validate pinned staging migration input boundary
+        run: pnpm --filter @coquette/backend staging-migration-input:contract
+
+      - name: Validate pinned staging dependency-plan boundary
+        run: pnpm --filter @coquette/backend staging-dependency-input:contract
+
+      - name: Validate staging structural product execution preflight
+        run: pnpm --filter @coquette/backend staging-product-execution:contract
+
+      - name: Validate guarded staging price execution preflight
+        run: pnpm --filter @coquette/backend staging-price-execution:contract
 
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
+
+      - name: Validate COQUETTE Admin CRUD contract
+        run: pnpm --filter @coquette/backend admin:crud:contract
 
       - name: Validate payment provider registration paths
         env:
@@ -130,6 +196,12 @@ jobs:
 
       - name: Validate Sale pricing graph contract
         run: pnpm --filter @coquette/backend sale:contract
+
+      - name: Validate clean-database verified dependency-plan staging structural product import idempotency
+        run: pnpm --filter @coquette/backend staging-product-import:contract
+
+      - name: Validate clean-database reconciled-bundle staging price import idempotency and updates
+        run: pnpm --filter @coquette/backend staging-price-import:contract
 
       - name: Build deployable Medusa production artifact through Railway wrapper
         env:

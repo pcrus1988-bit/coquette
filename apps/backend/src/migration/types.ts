@@ -25,6 +25,23 @@ export const migrationStatuses = [
 
 export type MigrationStatus = (typeof migrationStatuses)[number]
 
+export const reconstructionEvidenceGrades = [
+  "direct",
+  "derived",
+  "inferred",
+  "unavailable",
+] as const
+
+export type ReconstructionEvidenceGrade =
+  (typeof reconstructionEvidenceGrades)[number]
+
+export type ReconstructionEvidence = {
+  sourceUrl: string
+  capturedAt: string
+  grade: ReconstructionEvidenceGrade
+  note?: string
+}
+
 export type MigrationSourceKey = {
   entityType: MigrationEntityType
   sourceId: string
@@ -43,8 +60,10 @@ export type MigrationManifestEntry = MigrationSourceKey & {
   lastAttemptAt?: string
 }
 
-export type NormalizedMagentoProduct = {
+export type NormalizedStorefrontProduct = {
   sourceId: string
+  canonicalUrl?: string
+  alternateLocaleUrl?: string
   sku: string
   name: string
   status: "enabled" | "disabled"
@@ -57,8 +76,20 @@ export type NormalizedMagentoProduct = {
   categorySourceIds: string[]
   optionValues: Record<string, string>
   mediaSourceIds: string[]
-  rawUpdatedAt?: string
+  stockState?: "in_stock" | "out_of_stock" | "unknown"
+  lowStockMessage?: string
+  regularPrice?: number
+  salePrice?: number
+  currencyCode?: "EUR"
+  evidence: ReconstructionEvidence[]
+  capturedAt?: string
 }
+
+/**
+ * Compatibility alias retained while Phase 4 code is being migrated from the
+ * original database-export assumption to public storefront reconstruction.
+ */
+export type NormalizedMagentoProduct = NormalizedStorefrontProduct
 
 export type ReconciliationInput = {
   entityType: MigrationEntityType
