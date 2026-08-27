@@ -178,10 +178,10 @@
 
   function stepTwo() {
     const data = wizardData()
-    const content = `${stepIntro(2, 'Shape the visual story.', 'Describe what the imagery should communicate. Existing product media is respected; new managed uploads will be connected through the guarded media layer next.')}
+    const content = `${stepIntro(2, 'Shape the visual story.', 'Upload, order and choose the cover from COQUETTE managed storage, then keep a private note for the visual direction.')}
       <div class="new-piece-grid"><form class="new-piece-form-card" id="np-form">
         ${textarea('visual_notes', 'Visual direction', data.visual_notes, 'Private Studio note', 'maxlength="1200" placeholder="Front, back, detail, texture, styling mood…"')}
-        <div class="new-piece-safety"><strong>Media stays governed.</strong><p>The wizard will not hotlink legacy images or accept arbitrary external image URLs. The next media phase will use the existing COQUETTE managed storage path and explicit cover ordering.</p></div>
+        <div class="new-piece-safety"><strong>Media is governed.</strong><p>Managed uploads are verified against this exact unpublished draft. The Studio never exposes an external image URL field.</p></div>
         ${navMarkup()}
       </form>${previewMarkup()}</div>`
     shell(content)
@@ -271,10 +271,12 @@
   function stepEight() {
     const p = state.product || {}
     const data = wizardData()
+    const imageCount = Array.isArray(p.images) ? p.images.length : 0
     const content = `${stepIntro(8, 'Review it like a stylist.', 'Everything below is saved on an unpublished product draft. Publishing remains a separate future gate.')}
       <div class="new-piece-grid"><div class="new-piece-form-card" id="np-form">
         <div class="np-review">
           <div class="np-review-row"><span>Piece</span><strong>${escapeHtml(reviewValue(p.title))}${p.subtitle ? `\n${escapeHtml(p.subtitle)}` : ''}</strong></div>
+          <div class="np-review-row"><span>Visual story</span><strong>${imageCount ? `${imageCount} managed ${imageCount === 1 ? 'image' : 'images'} · cover selected` : 'No product imagery yet'}</strong></div>
           <div class="np-review-row"><span>Description</span><strong>${escapeHtml(reviewValue(p.description))}</strong></div>
           <div class="np-review-row"><span>Composition</span><strong>${escapeHtml(reviewValue(data.composition))}</strong></div>
           <div class="np-review-row"><span>Fit & care</span><strong>${escapeHtml(reviewValue([data.fit, data.care].filter(Boolean).join(' · ')))}</strong></div>
@@ -551,10 +553,36 @@
     await renderLauncher()
   }
 
+  async function saveCurrentExternal() {
+    clearTimeout(state.saveTimer)
+    state.saveTimer = null
+    while (state.saving) {
+      await new Promise((resolve) => setTimeout(resolve, 35))
+    }
+    if (!state.product) return false
+    return state.dirty ? saveNow(state.step) : true
+  }
+
+  function mergeProductExternal(saved, rerender = true) {
+    if (!saved || typeof saved !== 'object') return state.product
+    mergeSavedProduct(saved)
+    state.dirty = false
+    state.conflict = null
+    if (rerender && !root.hidden) renderStep()
+    return state.product
+  }
+
   trigger.addEventListener('click', openWizard)
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !root.hidden) closeWizard()
   })
 
-  window.CoquetteNewPiece = { open: openWizard }
+  window.CoquetteNewPiece = {
+    open: openWizard,
+    getProduct: () => state.product,
+    currentStep: () => state.step,
+    saveCurrent: saveCurrentExternal,
+    mergeProduct: mergeProductExternal,
+    refresh: () => { if (!root.hidden) renderStep() },
+  }
 })()

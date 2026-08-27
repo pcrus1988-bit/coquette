@@ -47,7 +47,7 @@ The route is deliberately narrow:
 
 ### Guided New Piece
 
-Boutique now also exposes an eight-step guided creation workspace.
+Boutique also exposes an eight-step guided creation workspace.
 
 It can resume Studio-created drafts and autosave descriptive/editorial progress without browser persistence. The guarded update endpoint:
 
@@ -58,6 +58,33 @@ It can resume Studio-created drafts and autosave descriptive/editorial progress 
 - rejects stale writes instead of silently overwriting another session
 - verifies the product remains unpublished after every update
 
-The wizard currently captures identity, visual direction, story/details, choice blueprint, placement intent, search intent and a final review. Price, stock, variant creation, sales-channel visibility and publication remain explicitly locked for their own guarded workflows.
+The wizard captures identity, visual story, story/details, choice blueprint, placement intent, search intent and a final review. Price, stock, variant creation, sales-channel visibility and publication remain explicitly locked for their own guarded workflows.
 
-See `docs/studio/NEW_PIECE_WIZARD_FOUNDATION.md` for the boundary and next phases.
+### Managed Visual Story media
+
+Step 2 now supports governed product imagery through the existing COQUETTE file module and S3-compatible storage.
+
+The browser does not upload images through the Studio serverless function and never receives a Medusa bearer token. Instead:
+
+1. Studio asks for a short-lived product-scoped upload permission.
+2. The authenticated Medusa backend verifies that the product is a Studio-created unpublished draft.
+3. Medusa's configured file provider signs a five-minute upload target for an allow-listed image MIME type.
+4. The browser uploads directly to managed storage using the signed headers.
+5. Studio asks Medusa to attach the issued file key.
+6. Medusa independently verifies that the object is publicly readable, has an allowed content type and does not exceed the configured size boundary before attaching it.
+
+The Visual Story UI supports multiple upload, drag/drop, image ordering, explicit cover selection and safe detach. The ordering route may only rearrange or remove URLs already attached to the exact product; it cannot introduce arbitrary URLs.
+
+Current limits:
+
+- JPEG, PNG, WebP or AVIF
+- maximum 12 MB per image
+- maximum 20 Studio images per product in this workflow
+- five-minute presigned upload lifetime
+
+“Remove from piece” detaches the media relation from the product draft. It deliberately does not silently delete the underlying stored file; storage cleanup remains a separate explicit lifecycle operation.
+
+See:
+
+- `docs/studio/NEW_PIECE_WIZARD_FOUNDATION.md`
+- `docs/studio/MANAGED_PRODUCT_MEDIA.md`
