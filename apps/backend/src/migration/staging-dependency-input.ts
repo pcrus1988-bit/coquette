@@ -16,6 +16,7 @@ export const stagingDependencyPlanEnvironment = {
 const legacyRawDependencyEnvironment = [
   "COQUETTE_STAGING_PRODUCT_DEPENDENCIES",
 ] as const
+const legacyServingMediaHost = "coquetteconcept.gr"
 
 function unexpectedState(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
@@ -26,10 +27,14 @@ function nonEmpty(value: string | undefined) {
 }
 
 function allowedMediaHosts(env: NodeJS.ProcessEnv) {
-  return (env[stagingDependencyPlanEnvironment.allowedMediaHosts] ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean)
+  return [
+    ...new Set(
+      (env[stagingDependencyPlanEnvironment.allowedMediaHosts] ?? "")
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ].sort()
 }
 
 export type VerifiedStagingDependencyInput = {
@@ -64,6 +69,11 @@ export async function readVerifiedStagingDependencyPlan(
   if (mediaHosts.length === 0) {
     throw unexpectedState(
       `${stagingDependencyPlanEnvironment.allowedMediaHosts} must contain at least one COQUETTE-controlled serving-media host`
+    )
+  }
+  if (mediaHosts.includes(legacyServingMediaHost)) {
+    throw unexpectedState(
+      `${legacyServingMediaHost} cannot be configured as a staging serving-media host`
     )
   }
 
