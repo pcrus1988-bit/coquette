@@ -29,9 +29,12 @@ module.exports = async function handler(req, res) {
   const id = cleanId(req.query?.id)
   if (!id) return json(res, 400, { message: 'Valid product id required' })
 
-  const fields = encodeURIComponent('+metadata,*images,*variants,*variants.prices,*options,*categories,*collection')
+  const params = new URLSearchParams({
+    fields: '+metadata,*images,*variants,*variants.prices,*options,*categories,*collection',
+  })
+
   try {
-    const result = await admin(req, `/admin/products/${encodeURIComponent(id)}?fields=${fields}`)
+    const result = await admin(req, `/admin/products/${encodeURIComponent(id)}?${params.toString()}`)
     if (result.unauthorized) return json(res, 401, { message: 'Unauthorized' })
     if (result.response?.status === 404) return json(res, 404, { message: 'Product not found' })
     if (!result.response?.ok || !result.payload?.product) {
