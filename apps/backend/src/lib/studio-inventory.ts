@@ -37,11 +37,7 @@ type StudioInventoryProduct = {
     inventory_items?: Array<{
       inventory_item_id?: string | null
       required_quantity?: number | null
-      inventory?: {
-        id?: string | null
-        sku?: string | null
-        title?: string | null
-      } | null
+      inventory?: { id?: string | null } | null
     }> | null
   }> | null
 }
@@ -77,10 +73,7 @@ export type StudioInventoryState = {
     status: "draft"
     updated_at: string
   }
-  location: {
-    id: string
-    name: string
-  }
+  location: { id: string; name: string }
   variants: StudioInventoryStateLine[]
 }
 
@@ -94,10 +87,7 @@ export type StudioInventoryPlan = {
   product_id: string
   product_title: string
   expected_updated_at: string
-  location: {
-    id: string
-    name: string
-  }
+  location: { id: string; name: string }
   variants: StudioInventoryPlanLine[]
   change_count: number
   inventory_hash: string
@@ -114,8 +104,7 @@ function stableHash(value: object) {
 function canonicalTimestamp(value: unknown) {
   if (value == null || value === "") return ""
   const date = value instanceof Date ? value : new Date(String(value))
-  const time = date.getTime()
-  return Number.isFinite(time) ? new Date(time).toISOString() : ""
+  return Number.isFinite(date.getTime()) ? date.toISOString() : ""
 }
 
 function integerQuantity(value: unknown, label: string) {
@@ -144,7 +133,7 @@ function cleanVariantId(value: unknown) {
   return /^[A-Za-z0-9_-]{3,160}$/.test(id) ? id : ""
 }
 
-async function loadStudioInventoryProduct(
+async function loadProduct(
   container: MedusaContainer,
   productId: string
 ): Promise<StudioInventoryProduct | undefined> {
@@ -165,42 +154,32 @@ async function loadStudioInventoryProduct(
       "variants.inventory_items.inventory_item_id",
       "variants.inventory_items.required_quantity",
       "variants.inventory_items.inventory.id",
-      "variants.inventory_items.inventory.sku",
-      "variants.inventory_items.inventory.title",
     ],
     filters: { id: productId },
   })
   return data?.[0] as StudioInventoryProduct | undefined
 }
 
-function inventoryDraftProblem(product: StudioInventoryProduct | undefined) {
-  if (!product) return { code: "draft_not_found", message: "Draft not found" }
+function assertInventoryDraft(product: StudioInventoryProduct | undefined) {
+  if (!product) throw unexpectedState("draft_not_found: Draft not found")
   if (product.status !== "draft") {
-    return {
-      code: "not_a_draft",
-      message:
-        "Inventory can only be managed here while the product is an unpublished Studio draft.",
-    }
+    throw unexpectedState(
+      "not_a_draft: Inventory can only be managed here while the product is an unpublished Studio draft."
+    )
   }
   if (product.metadata?.coquette_studio_origin !== "quick_draft") {
-    return {
-      code: "not_studio_draft",
-      message: "This product is outside the guarded COQUETTE Studio draft flow.",
-    }
+    throw unexpectedState(
+      "not_studio_draft: This product is outside the guarded COQUETTE Studio draft flow."
+    )
   }
   if (product.metadata?.coquette_studio_variants_generated !== "true") {
-    return {
-      code: "variant_graph_required",
-      message: "Build the saved size / colour choices before setting stock.",
-    }
+    throw unexpectedState(
+      "variant_graph_required: Build the saved size / colour choices before setting stock."
+    )
   }
   if (!product.variants?.length) {
-    return {
-      code: "variants_required",
-      message: "This draft has no variants to stock.",
-    }
+    throw unexpectedState("variants_required: This draft has no variants to stock.")
   }
-  return undefined
 }
 
 async function managedLocation(container: MedusaContainer) {
@@ -212,12 +191,14 @@ async function managedLocation(container: MedusaContainer) {
       "COQUETTE Studio inventory requires exactly one configured Medusa store."
     )
   }
+
   const locationId = stores[0].default_location_id
   if (!locationId) {
     throw unexpectedState(
       "The Medusa store has no default stock location. Inventory writes are blocked."
     )
   }
+
   const locations = await stockLocationModule.listStockLocations(
     { id: locationId },
     { take: 2 }
@@ -232,19 +213,8 @@ async function managedLocation(container: MedusaContainer) {
       `The default stock location must be ${STUDIO_INVENTORY_LOCATION_NAME}; no location will be guessed or created.`
     )
   }
-  return { id: locations[0].id, name: locations[0].name }
-}
 
-async function levelsForItems(
-  container: MedusaContainer,
-  inventoryItemIds: string[]
-): Promise<InventoryLevelRecord[]> {
-  if (!inventoryItemIds.length) return []
-  const inventoryModule = container.resolve(Modules.INVENTORY)
-  return (await inventoryModule.listInventoryLevels(
-    { inventory_item_id: inventoryItemIds },
-    { take: Math.max(500, inventoryItemIds.length * 10) }
-  )) as InventoryLevelRecord[]
+  return { id: locations[0].id, name: locations[0].name }
 }
 
 function linkedItemId(
@@ -257,19 +227,32 @@ function linkedItemId(
     )
   }
   if (!links.length) return null
+
   const link = links[0]
   if (Number(link.required_quantity ?? 1) !== 1) {
     throw unexpectedState(
       `Variant ${variant.id} uses a non-standard inventory required quantity. Studio stock editing is blocked.`
     )
   }
-  const linkedId = link.inventory?.id || link.inventory_item_id
-  if (!linkedId) {
+  const id = link.inventory?.id || link.inventory_item_id
+  if (!id) {
     throw unexpectedState(
       `Variant ${variant.id} has an unresolved inventory-item link.`
     )
   }
-  return String(linkedId)
+  return String(id)
+}
+
+async function allLevels(
+  container: MedusaContainer,
+  itemIds: string[]
+): Promise<InventoryLevelRecord[]> {
+  if (!itemIds.length) return []
+  const inventoryModule = container.resolve(Modules.INVENTORY)
+  return (await inventoryModule.listInventoryLevels(
+    { inventory_item_id: itemIds },
+    { take: Math.max(500, itemIds.length * 10) }
+  )) as InventoryLevelRecord[]
 }
 
 async function stateLines(
@@ -279,14 +262,13 @@ async function stateLines(
 ): Promise<StudioInventoryStateLine[]> {
   const variants = product.variants || []
   const itemIds = variants.map(linkedItemId).filter(Boolean) as string[]
-  const levels = await levelsForItems(container, itemIds)
+  const levels = await allLevels(container, itemIds)
 
   return variants.map((variant) => {
     const itemId = linkedItemId(variant)
     const itemLevels = itemId
       ? levels.filter((level) => level.inventory_item_id === itemId)
       : []
-
     const foreignLevels = itemLevels.filter(
       (level) => level.location_id !== locationId
     )
@@ -304,7 +286,6 @@ async function stateLines(
         `Variant ${variant.id} has duplicate inventory levels at ${STUDIO_INVENTORY_LOCATION_NAME}.`
       )
     }
-
     if (variant.manage_inventory && !itemId) {
       throw unexpectedState(
         `Variant ${variant.id} says inventory is managed but has no inventory item.`
@@ -322,19 +303,6 @@ async function stateLines(
     }
 
     const level = localLevels[0]
-    const stocked = integerQuantity(
-      level?.stocked_quantity ?? 0,
-      `Stored quantity for ${variant.id}`
-    )
-    const reserved = integerQuantity(
-      level?.reserved_quantity ?? 0,
-      `Reserved quantity for ${variant.id}`
-    )
-    const incoming = integerQuantity(
-      level?.incoming_quantity ?? 0,
-      `Incoming quantity for ${variant.id}`
-    )
-
     return {
       variant_id: variant.id,
       title: variant.title || "Variant",
@@ -343,9 +311,18 @@ async function stateLines(
       allow_backorder: false,
       inventory_item_id: itemId,
       inventory_level_id: level?.id || null,
-      stocked_quantity: stocked,
-      reserved_quantity: reserved,
-      incoming_quantity: incoming,
+      stocked_quantity: integerQuantity(
+        level?.stocked_quantity ?? 0,
+        `Stored quantity for ${variant.id}`
+      ),
+      reserved_quantity: integerQuantity(
+        level?.reserved_quantity ?? 0,
+        `Reserved quantity for ${variant.id}`
+      ),
+      incoming_quantity: integerQuantity(
+        level?.incoming_quantity ?? 0,
+        `Incoming quantity for ${variant.id}`
+      ),
     }
   })
 }
@@ -354,9 +331,8 @@ export async function readStudioInventoryState(
   container: MedusaContainer,
   productId: string
 ): Promise<StudioInventoryState> {
-  const product = await loadStudioInventoryProduct(container, productId)
-  const problem = inventoryDraftProblem(product)
-  if (problem) throw unexpectedState(`${problem.code}: ${problem.message}`)
+  const product = await loadProduct(container, productId)
+  assertInventoryDraft(product)
 
   const location = await managedLocation(container)
   const variants = await stateLines(container, product!, location.id)
@@ -400,14 +376,14 @@ function desiredLines(
   }
 
   return state.variants.map((variant) => {
-    const requestLine = byId.get(variant.variant_id)
-    if (!requestLine) {
+    const requested = byId.get(variant.variant_id)
+    if (!requested) {
       throw unexpectedState(
         "Every current variant must have exactly one explicit stock row"
       )
     }
     const intended = integerQuantity(
-      requestLine.stocked_quantity,
+      requested.stocked_quantity,
       `Stock for ${variant.title}`
     )
     if (intended < variant.reserved_quantity) {
@@ -428,11 +404,10 @@ export async function buildStudioInventoryPlan(
   const state = await readStudioInventoryState(container, productId)
   const expected = canonicalTimestamp(expectedUpdatedAt)
   if (!expected || state.product.updated_at !== expected) {
-    throw new Error("stale_draft")
+    throw unexpectedState("stale_draft")
   }
 
-  const desired = desiredLines(state, request)
-  const variants: StudioInventoryPlanLine[] = desired.map(
+  const variants: StudioInventoryPlanLine[] = desiredLines(state, request).map(
     ({ variant, intended }) => {
       let action: StudioInventoryPlanLine["action"] = "unchanged"
       if (!variant.manage_inventory && !variant.inventory_item_id) {
@@ -493,7 +468,7 @@ export async function applyStudioInventoryPlan(
     request
   )
   if (plan.inventory_hash !== inventoryHash) {
-    throw new Error("stale_inventory_plan")
+    throw unexpectedState("stale_inventory_plan")
   }
 
   if (plan.change_count > 0) {
