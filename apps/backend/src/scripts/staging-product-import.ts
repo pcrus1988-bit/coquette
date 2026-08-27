@@ -8,12 +8,12 @@ import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { manifestKey } from "../migration/manifest"
+import { readVerifiedStagingDependencyPlan } from "../migration/staging-dependency-input"
 import { readVerifiedStagingMigrationInputBundle } from "../migration/staging-migration-input"
 import {
   assertStagingMigrationWriteGuard,
   buildStagingProductExecutionPlan,
   prepareMedusaSimpleProductInput,
-  type MigrationDependencyMapping,
 } from "../migration/staging-product-execution"
 import type {
   MigrationManifestEntry,
@@ -127,13 +127,6 @@ function nextErrorManifestEntry(
     firstImportedAt: previous?.firstImportedAt,
     lastAttemptAt: now,
   }
-}
-
-function allowedMediaHosts() {
-  return (process.env.COQUETTE_MIGRATION_ALLOWED_MEDIA_HOSTS ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
 }
 
 function migrationMode() {
@@ -283,35 +276,26 @@ async function ensureProductBrandLink(
 export default async function stagingProductImport({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const mode = migrationMode()
-  const dependenciesPath =
-    process.env.COQUETTE_STAGING_PRODUCT_DEPENDENCIES?.trim()
   const manifestPath = process.env.COQUETTE_STAGING_PRODUCT_MANIFEST?.trim()
 
-  if (!dependenciesPath) {
-    throw unexpectedState(
-      "COQUETTE_STAGING_PRODUCT_DEPENDENCIES is required"
-    )
-  }
-
   const migrationInput = await readVerifiedStagingMigrationInputBundle(process.env)
-  const importPlan = migrationInput.productPlan
-  const dependencies = await readJson<MigrationDependencyMapping[]>(
-    dependenciesPath
+  const dependencyInput = await readVerifiedStagingDependencyPlan(
+    migrationInput,
+    process.env
   )
-  if (!Array.isArray(dependencies)) {
-    throw unexpectedState("Staging product dependency mapping must be a JSON array")
-  }
+  const importPlan = migrationInput.productPlan
+  const dependencies = dependencyInput.plan.validatedMappings
 
   let manifestEntries = await readManifest(manifestPath)
   const executionPlan = buildStagingProductExecutionPlan({
     importPlan,
     dependencyMappings: dependencies,
     previousProductManifestEntries: manifestEntries,
-    allowedMediaHosts: allowedMediaHosts(),
+    allowedMediaHosts: dependencyInput.allowedMediaHosts,
   })
 
   logger.info(
-    `COQUETTE staging product import preflight: mode=${mode}, bundle=${migrationInput.bundleChecksum}, create=${executionPlan.totals.create}, skip=${executionPlan.totals.skip}, blocked=${executionPlan.totals.blocked}`
+    `COQUETTE staging product import preflight: mode=${mode}, bundle=${migrationInput.bundleChecksum}, dependencyPlan=${dependencyInput.plan.planChecksum}, create=${executionPlan.totals.create}, skip=${executionPlan.totals.skip}, blocked=${executionPlan.totals.blocked}`
   )
 
   if (!executionPlan.isExecutable) {
@@ -325,6 +309,7 @@ export default async function stagingProductImport({ container }: ExecArgs) {
       `COQUETTE staging product import is blocked: ${JSON.stringify({
         globalBlockers: executionPlan.globalBlockers,
         duplicateDependencyKeys: executionPlan.duplicateDependencyKeys,
+        dependencyPlanChecksum: dependencyInput.plan.planChecksum,
         blocked,
       })}`
     )
@@ -491,7 +476,7 @@ export default async function stagingProductImport({ container }: ExecArgs) {
   }
 
   logger.info(
-    `COQUETTE staging structural product import complete: bundle=${migrationInput.bundleChecksum}, manifest=${resolve(
+    `COQUETTE staging structural product import complete: bundle=${migrationInput.bundleChecksum}, dependencyPlan=${dependencyInput.plan.planChecksum}, manifest=${resolve(
       manifestPath
     )}`
   )
