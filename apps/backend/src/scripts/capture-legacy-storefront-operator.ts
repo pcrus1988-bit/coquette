@@ -40,7 +40,7 @@ function browserMode() {
 }
 
 function assertOperatorEnvironment() {
-  if (process.env.CI || process.env.GITHUB_ACTIONS) {
+  if (booleanEnv("CI", false) || booleanEnv("GITHUB_ACTIONS", false)) {
     throw unexpected(
       "Operator direct capture refuses CI/GitHub Actions. Run it from an accepted local/operator browser network."
     )
