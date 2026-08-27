@@ -17,7 +17,10 @@ on:
       - "apps/backend/src/api/admin/studio/pricing/**"
       - "apps/backend/src/lib/studio-pricing.ts"
       - "apps/backend/src/lib/studio-pricing-state.ts"
+      - "apps/backend/src/workflows/apply-studio-pricing.ts"
+      - "apps/backend/src/scripts/studio-pricing-contract.ts"
       - ".github/workflows/studio-pricing.yml"
+      - ".github/workflows/ci.yml"
   pull_request:
     branches:
       - main
@@ -32,7 +35,10 @@ on:
       - "apps/backend/src/api/admin/studio/pricing/**"
       - "apps/backend/src/lib/studio-pricing.ts"
       - "apps/backend/src/lib/studio-pricing-state.ts"
+      - "apps/backend/src/workflows/apply-studio-pricing.ts"
+      - "apps/backend/src/scripts/studio-pricing-contract.ts"
       - ".github/workflows/studio-pricing.yml"
+      - ".github/workflows/ci.yml"
 
 permissions:
   contents: read
@@ -82,6 +88,8 @@ jobs:
           set -euo pipefail
           domain=apps/backend/src/lib/studio-pricing.ts
           state=apps/backend/src/lib/studio-pricing-state.ts
+          workflow=apps/backend/src/workflows/apply-studio-pricing.ts
+          contract=apps/backend/src/scripts/studio-pricing-contract.ts
           plan=apps/backend/src/api/admin/studio/pricing/plan/route.ts
           apply=apps/backend/src/api/admin/studio/pricing/apply/route.ts
           client=apps/studio/new-piece-pricing.js
@@ -90,13 +98,18 @@ jobs:
           grep -q 'coquette_studio_variants_generated' "$domain"
           grep -q 'createHash("sha256")' "$domain"
           grep -q 'STUDIO_PRICING_CURRENCY = "eur"' "$domain"
-          grep -q 'updateProductVariantsWorkflow' "$domain"
-          grep -q 'batchPriceListPricesWorkflow' "$domain"
+          grep -q 'applyStudioPricingWorkflow' "$domain"
           grep -q 'findStudioSalePriceList' "$domain"
           grep -q 'ensureStudioSalePriceList' "$domain"
           grep -q 'active unrestricted EUR sale price outside COQUETTE Studio' "$domain"
           grep -q 'readStudioPricingState' "$state"
           grep -q 'foreign_pricing_present' "$state"
+
+          grep -q 'createWorkflow' "$workflow"
+          grep -q 'updateProductVariantsWorkflow.runAsStep' "$workflow"
+          grep -q 'batchPriceListPricesWorkflow.runAsStep' "$workflow"
+          grep -q 'when(input' "$workflow"
+          grep -q 'apply_sale_batch' "$workflow"
 
           grep -q 'buildStudioPricingPlan' "$plan"
           grep -q 'expected_updated_at' "$plan"
@@ -113,17 +126,25 @@ jobs:
           grep -q 'expected_updated_at' "$client"
           grep -q 'Same price for every choice' "$client"
           grep -q 'Price choices separately' "$client"
+          grep -q 'intro.textContent !== introCopy' "$client"
+
+          grep -q 'applyStudioPricingPlan' "$contract"
+          grep -q 'change_count, 0' "$contract"
+          grep -q 'sale: null' "$contract"
+          grep -q 'status, "draft"' "$contract"
+          grep -q 'manage_inventory === false' "$contract"
+          grep -q 'allow_backorder === false' "$contract"
 
           if grep -R -n -E 'inventory_quantity|inventory_items|sales_channels|sales_channel_id|allow_backorder:[[:space:]]*true|manage_inventory:[[:space:]]*true' \
-            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/backend/src/lib/studio-pricing-state.ts apps/studio/new-piece-pricing.js; then
+            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/backend/src/lib/studio-pricing-state.ts apps/backend/src/workflows/apply-studio-pricing.ts apps/studio/new-piece-pricing.js; then
             echo 'Studio pricing must not mutate inventory, backorders or sales-channel visibility.' >&2
             exit 1
           fi
 
           if grep -R -n -E "status:[[:space:]]*\"published\"" \
-            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/studio/new-piece-pricing.js || \
+            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/backend/src/workflows/apply-studio-pricing.ts apps/studio/new-piece-pricing.js || \
              grep -R -n -E "status:[[:space:]]*'published'" \
-            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/studio/new-piece-pricing.js; then
+            apps/backend/src/api/admin/studio/pricing apps/backend/src/lib/studio-pricing.ts apps/backend/src/workflows/apply-studio-pricing.ts apps/studio/new-piece-pricing.js; then
             echo 'Studio pricing must not publish products.' >&2
             exit 1
           fi
