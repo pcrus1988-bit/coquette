@@ -102,6 +102,9 @@ jobs:
       - name: Validate verified handoff reconciliation intake
         run: pnpm --filter @coquette/backend capture-handoff:intake:contract
 
+      - name: Validate dependency provisioning evidence
+        run: pnpm --filter @coquette/backend dependency-provisioning:evidence:contract
+
       - name: Validate indexed recovery evidence contract
         run: pnpm --filter @coquette/backend indexed-recovery:contract
 
