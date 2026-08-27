@@ -1,3 +1,4 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import {
@@ -14,7 +15,10 @@ async function optionalDecisions(path?: string): Promise<ReviewDecision[]> {
   if (!path?.trim()) return []
   const value = await readJson<unknown>(path)
   if (!Array.isArray(value)) {
-    throw new Error("COQUETTE_REVIEW_DECISIONS_FILE must contain a JSON array")
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      "COQUETTE_REVIEW_DECISIONS_FILE must contain a JSON array"
+    )
   }
   return value as ReviewDecision[]
 }
@@ -31,7 +35,8 @@ async function main() {
   const reportPath = process.env.COQUETTE_CAPTURE_INGESTION_REPORT?.trim()
   const outputPath = process.env.COQUETTE_MIGRATION_RECONCILIATION_BUNDLE?.trim()
   if (!reportPath || !outputPath) {
-    throw new Error(
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
       "COQUETTE_CAPTURE_INGESTION_REPORT and COQUETTE_MIGRATION_RECONCILIATION_BUNDLE are required"
     )
   }
