@@ -146,12 +146,12 @@ jobs:
           grep -q 'isStudioManagedMediaKey' "$attach"
           grep -q 'method: "HEAD"' "$attach"
           grep -q 'STUDIO_MAX_IMAGE_BYTES' "$attach"
+          grep -q 'expected_updated_at' "$attach"
           grep -q 'updateProductsWorkflow' "$attach"
           grep -q 'currentSet.has(url)' "$order"
           grep -q 'New image URLs cannot be introduced through the ordering route' "$order"
+          grep -q 'expected_updated_at' "$order"
           grep -q 'updateProductsWorkflow' "$order"
-          grep -q 'expected_updated_at' apps/studio/api/studio/media-attach.js
-          grep -q 'expected_updated_at' apps/studio/api/studio/media-order.js
           grep -q '/api/studio/media-presign' "$client"
           grep -q '/api/studio/media-attach' "$client"
           grep -q '/api/studio/media-order' "$client"
