@@ -13,6 +13,8 @@
     "test": "turbo test",
     "backend:dev": "turbo dev --filter=@coquette/backend",
     "storefront:dev": "turbo dev --filter=@coquette/storefront",
+    "capture:coquette": "pnpm --filter @coquette/backend storefront:capture:handoff",
+    "capture:coquette:verify": "pnpm --filter @coquette/backend capture-handoff:verify",
     "railway-build-backend": "pnpm --filter @coquette/backend build:deploy",
     "railway-start-backend": "pnpm --filter @coquette/backend start:deploy",
     "railway-predeploy-backend": "pnpm --filter @coquette/backend predeploy",
