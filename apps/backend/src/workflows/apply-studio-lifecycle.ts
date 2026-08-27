@@ -3,6 +3,7 @@ import { Modules } from "@medusajs/framework/utils"
 import {
   createWorkflow,
   transform,
+  when,
   WorkflowResponse,
   type WorkflowData,
 } from "@medusajs/framework/workflows-sdk"
@@ -23,19 +24,22 @@ export const applyStudioLifecycleWorkflowId = "apply-studio-lifecycle"
 const applyStudioLifecycleWorkflow = createWorkflow(
   applyStudioLifecycleWorkflowId,
   (input: WorkflowData<ApplyStudioLifecycleWorkflowInput>) => {
-    const links = transform(input, (data) => {
-      if (!data.attach_canonical_sales_channel) return [] as LinkDefinition[]
-      return [
-        {
-          [Modules.PRODUCT]: { product_id: data.product_id },
-          [Modules.SALES_CHANNEL]: {
-            sales_channel_id: data.canonical_sales_channel_id,
-          },
+    const links = transform(input, (data) => [
+      {
+        [Modules.PRODUCT]: { product_id: data.product_id },
+        [Modules.SALES_CHANNEL]: {
+          sales_channel_id: data.canonical_sales_channel_id,
         },
-      ] as LinkDefinition[]
-    })
+      },
+    ] as LinkDefinition[])
 
-    const createdLinks = createLinksWorkflow.runAsStep({ input: links })
+    const createdLinks = when(
+      "studio-lifecycle-attach-canonical-channel",
+      { input, links },
+      ({ input: data }) => data.attach_canonical_sales_channel
+    ).then(({ links: linkDefinitions }) =>
+      createLinksWorkflow.runAsStep({ input: linkDefinitions })
+    )
 
     const productUpdates = transform(
       { input, createdLinks },
