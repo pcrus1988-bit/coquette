@@ -1,0 +1,228 @@
+name: COQUETTE Studio Placement Taxonomy CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "apps/studio/new-piece-placement-taxonomy.js"
+      - "apps/studio/new-piece-placement-taxonomy.css"
+      - "apps/studio/public/new-piece-placement-taxonomy.js"
+      - "apps/studio/public/new-piece-placement-taxonomy.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/placement-taxonomy-*.js"
+      - "apps/backend/src/api/admin/studio/placement-taxonomy/**"
+      - "apps/backend/src/lib/studio-placement-taxonomy.ts"
+      - "apps/backend/src/workflows/apply-studio-placement-taxonomy.ts"
+      - "apps/backend/src/scripts/studio-placement-taxonomy-contract.ts"
+      - ".github/workflows/studio-placement-taxonomy.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/studio/new-piece-placement-taxonomy.js"
+      - "apps/studio/new-piece-placement-taxonomy.css"
+      - "apps/studio/public/new-piece-placement-taxonomy.js"
+      - "apps/studio/public/new-piece-placement-taxonomy.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/placement-taxonomy-*.js"
+      - "apps/backend/src/api/admin/studio/placement-taxonomy/**"
+      - "apps/backend/src/lib/studio-placement-taxonomy.ts"
+      - "apps/backend/src/workflows/apply-studio-placement-taxonomy.ts"
+      - "apps/backend/src/scripts/studio-placement-taxonomy-contract.ts"
+      - ".github/workflows/studio-placement-taxonomy.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coquette-studio-placement-taxonomy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+
+      - name: Validate placement JavaScript syntax
+        run: |
+          node --check apps/studio/new-piece-placement-taxonomy.js
+          node --check apps/studio/public/new-piece-placement-taxonomy.js
+          node --check apps/studio/api/studio/placement-taxonomy-state.js
+          node --check apps/studio/api/studio/placement-taxonomy-plan.js
+          node --check apps/studio/api/studio/placement-taxonomy-apply.js
+
+      - name: Enforce production asset parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s apps/studio/new-piece-placement-taxonomy.js
+          test -s apps/studio/new-piece-placement-taxonomy.css
+          cmp -s apps/studio/new-piece-placement-taxonomy.js apps/studio/public/new-piece-placement-taxonomy.js
+          cmp -s apps/studio/new-piece-placement-taxonomy.css apps/studio/public/new-piece-placement-taxonomy.css
+          cmp -s apps/studio/studio.html apps/studio/public/studio.html
+          grep -q '/new-piece-placement-taxonomy.css' apps/studio/studio.html
+          grep -q '/new-piece-placement-taxonomy.js' apps/studio/studio.html
+          grep -q '/new-piece-placement-taxonomy.css' apps/studio/public/studio.html
+          grep -q '/new-piece-placement-taxonomy.js' apps/studio/public/studio.html
+
+      - name: Enforce guarded category and designer boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          domain=apps/backend/src/lib/studio-placement-taxonomy.ts
+          workflow=apps/backend/src/workflows/apply-studio-placement-taxonomy.ts
+          contract=apps/backend/src/scripts/studio-placement-taxonomy-contract.ts
+          plan=apps/backend/src/api/admin/studio/placement-taxonomy/plan/route.ts
+          apply=apps/backend/src/api/admin/studio/placement-taxonomy/apply/route.ts
+          client=apps/studio/new-piece-placement-taxonomy.js
+
+          grep -q 'createHash("sha256")' "$domain"
+          grep -q 'is_active: true' "$domain"
+          grep -q 'is_internal: false' "$domain"
+          grep -q 'not an active merchant-facing COQUETTE category' "$domain"
+          grep -q 'does not resolve to an existing COQUETTE designer' "$domain"
+          grep -q 'stale_placement_plan' "$domain"
+          grep -q 'applyStudioPlacementTaxonomyWorkflow' "$domain"
+
+          grep -q 'updateProductsWorkflow' "$workflow"
+          grep -q 'category_ids' "$workflow"
+          grep -q 'dismissLinksWorkflow' "$workflow"
+          grep -q 'createLinksWorkflow' "$workflow"
+          grep -q 'BRAND_MODULE' "$workflow"
+
+          grep -q 'buildStudioPlacementTaxonomyPlan' "$plan"
+          grep -q 'expected_updated_at' "$plan"
+          grep -q 'Modules.LOCKING' "$apply"
+          grep -q 'coquette-studio-placement' "$apply"
+          grep -q 'placement_hash' "$apply"
+
+          grep -q '/api/studio/placement-taxonomy-state' "$client"
+          grep -q '/api/studio/placement-taxonomy-plan' "$client"
+          grep -q '/api/studio/placement-taxonomy-apply' "$client"
+          grep -q 'Existing taxonomy only' "$client"
+          grep -q 'Internal categories hidden' "$client"
+          grep -q 'No auto-publish' "$client"
+          grep -q 'placement_hash' "$client"
+
+          grep -q 'internalCategory' "$contract"
+          grep -q 'change_count, 0' "$contract"
+          grep -q 'stale_placement_plan' "$contract"
+          grep -q 'status, "draft"' "$contract"
+          grep -q 'designerB.id' "$contract"
+
+          if grep -R -n -P 'sales_channels|price_set|pricing_hash|inventory_hash|stocked_quantity|manage_inventory|\b(barcode|ean|upc)\b' \
+            apps/backend/src/api/admin/studio/placement-taxonomy apps/backend/src/lib/studio-placement-taxonomy.ts apps/backend/src/workflows/apply-studio-placement-taxonomy.ts apps/studio/new-piece-placement-taxonomy.js; then
+            echo 'Studio placement taxonomy must not mutate visibility, pricing, inventory or identifiers.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E "status:[[:space:]]*\"published\"|status:[[:space:]]*'published'" \
+            apps/backend/src/api/admin/studio/placement-taxonomy apps/backend/src/lib/studio-placement-taxonomy.ts apps/backend/src/workflows/apply-studio-placement-taxonomy.ts apps/studio/new-piece-placement-taxonomy.js; then
+            echo 'Studio placement taxonomy must not publish products.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E 'createProductCategories|createDesigner|localStorage|sessionStorage|Bearer|authorization' \
+            apps/backend/src/api/admin/studio/placement-taxonomy apps/backend/src/lib/studio-placement-taxonomy.ts apps/backend/src/workflows/apply-studio-placement-taxonomy.ts apps/studio/new-piece-placement-taxonomy.js; then
+            echo 'Placement editing must not create taxonomy or hold Medusa browser credentials.' >&2
+            exit 1
+          fi
+
+  runtime-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coquette_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coquette_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/coquette_ci
+      REDIS_URL: redis://localhost:6379
+      STORE_CORS: http://localhost:8000
+      ADMIN_CORS: http://localhost:9000
+      AUTH_CORS: http://localhost:8000,http://localhost:9000
+      JWT_SECRET: ci-build-only-secret
+      COOKIE_SECRET: ci-build-only-secret
+      MEDUSA_BACKEND_URL: http://localhost:9000
+      MEDUSA_WORKER_MODE: server
+      DISABLE_MEDUSA_ADMIN: "false"
+      PAYPAL_CLIENT_ID: ci-paypal-client
+      PAYPAL_CLIENT_SECRET: ci-paypal-secret
+      PAYPAL_ENVIRONMENT: sandbox
+      PAYPAL_AUTO_CAPTURE: "false"
+      KLARNA_USERNAME: ci-klarna-user
+      KLARNA_PASSWORD: ci-klarna-password
+      KLARNA_CALLBACK_BASE_URL: https://coquette-ci.example
+      KLARNA_CALLBACK_SECRET: ci-klarna-callback-secret
+      KLARNA_ENVIRONMENT: playground
+      KLARNA_API_REGION: eu
+      KLARNA_PURCHASE_COUNTRY: GR
+      KLARNA_LOCALE: el-GR
+      COQUETTE_STANDARD_SHIPPING_EUR: "4.90"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check placement backend
+        run: pnpm --filter @coquette/backend exec tsc --noEmit
+
+      - name: Enforce Medusa lint rules
+        run: pnpm --filter @coquette/backend lint
+
+      - name: Run Medusa migrations
+        run: pnpm --filter @coquette/backend db:migrate
+
+      - name: Bootstrap canonical staging commerce defaults
+        run: pnpm --filter @coquette/backend staging:bootstrap
+
+      - name: Validate guarded category and designer contract
+        run: pnpm --filter @coquette/backend exec medusa exec ./src/scripts/studio-placement-taxonomy-contract.ts
