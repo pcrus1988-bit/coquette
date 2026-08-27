@@ -35,6 +35,8 @@
     "review-application:contract": "ts-node src/scripts/review-application-contract.ts",
     "migration-input-reconciliation:contract": "ts-node src/scripts/migration-input-reconciliation-contract.ts",
     "migration-input:reconcile": "ts-node src/scripts/reconcile-migration-input.ts",
+    "dependency-mapping:contract": "ts-node src/scripts/dependency-mapping-reconciliation-contract.ts",
+    "dependency-mapping:reconcile": "ts-node src/scripts/reconcile-dependency-mappings.ts",
     "staging-migration-input:contract": "ts-node src/scripts/staging-migration-input-contract.ts",
     "staging-product-execution:contract": "ts-node src/scripts/staging-product-execution-contract.ts",
     "staging-price-execution:contract": "ts-node src/scripts/staging-price-execution-contract.ts",

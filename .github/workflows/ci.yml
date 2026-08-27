@@ -132,6 +132,9 @@ jobs:
       - name: Validate checksum-bound migration input reconciliation
         run: pnpm --filter @coquette/backend migration-input-reconciliation:contract
 
+      - name: Validate deterministic dependency mapping reconciliation
+        run: pnpm --filter @coquette/backend dependency-mapping:contract
+
       - name: Validate pinned staging migration input boundary
         run: pnpm --filter @coquette/backend staging-migration-input:contract
 
