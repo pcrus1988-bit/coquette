@@ -13,9 +13,8 @@ import {
 } from "@medusajs/medusa/core-flows"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
-import type { ProductImportPlan } from "../migration/import-plan"
 import { manifestKey } from "../migration/manifest"
-import { buildPricePlan } from "../migration/price-plan"
+import { readVerifiedStagingMigrationInputBundle } from "../migration/staging-migration-input"
 import {
   buildStagingPriceExecutionPlan,
   type StagingPriceExecutionEntry,
@@ -28,11 +27,6 @@ const MIGRATION_SALE_LIST_MARKER_VALUE = "legacy-public-sale-v1"
 const MIGRATION_SALE_LIST_TITLE = "COQUETTE Legacy Public Sale"
 const MIGRATION_SALE_LIST_DESCRIPTION =
   "Recovered public legacy sale prices. No start/end dates were invented during migration."
-
-type CaptureIngestionReport = {
-  schemaVersion?: number
-  importPlan?: ProductImportPlan
-}
 
 type VariantRecord = {
   id: string
@@ -534,25 +528,18 @@ async function applyExpectedPriceState(
 export default async function stagingPriceImport({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const mode = migrationMode()
-  const reportPath = process.env.COQUETTE_STAGING_PRICE_IMPORT_REPORT?.trim()
   const productManifestPath =
     process.env.COQUETTE_STAGING_PRODUCT_MANIFEST?.trim()
   const priceManifestPath = process.env.COQUETTE_STAGING_PRICE_MANIFEST?.trim()
 
-  if (!reportPath || !productManifestPath) {
+  if (!productManifestPath) {
     throw unexpectedState(
-      "COQUETTE_STAGING_PRICE_IMPORT_REPORT and COQUETTE_STAGING_PRODUCT_MANIFEST are required"
+      "COQUETTE_STAGING_PRODUCT_MANIFEST is required for staging price import"
     )
   }
 
-  const report = await readJson<CaptureIngestionReport>(reportPath)
-  if (report.schemaVersion !== 3 || !report.importPlan) {
-    throw unexpectedState(
-      "Staging price import requires a Phase 4F capture-ingestion report with schemaVersion=3 and importPlan"
-    )
-  }
-
-  const pricePlan = buildPricePlan(report.importPlan)
+  const migrationInput = await readVerifiedStagingMigrationInputBundle(process.env)
+  const pricePlan = migrationInput.pricePlan
   const productManifest = await readManifest(productManifestPath)
   let priceManifest = await readManifest(priceManifestPath)
   const executionPlan = buildStagingPriceExecutionPlan({
@@ -562,7 +549,7 @@ export default async function stagingPriceImport({ container }: ExecArgs) {
   })
 
   logger.info(
-    `COQUETTE staging price import preflight: mode=${mode}, apply=${executionPlan.totals.apply}, skip=${executionPlan.totals.skip}, unavailable=${executionPlan.totals.unavailable}, blocked=${executionPlan.totals.blocked}`
+    `COQUETTE staging price import preflight: mode=${mode}, bundle=${migrationInput.bundleChecksum}, apply=${executionPlan.totals.apply}, skip=${executionPlan.totals.skip}, unavailable=${executionPlan.totals.unavailable}, blocked=${executionPlan.totals.blocked}`
   )
 
   if (!executionPlan.isExecutable) {
@@ -697,7 +684,7 @@ export default async function stagingPriceImport({ container }: ExecArgs) {
   }
 
   logger.info(
-    `COQUETTE staging price import complete: manifest=${resolve(
+    `COQUETTE staging price import complete: bundle=${migrationInput.bundleChecksum}, manifest=${resolve(
       priceManifestPath
     )}, salePriceList=${migrationSaleList?.id ?? "not-required"}`
   )
