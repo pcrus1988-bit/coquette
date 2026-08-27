@@ -209,6 +209,9 @@ jobs:
       - name: Validate clean-database Studio guarded pricing execution
         run: pnpm --filter @coquette/backend exec medusa exec ./src/scripts/studio-pricing-contract.ts
 
+      - name: Validate clean-database Studio guarded variant identifiers
+        run: pnpm --filter @coquette/backend exec medusa exec ./src/scripts/studio-variant-identifiers-contract.ts
+
       - name: Build deployable Medusa production artifact through Railway wrapper
         env:
           NODE_ENV: production
