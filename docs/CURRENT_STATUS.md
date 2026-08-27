@@ -11,7 +11,7 @@ Magento Admin/database/filesystem/API access is unavailable. Phase 4 therefore r
 
 ## Shipped to `main`
 
-Through Phase 4I merge `aad7837d26779c333c781f23edd37993f30a80c9`.
+Through Phase 4J merge `891e9111331161cd22a9b1b9a1f99b0ae6024b5c`.
 
 ### Platform and commerce foundation
 
@@ -94,44 +94,60 @@ Merged PR #53 as `aad7837d26779c333c781f23edd37993f30a80c9` after exact-head CI 
 - disposable PostgreSQL CI creates a real synthetic Product ↔ Brand relation and proves rerun idempotency
 - Railway artifact and storefront builds passed before merge
 
-No real COQUETTE staging or production migration writes were performed while validating Phase 4I.
+### Phase 4J — guarded staging price execution
+
+Merged PR #54 as `891e9111331161cd22a9b1b9a1f99b0ae6024b5c` after exact-head CI passed all gates.
+
+- price-plan entries retain the structural product checksum
+- pricing execution requires an imported structural product manifest entry with the exact structural checksum and concrete Medusa product target
+- live SKU resolution must return exactly one Medusa variant on that imported product target
+- independent price execution actions: `apply`, `skip`, `unavailable`, `blocked`
+- same-checksum price imports are live-verified before skip
+- changed public price checksums use an explicit deterministic update path while structural identity remains unchanged
+- prior pending/error price checkpoints can retry; duplicate/reconciliation states fail closed
+- regular EUR price writes through `updateProductVariantsWorkflow`
+- recovered lower sale prices use a dedicated active Medusa `sale` price list with no invented dates/rules
+- migration sale list is marked `coquette_migration_price_list=legacy-public-sale-v1`
+- sale price create/update/removal uses Medusa's supported price-list batch workflow
+- only migration-owned sale prices are removed when current public evidence no longer shows the sale
+- conflicting active unrestricted foreign sale pricing blocks instead of producing ambiguous calculated prices
+- post-write verification reads authoritative Pricing Module records through the variant price-set identity
+- source-stable live pricing drift can be repaired and recorded
+- disposable PostgreSQL CI proves regular+sale creation, identical rerun, deterministic price update and sale removal
+- Railway deployable artifact and storefront build passed before merge
+
+No real COQUETTE staging or production product/price migration writes were performed while validating Phases 4I–4J.
 
 ## Active implementation
 
-### Phase 4J — guarded staging price execution
+### Phase 4K — deterministic inventory evidence/accountability
 
-Branch: `phase4/guarded-staging-price-execution`.
+Branch: `phase4/deterministic-inventory-evidence`.
 
 Implemented on the branch:
 
-- price-plan entries now retain the structural product checksum
-- pricing execution requires an imported structural product manifest entry with the exact same structural checksum and concrete Medusa product target
-- live SKU resolution must return exactly one Medusa variant whose `product_id` equals that imported product target
-- independent price execution actions: `apply`, `skip`, `unavailable`, `blocked`
-- same-checksum imported price manifest becomes `skip` but live pricing is still verified
-- changed public price checksum becomes `apply` through an explicit update strategy when structural identity remains current
-- prior pending/error price states can retry; prior skipped state blocks for reconciliation
-- duplicate product/price manifest identities block execution
-- explicit unavailable public prices remain non-write outcomes
-- regular EUR price is written through `updateProductVariantsWorkflow`
-- recovered sale prices use a dedicated active Medusa `sale` price list with no invented start/end dates or rules
-- migration sale list is identified by metadata marker `coquette_migration_price_list=legacy-public-sale-v1`
-- a duplicated or merchant-altered migration sale list fails closed
-- sale prices are created/updated/removed through Medusa's supported price-list batch workflow
-- only the dedicated migration sale price is removed when public evidence no longer shows a sale
-- active unrestricted foreign sale pricing on a migration target blocks execution to avoid ambiguous calculated pricing
-- live regular/sale price state is re-queried and verified before the independent price manifest is checkpointed
-- source-checksum-stable live pricing drift can be repaired and recorded with a manifest warning
-- write mode reuses the existing staging-only exact database guard
-- no inventory quantities are touched
-- no real staging/production price import has been executed
+- inventory is separated from structural product and price domains
+- qualitative public stock evidence can be `state_only`, `unavailable` or `blocked`
+- inventory evidence checksum contains SKU, stock state and low-stock message only
+- price/copy changes do not alter inventory evidence checksum
+- stock-state/low-stock changes do alter the inventory evidence checksum
+- `in_stock` is never converted to quantity `1`
+- `out_of_stock` is never converted to quantity `0`
+- low-stock wording is retained without numeric parsing/inference
+- missing or explicit unknown public stock becomes an explained `unavailable` outcome
+- conflicting direct/indexed stock evidence blocks inventory evidence for review
+- structurally blocked products remain blocked in the inventory domain
+- Phase 4K deliberately emits `runtimeManifestEntries: []`
+- Phase 4K deliberately exposes `isExecutable: false`
+- there is no Medusa inventory quantity write path in this phase
 
-New CI gates:
+A numeric inventory execution phase is forbidden until an authoritative source exposes exact quantities tied to exact variant/location identities.
 
-1. pure guarded price-execution preflight contract;
-2. disposable PostgreSQL price lifecycle contract that first creates the structural product through the guarded product importer, then proves regular+sale price creation, same-input idempotency, changed-price update and sale removal while the structural checksum remains unchanged.
+New CI gate:
 
-Canonical detail: `docs/migration/PRICE_RECONSTRUCTION_PLAN.md`.
+1. deterministic inventory evidence contract proving state-only accounting, checksum independence, conflict blocking and absence of any numeric inventory/runtime-manifest inference.
+
+Canonical detail: `docs/migration/INVENTORY_EVIDENCE_PLAN.md`.
 
 ## Phase status
 
@@ -139,7 +155,7 @@ Canonical detail: `docs/migration/PRICE_RECONSTRUCTION_PLAN.md`.
 - **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
 - **Phase 2 — Executable foundation:** Complete.
 - **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
-- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4I shipped, Phase 4J active.
+- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4J shipped, Phase 4K active.
 - **Phase 5 — Merchant back office parity:** Foundation started.
 - **Phase 6 — Storefront parity:** Materially advanced.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of sequence.
@@ -148,13 +164,13 @@ Canonical detail: `docs/migration/PRICE_RECONSTRUCTION_PLAN.md`.
 
 ## Next Phase 4 milestones
 
-1. make Phase 4J exact-head CI fully green and merge it;
-2. create a separate deterministic inventory plan/manifest without inventing quantities where public evidence reveals only stock state;
-3. add explicit review decisions for unresolved publication/visibility, localization and variant identity;
-4. obtain a useful direct legacy capture from an accepted legitimate operator/browser network;
-5. ingest/reconcile the archive and drive candidate/import-plan/URL-universe blockers toward zero without weakening evidence gates;
+1. make Phase 4K exact-head CI fully green and merge it;
+2. add explicit review decisions for unresolved publication/visibility, localization and variant identity;
+3. obtain a useful direct legacy capture from an accepted legitimate operator/browser network;
+4. ingest/reconcile the archive and drive candidate/import-plan/URL-universe blockers toward zero without weakening evidence gates;
+5. identify an authoritative exact inventory source before designing any numeric inventory execution path;
 6. only after backup/restore rehearsal and migration-input reconciliation, consider an explicitly authorized real staging dry-run/write sequence.
 
 ## Production boundary
 
-The legacy shop remains production. Phase 4J is not a production cutover tool. No real COQUETTE staging or production price writes have been performed in this continuation. `coquetteconcept.gr` must not move until reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and blueprint cutover gates pass.
+The legacy shop remains production. Phase 4K is evidence/accountability only and cannot write inventory. No real COQUETTE staging or production migration writes have been performed in this continuation. `coquetteconcept.gr` must not move until reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and blueprint cutover gates pass.
