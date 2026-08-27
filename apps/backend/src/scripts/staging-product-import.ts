@@ -7,8 +7,8 @@ import {
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
-import type { ProductImportPlan } from "../migration/import-plan"
 import { manifestKey } from "../migration/manifest"
+import { readVerifiedStagingMigrationInputBundle } from "../migration/staging-migration-input"
 import {
   assertStagingMigrationWriteGuard,
   buildStagingProductExecutionPlan,
@@ -20,11 +20,6 @@ import type {
   MigrationSourceKey,
 } from "../migration/types"
 import { BRAND_MODULE } from "../modules/brand"
-
-type CaptureIngestionReport = {
-  schemaVersion?: number
-  importPlan?: ProductImportPlan
-}
 
 type ProductBrandGraphRecord = {
   id: string
@@ -84,7 +79,7 @@ function upsertManifestEntry(
 }
 
 function matchingRuntimeManifestEntry(
-  importPlan: ProductImportPlan,
+  importPlan: Parameters<typeof buildStagingProductExecutionPlan>[0]["importPlan"],
   sourceKey: MigrationSourceKey,
   sourceChecksum: string
 ) {
@@ -268,7 +263,7 @@ async function ensureProductBrandLink(
     )
   }
 
-  const link = container.resolve("link") as LinkService
+  const link = container.resolve(ContainerRegistrationKeys.LINK) as LinkService
   await link.create([
     {
       [Modules.PRODUCT]: { product_id: productId },
@@ -288,24 +283,18 @@ async function ensureProductBrandLink(
 export default async function stagingProductImport({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const mode = migrationMode()
-  const reportPath = process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT?.trim()
   const dependenciesPath =
     process.env.COQUETTE_STAGING_PRODUCT_DEPENDENCIES?.trim()
   const manifestPath = process.env.COQUETTE_STAGING_PRODUCT_MANIFEST?.trim()
 
-  if (!reportPath || !dependenciesPath) {
+  if (!dependenciesPath) {
     throw unexpectedState(
-      "COQUETTE_STAGING_PRODUCT_IMPORT_REPORT and COQUETTE_STAGING_PRODUCT_DEPENDENCIES are required"
+      "COQUETTE_STAGING_PRODUCT_DEPENDENCIES is required"
     )
   }
 
-  const report = await readJson<CaptureIngestionReport>(reportPath)
-  if (report.schemaVersion !== 3 || !report.importPlan) {
-    throw unexpectedState(
-      "Staging product import requires a Phase 4F capture-ingestion report with schemaVersion=3 and importPlan"
-    )
-  }
-
+  const migrationInput = await readVerifiedStagingMigrationInputBundle(process.env)
+  const importPlan = migrationInput.productPlan
   const dependencies = await readJson<MigrationDependencyMapping[]>(
     dependenciesPath
   )
@@ -315,14 +304,14 @@ export default async function stagingProductImport({ container }: ExecArgs) {
 
   let manifestEntries = await readManifest(manifestPath)
   const executionPlan = buildStagingProductExecutionPlan({
-    importPlan: report.importPlan,
+    importPlan,
     dependencyMappings: dependencies,
     previousProductManifestEntries: manifestEntries,
     allowedMediaHosts: allowedMediaHosts(),
   })
 
   logger.info(
-    `COQUETTE staging product import preflight: mode=${mode}, create=${executionPlan.totals.create}, skip=${executionPlan.totals.skip}, blocked=${executionPlan.totals.blocked}`
+    `COQUETTE staging product import preflight: mode=${mode}, bundle=${migrationInput.bundleChecksum}, create=${executionPlan.totals.create}, skip=${executionPlan.totals.skip}, blocked=${executionPlan.totals.blocked}`
   )
 
   if (!executionPlan.isExecutable) {
@@ -379,7 +368,7 @@ export default async function stagingProductImport({ container }: ExecArgs) {
       )
     }
     const runtimeEntry = matchingRuntimeManifestEntry(
-      report.importPlan,
+      importPlan,
       entry.sourceKey,
       entry.sourceChecksum
     )
@@ -502,7 +491,7 @@ export default async function stagingProductImport({ container }: ExecArgs) {
   }
 
   logger.info(
-    `COQUETTE staging structural product import complete: manifest=${resolve(
+    `COQUETTE staging structural product import complete: bundle=${migrationInput.bundleChecksum}, manifest=${resolve(
       manifestPath
     )}`
   )
