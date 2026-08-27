@@ -223,8 +223,12 @@ jobs:
           cmp -s apps/studio/new-piece-variants.css apps/studio/public/new-piece-variants.css
           cmp -s apps/studio/studio.html apps/studio/public/studio.html
 
-          if grep -n -E 'sales_channels|inventory_quantity|inventory_items|status:[[:space:]]*["'"']published["'"']' "$generate" "$workflow"; then
-            echo 'Variant generation must not publish, assign inventory or change sales-channel visibility.' >&2
+          if grep -n -E 'sales_channels|inventory_quantity|inventory_items' "$generate" "$workflow"; then
+            echo 'Variant generation must not assign inventory or change sales-channel visibility.' >&2
+            exit 1
+          fi
+          if grep -n 'status: "published"' "$generate" "$workflow" || grep -n "status: 'published'" "$generate" "$workflow"; then
+            echo 'Variant generation must not publish the product.' >&2
             exit 1
           fi
           if grep -n -E 'amount:[[:space:]]*[0-9]|prices:[[:space:]]*\[' "$generate" "$workflow"; then
