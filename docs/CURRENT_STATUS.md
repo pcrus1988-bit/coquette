@@ -11,7 +11,7 @@ Magento Admin/database/filesystem/API access remains unavailable. Phase 4 recons
 
 ## Shipped to `main`
 
-Through **Phase 4P** merge `420ea7b3f3920bb5b00a31a370bbf519afbbd3b7`.
+Through **Phase 4S** merge `c68ceddf93a6752ac5f1c23299550c4edb5af298`.
 
 ### Platform and commerce foundation
 
@@ -97,61 +97,102 @@ Merged PR #58 as `bfcafa9b7e9deb254c62a19ecf987dca9628188d`.
 
 ### Phase 4O — mandatory reconciled staging input
 
-Merged PR #59 as `cb7c7e904b240614920b199dc78ce2f08c08637f` after exact-head CI passed every gate.
+Merged PR #59 as `cb7c7e904b240614920b199dc78ce2f08c08637f`.
 
 - product and price staging executors accept only a verified Phase 4N bundle
 - exact independently supplied bundle checksum is mandatory
-- historical raw Phase 4F product/price report variables are rejected
-- product executor consumes only `bundle.productPlan`
-- price executor consumes only `bundle.pricePlan`
+- historical raw product/price report variables are rejected
 - existing DB/write/media/dependency/manifest/Brand/variant/pricing guards remain in force
 
 ### Phase 4P — operator direct-capture evidence package
 
-Merged PR #60 as `420ea7b3f3920bb5b00a31a370bbf519afbbd3b7` after exact-head CI run #508 passed the new operator-package gate, all reconstruction/reconciliation gates, both clean-database import lifecycles, Railway artifact and storefront build.
+Merged PR #60 as `420ea7b3f3920bb5b00a31a370bbf519afbbd3b7`.
 
-- dedicated `storefront:capture:operator` command locked to `https://coquetteconcept.gr/`
-- command refuses CI/GitHub Actions and always uses browser transport
-- headed browser by default with extended interactive challenge window
-- cross-platform Chrome/Chromium/Edge discovery for Linux, macOS and Windows
-- deterministic `evidence-package.json` with sorted file inventory, byte counts and SHA-256 checksums
-- package covers manifest, robots, JSONL inventories, every preserved HTML page and captured media file
-- symlinks/unsafe paths, missing/unlisted/tampered files fail verification
-- no cookie or IP-address data is serialized
-- standalone package verification command
-- `capture:ingest` re-verifies package bytes and includes package result in capture validation
-- Phase 4N now requires validated `operator_local_browser` package provenance and carries its checksum into the frozen bundle
-- raw `COQUETTE_RUNTIME_IMPORT_MANIFEST` output from capture ingestion is retired
+- operator capture is locked to `https://coquetteconcept.gr/`
+- CI/GitHub Actions are refused; browser transport is mandatory
+- headed browser is default with challenge window
+- cross-platform Chrome/Chromium/Edge discovery
+- deterministic `evidence-package.json` covers all preserved HTML/media and JSONL inventories
+- symlink/unsafe/missing/unlisted/tampered files fail verification
+- no cookies or IP-address data are serialized
+- Phase 4N requires validated `operator_local_browser` provenance and exact package checksum
 
 Canonical detail: `docs/migration/OPERATOR_DIRECT_CAPTURE.md`.
 
-No real COQUETTE staging or production reconstruction writes were performed while validating Phases 4I–4P.
+### Phase 4Q — deterministic dependency mapping reconciliation
+
+Merged PR #61 as `e2d6e9c941932ebda28274c12b3400699bb92afd`.
+
+- required category, Brand and media dependencies derive exclusively from the verified Phase 4N normalized product plan
+- shared dependencies are deduplicated while retaining every referencing candidate
+- duplicate/orphan mapping keys block reconciliation
+- category/Brand require target IDs; media requires HTTPS on explicitly allowed COQUETTE-controlled hosts
+- `coquetteconcept.gr` media hotlinks are forbidden
+- missing/unavailable/error/invalid dependency states remain explicit
+- plan binds to both Phase 4N bundle checksum and Phase 4P evidence checksum
+
+Canonical detail: `docs/migration/DEPENDENCY_MAPPING_RECONCILIATION.md`.
+
+### Phase 4R — verified dependency plan staging input
+
+Merged PR #66 as `8c7652186043b0ab4897986818f9e2b7c2085a5c` after the full current-main CI suite passed.
+
+- structural staging import no longer accepts arbitrary raw dependency arrays
+- exact Phase 4Q plan path and checksum pin are mandatory
+- plan is reverified against the accepted Phase 4N bundle and allowed COQUETTE media hosts
+- Product and price disposable-PostgreSQL write lifecycles passed
+- Railway deployable artifact and storefront build passed
+
+Canonical detail: `docs/migration/STAGING_DEPENDENCY_PLAN_INPUT.md`.
+
+### Phase 4S — one-command verified operator capture handoff
+
+Merged PR #67 as `c68ceddf93a6752ac5f1c23299550c4edb5af298` after exact-head CI passed all reconstruction, database lifecycle, Railway and storefront gates.
+
+- root command `pnpm capture:coquette`
+- browser capture → Phase 4P verification → ingestion → portable handoff packaging
+- output is one `<capture-id>.handoff.<full-sha256>.tar.gz`
+- archive filename contains the complete SHA-256
+- receiver verifies the archive checksum, semantic handoff checksum, all embedded Phase 4P files/checksums, capture provenance/completeness and ingestion↔evidence binding
+- no staging or production commerce writes occur during capture/handoff creation
+
+Canonical detail: `docs/migration/OPERATOR_CAPTURE_HANDOFF.md`.
+
+No real COQUETTE staging or production reconstruction write has yet been performed from legacy catalogue data.
 
 ## Active implementation
 
-### Phase 4Q — dependency mapping reconciliation
+### Phase 4T — verified handoff reconciliation intake
 
-Branch: `phase4/dependency-mapping-reconciliation`.
+Branch: `phase4/handoff-reconciliation-intake`.
 
 Implemented on the branch:
 
-- derives the complete required dependency set exclusively from the verified Phase 4N normalized product plan
-- covers category, Brand and product-media source dependencies
-- deduplicates shared dependencies while retaining every referencing candidate key
-- mapping files cannot add orphan legacy dependencies or suppress required ones
-- category/Brand mappings require target IDs and reject target URLs
-- media mappings require HTTPS URLs on explicitly allowed COQUETTE-controlled hosts and reject target IDs
-- legacy `coquetteconcept.gr` media hotlinks are forbidden
-- explicit `missing`, `unavailable`, `error` and `invalid` states remain unreconciled rather than being guessed
-- duplicate/orphan mapping keys block reconciliation
-- plan binds to both Phase 4N bundle checksum and Phase 4P evidence-package checksum
-- deterministic requirements, mapping and plan checksums detect stale/tampered mapping state
-- price-only bundle changes require a newly bundle-bound dependency plan while retaining the same requirements checksum when structural dependencies did not change
-- operator CLI can emit the complete missing-dependency worklist before mappings exist and exits non-zero until all required dependencies resolve
-- Phase 4Q itself is non-writing
-- new CI contract is wired before the Phase 4O staging-input/execution gates
+- one handoff file is the only mandatory receiver-side input
+- no manual archive extraction is required
+- handoff is fully reverified before its embedded ingestion report can be consumed
+- embedded capture ID and Phase 4P evidence checksum must match the handoff manifest
+- Phase 4N migration input bundle is rebuilt directly from the verified embedded ingestion report
+- generated Phase 4N bundle is independently reverified
+- unresolved review/URL state becomes an explicit deterministic worklist
+- category/Brand/media dependency requirements are emitted only after the Phase 4N bundle is staging-ready
+- intake checksum binds archive, handoff, Phase 4P package, Phase 4N bundle, worklists and blockers
+- changing generation timestamps does not change frozen intake identity
+- Phase 4T is non-writing
 
-Canonical detail: `docs/migration/DEPENDENCY_MAPPING_RECONCILIATION.md`.
+Root command:
+
+```bash
+COQUETTE_CAPTURE_HANDOFF_FILE=/path/to/handoff.tar.gz pnpm capture:coquette:intake
+```
+
+Canonical detail: `docs/migration/HANDOFF_RECONCILIATION_INTAKE.md`.
+
+## Runtime acquisition observation
+
+The current execution container has Chromium installed, but its direct runtime network currently cannot resolve `coquetteconcept.gr`; a direct browser-backed Phase 4P acquisition therefore cannot be honestly produced from that container. The public storefront remains reachable through web retrieval, but web retrieval is not treated as `operator_local_browser` provenance.
+
+The real capture therefore remains the single external acquisition boundary. After that handoff exists, receiver-side reconstruction/reconciliation is automated and checksum-bound.
 
 ## Phase status
 
@@ -159,8 +200,8 @@ Canonical detail: `docs/migration/DEPENDENCY_MAPPING_RECONCILIATION.md`.
 - **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
 - **Phase 2 — Executable foundation:** Complete.
 - **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
-- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4P shipped, Phase 4Q active.
-- **Phase 5 — Merchant back office parity:** Foundation started.
+- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4S shipped, Phase 4T active.
+- **Phase 5 — Merchant back office parity:** Material implementation underway through COQUETTE Studio work.
 - **Phase 6 — Storefront parity:** Materially advanced.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of sequence.
 - **Phase 8/9 — Customer/cart/checkout/payments:** Foundations materially implemented; final staging E2E remains.
@@ -168,16 +209,17 @@ Canonical detail: `docs/migration/DEPENDENCY_MAPPING_RECONCILIATION.md`.
 
 ## Next Phase 4 milestones
 
-1. make Phase 4Q exact-head CI fully green and merge it;
-2. require the guarded product staging executor to consume a verified, checksum-pinned Phase 4Q dependency plan rather than an arbitrary mappings array;
-3. run the one-command direct capture from an accepted local browser session and preserve the resulting evidence package;
-4. ingest/reconcile that real archive and reduce candidate/review/URL blockers to zero without weakening evidence gates;
-5. create/upload COQUETTE-owned media and reconcile real category/Brand/media mappings;
-6. perform backup/restore rehearsal before any explicitly authorized real staging migration sequence;
-7. run the guarded staging migration and complete merchant/customer UAT before cutover.
+1. make Phase 4T exact-head CI fully green and merge it;
+2. acquire the real Phase 4S handoff from a browser/network that can reach `coquetteconcept.gr` with required provenance;
+3. run Phase 4T intake and resolve only evidence-backed review/URL blockers until Phase 4N is staging-ready;
+4. create/import the exact required COQUETTE category and Brand targets and upload captured media bytes to COQUETTE-owned storage;
+5. build/reconcile the real Phase 4Q mapping plan;
+6. perform backup/restore rehearsal before any real staging legacy-data write;
+7. run Phase 4R guarded product import and guarded price import against staging;
+8. complete merchant/customer/payment/courier/fiscal/SEO/rollback UAT before cutover.
 
 ## Fully-working-system boundary
 
-The target is a working staging store and then a controlled cutover, not a permanent dry-run project. The capture package is a provenance/input acquisition step; after that single acquisition the reconstruction, reconciliation, dependency mapping and guarded staging import paths are automated and checksum-bound.
+The target is a working staging store and then a controlled cutover, not a permanent dry-run project. The external capture is now one acquisition action; after that, handoff verification, reconstruction, review reconciliation, dependency planning and guarded staging import are automated and auditable.
 
 The legacy shop remains production until real reconstructed data is present in COQUETTE staging and the blueprint UAT, payment/courier/fiscal, SEO redirect, rollback and backup/restore gates pass.
