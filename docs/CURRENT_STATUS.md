@@ -11,7 +11,7 @@ Magento Admin/database/filesystem/API access is unavailable. Phase 4 reconstruct
 
 ## Shipped to `main`
 
-Through **Phase 4N** merge `bfcafa9b7e9deb254c62a19ecf987dca9628188d`.
+Through **Phase 4O** merge `cb7c7e904b240614920b199dc78ce2f08c08637f`.
 
 ### Platform and commerce foundation
 
@@ -115,50 +115,64 @@ Canonical detail: `docs/migration/REVIEW_DECISION_APPLICATION.md`.
 
 ### Phase 4N — checksum-bound migration input reconciliation
 
-Merged PR #58 as `bfcafa9b7e9deb254c62a19ecf987dca9628188d` after corrected exact-head CI passed every gate, including Railway artifact and storefront build.
+Merged PR #58 as `bfcafa9b7e9deb254c62a19ecf987dca9628188d`.
 
-- creates one canonical reconciliation bundle from Phase 4F capture evidence and Phase 4L decisions
-- deterministically rebuilds and cross-checks the source ProductImportPlan
-- includes Phase 4M reviewed product plan plus independent price and inventory plans
-- requires valid explicitly complete direct capture
-- requires zero open/deferred/invalid review items
-- requires a fully classified URL universe with zero unresolved URLs
-- requires executable reviewed structural product plan and reconciled pricing/inventory evidence
-- inventory remains deliberately non-executable with zero runtime manifest entries
-- missing public price/inventory may be explicitly unavailable but is never invented
-- independent domain checksums plus deterministic bundle checksum detect stale/tampered inputs
-- operator CLI emits an auditable bundle and non-zero status when staging readiness is not achieved
+- creates one canonical reconciliation bundle from capture evidence and review decisions
+- deterministically rebuilds/cross-checks the source ProductImportPlan
+- includes reviewed product plan plus independent price and inventory plans
+- requires valid complete direct capture, closed reviews and fully classified URL universe
+- inventory remains deliberately non-executable
+- independent domain checksums plus bundle checksum detect stale/tampered inputs
 - Phase 4N itself performs no Medusa writes
 
 Canonical detail: `docs/migration/MIGRATION_INPUT_RECONCILIATION.md`.
 
-No real COQUETTE staging or production reconstruction writes were performed while validating Phases 4I–4N.
+### Phase 4O — mandatory reconciled staging input
+
+Merged PR #59 as `cb7c7e904b240614920b199dc78ce2f08c08637f` after exact-head CI run #506 passed every gate, including the pinned-input boundary, both clean-database reconciled-bundle import lifecycles, Railway artifact and storefront build.
+
+- product and price staging executors accept only a verified Phase 4N bundle
+- an independently supplied exact bundle checksum is mandatory
+- historical raw Phase 4F product/price report variables are actively rejected
+- product executor consumes only `bundle.productPlan`
+- price executor consumes only `bundle.pricePlan`
+- a substituted but otherwise-valid bundle fails unless its checksum is deliberately re-pinned
+- all Phase 4G/4J database/write/media/dependency/manifest/Brand/variant/pricing safeguards remain in force
+- no numeric inventory writer was introduced
+
+Canonical detail: `docs/migration/STAGING_MIGRATION_INPUT.md`.
+
+No real COQUETTE staging or production reconstruction writes were performed while validating Phases 4I–4O.
 
 ## Active implementation
 
-### Phase 4O — mandatory reconciled staging input
+### Phase 4P — operator direct-capture evidence package
 
-Branch: `phase4/require-reconciled-staging-input`.
+Branch: `phase4/operator-direct-capture-package`.
 
 Implemented on the branch:
 
-- shared staging input loader requires `COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE`
-- requires independent `COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM` pin
-- verifies the full Phase 4N bundle before product/price preflight
-- rejects historical `COQUETTE_STAGING_PRODUCT_IMPORT_REPORT` and `COQUETTE_STAGING_PRICE_IMPORT_REPORT` whenever present
-- structural product executor consumes only `bundle.productPlan`
-- price executor consumes only `bundle.pricePlan`; it no longer rebuilds pricing from a raw structural report
-- all Phase 4G staging database/write/media/dependency/manifest/Brand guards remain in force
-- all Phase 4J structural-product/variant/price-list/pricing-verification guards remain in force
-- product and price executor logs include the accepted bundle checksum
-- price-only evidence changes require a new reconciled bundle and matching updated checksum pin while retaining stable structural checksum
-- clean-database product lifecycle contract now uses a ready Phase 4N bundle
-- clean-database price create/idempotent-update/sale-removal lifecycle uses successive ready and re-pinned Phase 4N bundles
-- pure staging-input contract rejects missing bundle/checksum, wrong checksum, tampered bundle and either legacy raw-report env variable
-- no numeric inventory writer is introduced
-- no real staging/production migration write is performed during validation
+- dedicated `storefront:capture:operator` command locked to `https://coquetteconcept.gr/`
+- operator command refuses CI/GitHub Actions and always uses browser transport
+- default headed browser capture with 120-second interactive Cloudflare challenge window
+- same temporary browser session/cookies reused during capture; temporary profile removed afterward
+- common Chrome/Chromium/Edge discovery for Linux, macOS and Windows; explicit `COQUETTE_CHROME_PATH` remains supported
+- deterministic `evidence-package.json` containing sorted file inventory, byte counts and SHA-256 checksums
+- semantic package checksum excludes packaging timestamp so identical evidence/provenance retains stable identity
+- package covers manifest, robots, JSONL inventories, every preserved HTML page and every preserved media file
+- symbolic links/unsafe paths are refused
+- package does not serialize cookies or IP-address information
+- standalone `capture-evidence:verify` command re-verifies copied/archived evidence from disk
+- verification fails on missing/unlisted/tampered files, capture/source mismatch, incomplete capture, wrong provenance or package-checksum mismatch
+- `capture:ingest` re-verifies the package and merges package failures into `capture.validation`
+- ingestion report records package checksum/provenance/browser mode/revision/file totals
+- Phase 4N now requires validated `operator_local_browser` package provenance before staging readiness
+- accepted evidence-package checksum is carried into the frozen Phase 4N bundle
+- historical `COQUETTE_RUNTIME_IMPORT_MANIFEST` output from raw capture ingestion is retired and rejected
+- CI fixtures now explicitly satisfy the operator-package gate rather than bypassing it
+- new filesystem contract proves deterministic identity, tamper detection, unlisted-file detection, incomplete-capture rejection and absence of cookie/IP serialization
 
-Canonical detail: `docs/migration/STAGING_MIGRATION_INPUT.md`.
+Canonical detail: `docs/migration/OPERATOR_DIRECT_CAPTURE.md`.
 
 ## Phase status
 
@@ -166,7 +180,7 @@ Canonical detail: `docs/migration/STAGING_MIGRATION_INPUT.md`.
 - **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
 - **Phase 2 — Executable foundation:** Complete.
 - **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
-- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4N shipped, Phase 4O active.
+- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4O shipped, Phase 4P active.
 - **Phase 5 — Merchant back office parity:** Foundation started.
 - **Phase 6 — Storefront parity:** Materially advanced.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of sequence.
@@ -175,13 +189,13 @@ Canonical detail: `docs/migration/STAGING_MIGRATION_INPUT.md`.
 
 ## Next Phase 4 milestones
 
-1. make Phase 4O exact-head CI fully green and merge it;
-2. obtain a complete useful direct legacy capture from an accepted legitimate operator/browser network;
+1. make Phase 4P exact-head CI fully green and merge it;
+2. run `storefront:capture:operator` from an accepted local/operator browser network and preserve the resulting evidence package checksum;
 3. ingest/reconcile the real archive and drive candidate/review/URL blockers toward zero without weakening evidence gates;
-4. prepare dependency/media mapping from the reconciled real capture;
+4. prepare COQUETTE-owned category/Brand/media dependency mappings from the reconciled real capture;
 5. identify an authoritative exact inventory source before designing any numeric inventory execution path;
 6. perform backup/restore rehearsal before any explicitly authorized real staging dry-run/write sequence.
 
 ## Production boundary
 
-The legacy shop remains production. Phase 4O hardens migration input but does not authorize a real migration. No real COQUETTE staging or production reconstruction writes have been performed in this continuation. `coquetteconcept.gr` must not move until reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and blueprint cutover gates pass.
+The legacy shop remains production. Phase 4P makes direct-capture provenance auditable but does not authorize a real migration. No real COQUETTE staging or production reconstruction writes have been performed in this continuation. `coquetteconcept.gr` must not move until reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and blueprint cutover gates pass.
