@@ -27,6 +27,7 @@ export type PricePlanEntry = {
   candidateKey: string
   state: PricePlanState
   productSourceKey?: MigrationSourceKey
+  productSourceChecksum?: string
   sourceKey?: MigrationSourceKey
   sku?: string
   sourceChecksum?: string
@@ -95,6 +96,7 @@ function initialPriceEntry(productEntry: ProductImportPlanEntry): PricePlanEntry
     candidateKey: productEntry.candidateKey,
     state: "blocked",
     productSourceKey: productEntry.sourceKey,
+    productSourceChecksum: productEntry.sourceChecksum,
     sourceKey: productEntry.sourceKey
       ? priceSourceKey(productEntry.sourceKey)
       : undefined,
@@ -119,6 +121,15 @@ function initialPriceEntry(productEntry: ProductImportPlanEntry): PricePlanEntry
       entry,
       "missing_structural_product_source_key",
       "A ready structural product must have an entityType=product source key before pricing can be planned."
+    )
+    return entry
+  }
+
+  if (!productEntry.sourceChecksum?.trim()) {
+    block(
+      entry,
+      "missing_structural_product_source_checksum",
+      "A ready structural product must retain its structural checksum so price execution can verify the imported product target."
     )
     return entry
   }

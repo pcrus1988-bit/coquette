@@ -120,6 +120,9 @@ jobs:
       - name: Validate staging structural product execution preflight
         run: pnpm --filter @coquette/backend staging-product-execution:contract
 
+      - name: Validate guarded staging price execution preflight
+        run: pnpm --filter @coquette/backend staging-price-execution:contract
+
       - name: Run Medusa migrations on clean PostgreSQL
         run: pnpm --filter @coquette/backend db:migrate
 
@@ -166,6 +169,9 @@ jobs:
 
       - name: Validate clean-database staging structural product import idempotency
         run: pnpm --filter @coquette/backend staging-product-import:contract
+
+      - name: Validate clean-database staging price import idempotency and updates
+        run: pnpm --filter @coquette/backend staging-price-import:contract
 
       - name: Build deployable Medusa production artifact through Railway wrapper
         env:

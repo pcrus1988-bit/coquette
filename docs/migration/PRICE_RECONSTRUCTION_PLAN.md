@@ -1,140 +1,188 @@
-# COQUETTE — Deterministic Price Reconstruction Plan
+# COQUETTE — Deterministic Price Reconstruction and Guarded Execution
 
-**Phase:** 4H  
-**Scope:** public regular/sale pricing only  
-**Execution:** planning and manifest generation only in this phase
+**Planning phase:** 4H  
+**Guarded execution phase:** 4J  
+**Scope:** public regular/sale pricing only
 
 ## Purpose
 
-Phase 4H reconstructs the public legacy product pricing domain without extending the structural `product` manifest and without inventing any amount, currency, sale state, schedule or inventory quantity.
+Phase 4H reconstructs the recoverable public legacy pricing domain independently from structural product and inventory state. Phase 4J adds the first staging-only Medusa execution path for those deterministic price facts.
 
-The price plan consumes the already evidence-gated Phase 4F structural product plan. Pricing can only become `ready` when the corresponding product identity is structurally ready. This prevents price execution from outrunning SKU/product identity.
+No amount, currency, sale state, schedule or inventory quantity may be invented.
 
 ## Domain separation
 
-The following remain independent migration concerns:
+The migration domains remain independent:
 
-- `product`: product identity, copy, categories, captured media, option structure
-- `price`: regular price, optional lower sale/special price, explicit currency
-- `inventory`: public stock state and later exact quantities only when legitimately known
+- `product`: identity, copy, categories, captured media, options and Designer/Brand relationship;
+- `price`: regular price, optional lower sale price and explicit currency;
+- `inventory`: public stock evidence and later exact quantities only when legitimately known.
 
-A change to price must not alter the structural product checksum. A structural copy/media/category change must not alter the price checksum when SKU and recovered price facts are unchanged.
+A price-only change does not alter the structural product checksum. A structural copy/media/category change does not alter the price checksum when SKU and recovered price facts are unchanged.
 
-### Recovery boundary
-
-Public recovery keeps price and inventory observations attached to the candidate for provenance, but domain-specific defects no longer decide structural product readiness.
-
-In particular:
-
-- missing price currency does not make a structurally complete product incomplete;
-- conflicting regular/sale/currency observations remain recorded but do not block structural product reconstruction;
-- invalid sale-vs-regular relationships remain recorded but are adjudicated by the price plan;
-- unsafe indexed stock evidence remains recorded and excluded from selected stock state, but does not block an otherwise structurally complete product.
-
-The downstream price plan explicitly inspects retained pricing conflicts and fails closed with `price_evidence_conflict_requires_review`. Inventory will receive the same independent-accountability treatment in its own migration plan. This means domain separation applies to readiness and execution—not only to checksums.
+Phase 4J additionally carries the structural product checksum into each price-plan entry. Pricing may execute only when the product manifest proves that the exact structural checksum has already been imported and has a concrete Medusa product target.
 
 ## Accepted public price evidence
 
-A price entry may be planned automatically only when:
+Automatic price planning requires:
 
-1. the structural product plan entry is `ready`;
-2. the product has a non-empty SKU and stable product source key;
-3. an explicit regular price is recovered;
-4. the explicit currency is `EUR`;
-5. the regular price is finite and strictly positive;
-6. an optional sale price is finite, strictly positive and strictly lower than the regular price;
-7. no unresolved pricing-evidence conflict remains for regular price, sale price or currency.
+1. structurally `ready` product identity;
+2. non-empty SKU and product source key;
+3. retained structural product checksum;
+4. explicit regular price;
+5. explicit `EUR` currency;
+6. finite positive regular price;
+7. optional sale price that is finite, positive and strictly lower than regular price;
+8. no unresolved regular/sale/currency evidence conflicts.
 
-No currency is inferred from deployment region or shop defaults during migration.
+Currency is never inferred from deployment region or store defaults during migration.
 
 ## Explicit unavailable state
 
-If neither a regular price nor a sale price was recovered from public evidence, the entry is classified as `unavailable` with warning `public_price_not_recovered`.
+If no public regular or sale price was recovered, the price entry is `unavailable` with warning `public_price_not_recovered`.
 
-`unavailable` is an accountable outcome, not a guessed zero price and not a structural product failure. It produces no runtime price-manifest entry.
+`unavailable` is an accountable non-write state. It is not converted to zero and does not make the structural product invalid.
 
-A price plan can therefore be reconciled while containing explicitly unavailable prices, but it is executable only when at least one deterministic `ready` price exists and no blockers remain.
+## Independent price manifest
 
-## Blockers
+Every deterministic price entry uses:
 
-The plan fails closed for conditions including:
+- `entityType`: `price`;
+- `sourceId`: the corresponding legacy public product source URL;
+- explicit locale inherited from the structural product source identity where available.
 
-- structural product not ready;
-- missing structural product source key or SKU identity;
-- sale price present without a regular price;
-- missing/unsupported currency;
-- zero, negative or non-finite regular/sale price;
-- sale price equal to or above the regular price;
-- unresolved regular/sale/currency evidence conflicts;
-- duplicate price SKU/source/runtime-manifest identity.
+The semantic price checksum contains only:
 
-Ambiguous sale markup is reviewed rather than silently normalized.
+- SKU;
+- currency code;
+- regular price;
+- optional sale price.
 
-## Manifest semantics
+The runtime price manifest is independent from the structural product manifest. Its `targetId` is the Medusa variant ID after successful price execution.
 
-Every deterministic price entry receives an independent migration source key:
+## Phase 4J execution preflight
 
-- `entityType`: `price`
-- `sourceId`: the corresponding legacy public product source URL
-- `locale`: inherited from the structural product source key when explicitly recoverable
+Each price entry becomes one action:
 
-The semantic price checksum includes only:
+- `apply` — deterministic price exists and must be created, repaired or updated;
+- `skip` — the prior price manifest proves the same price checksum was imported;
+- `unavailable` — no public price was recovered and no write is attempted;
+- `blocked` — identity, structural dependency, manifest or evidence requirements are unresolved.
 
-- SKU
-- currency code
-- regular price
-- optional sale price
+Before an `apply` or `skip` entry is executable, Phase 4J requires:
 
-It excludes capture timestamps, evidence notes, product copy, product media, categories and inventory state.
+- an exact pending runtime price-manifest entry for the current price checksum;
+- exactly one matching structural `product` manifest entry;
+- structural manifest status `imported`;
+- non-empty Medusa product target ID;
+- structural manifest checksum equal to the structural checksum retained by the price plan;
+- no duplicate product or price manifest keys.
 
-## Monetary units
+This prevents price execution from outrunning a changed or not-yet-imported structural product.
 
-Medusa v2.19 price amounts use major currency units. A recovered public price such as `129.90 EUR` remains `129.90` for Medusa pricing; Phase 4H must not multiply it by 100.
+## Changed public prices
 
-Currency is normalized for source reconstruction as `EUR`. Any later Medusa execution adapter may convert the code to the Medusa API's lowercase `eur` representation without changing the recovered monetary value.
+Phase 4J is the explicit price-update strategy that Phase 4H intentionally deferred.
 
-## Sale price-list boundary
+A prior imported price manifest with a different price checksum is allowed to become `apply` only when the structural checksum still matches the imported product target. The executor then updates the live Medusa pricing state and checkpoints the new price checksum.
 
-Phase 4H records deterministic regular/sale facts but does **not** yet write them to Medusa.
+A structural checksum mismatch remains blocking.
 
-A later staging execution phase must:
+## Live SKU/product verification
 
-- resolve the imported Medusa variant corresponding to the migration SKU/source identity;
-- write the regular EUR price to that variant's price set;
-- represent a recovered lower sale price through an explicit Medusa `sale` price-list path;
-- remain idempotent on rerun;
-- refuse changed-checksum updates until an explicit update strategy exists;
-- avoid inventing sale start/end dates that were not recovered from public evidence.
+In write mode, the executor resolves the SKU in Medusa and requires exactly one variant. That variant's `product_id` must equal the target ID recorded by the imported structural product manifest.
 
-The existing COQUETTE Sale storefront must continue to rely on Medusa's authoritative calculated/original pricing graph, not on client-side discount arithmetic.
+A matching SKU on any other product aborts the migration.
+
+## Regular EUR price
+
+The regular price is written through Medusa's supported `updateProductVariantsWorkflow` pricing path using major currency units and lowercase API currency code `eur`.
+
+A recovered public price such as `129.90 EUR` remains `129.90`; it is never multiplied by 100.
+
+The executor verifies that exactly one unrestricted base EUR price exists for the variant after the write and that its amount exactly equals the reconstructed regular price.
+
+## Recovered sale price
+
+Recovered lower sale prices use a dedicated Medusa price list:
+
+- type: `sale`;
+- status: `active`;
+- no start date;
+- no end date;
+- no rules;
+- migration metadata marker: `coquette_migration_price_list=legacy-public-sale-v1`.
+
+No sale schedule is invented because the public evidence did not recover one.
+
+The dedicated price list is discovered by its metadata marker. More than one matching list is a hard error. If the marked list has been changed to draft, scheduled or rule-bound state, execution fails closed rather than overwriting merchant changes.
+
+Sale price creation/update/removal uses Medusa's supported price-list batch workflow.
+
+If a previously recovered sale disappears from current public evidence while the regular price remains valid, Phase 4J removes only the price belonging to the dedicated COQUETTE migration sale list. It does not delete unrelated merchant price-list entries.
+
+## Foreign active sale protection
+
+If the target variant already has an active unrestricted EUR sale price outside the dedicated migration sale list, Phase 4J aborts that entry. This avoids producing ambiguous calculated pricing during reconstruction.
+
+## Retry and drift recovery
+
+- prior `pending` or `error` price manifest → `apply`;
+- prior `imported` + changed price checksum → `apply` using the explicit update strategy;
+- prior `imported` + same checksum → `skip`, but live state is still verified;
+- prior `skipped` → blocked for reconciliation;
+- duplicate price manifest keys → blocked.
+
+If the live price state drifted while the source checksum stayed unchanged, the write executor repairs the exact expected state and records a manifest warning.
+
+If a price write succeeded but manifest persistence failed, a retry re-resolves the same variant/product identity, observes the already-correct live state and then checkpoints the manifest without duplicating prices.
+
+## Staging write guard
+
+Dry-run remains the default.
+
+Write mode reuses the structural migration guard and requires all of:
+
+```bash
+export COQUETTE_MIGRATION_MODE="write"
+export COQUETTE_MIGRATION_TARGET="staging"
+export COQUETTE_MIGRATION_ALLOW_WRITE="COQUETTE_STAGING_WRITE_CONFIRMED"
+export COQUETTE_MIGRATION_EXPECTED_DATABASE_HOST="<exact-staging-db-host>"
+export COQUETTE_MIGRATION_EXPECTED_DATABASE_NAME="<exact-staging-db-name>"
+```
+
+Required price-import files:
+
+```bash
+export COQUETTE_STAGING_PRICE_IMPORT_REPORT="/private/capture-ingestion-report.json"
+export COQUETTE_STAGING_PRODUCT_MANIFEST="/private/product-manifest.json"
+export COQUETTE_STAGING_PRICE_MANIFEST="/private/price-manifest.json"
+```
+
+The live `DATABASE_URL` host and database name must exactly match the expected staging values. `production` is not accepted.
+
+## CI contracts
+
+Phase 4J adds two gates:
+
+1. `staging-price-execution:contract` — pure preflight coverage for imported structural dependency, structural checksum freshness, same-checksum skip, changed-price apply, retry states, duplicate manifests and explicit unavailable prices.
+2. `staging-price-import:contract` — disposable PostgreSQL integration. It creates a structural product through the guarded product importer, applies regular + sale pricing, reruns idempotently, changes both prices, verifies the structural checksum is unchanged while the price checksum changes, updates pricing in place, then removes the recovered sale while retaining the regular price.
+
+The existing Sale pricing graph contract remains in CI after the price executor is exercised.
 
 ## Inventory boundary
 
-Price planning does not set stock quantities and does not convert public `in_stock` / `out_of_stock` wording into invented inventory numbers. Exact inventory remains a separate manifest/execution domain.
-
-## CI contract
-
-`price-plan:contract` proves at minimum:
-
-- regular-price planning;
-- valid lower sale-price planning;
-- independent `price` manifest identity;
-- price checksum stability across structural-only changes;
-- checksum change when price changes;
-- explicit `unavailable` behavior when public price is missing;
-- structural readiness remains intact for missing/invalid price-only data;
-- rejection of sale-without-regular, missing currency, zero price and non-discounting sale values in the price domain;
-- retained pricing-evidence conflicts block price planning rather than structural product planning;
-- blocking when structural product identity is not ready.
+Price execution does not set or infer inventory quantities and does not convert public `in_stock` / `out_of_stock` wording into invented stock levels. Inventory remains a separate migration domain.
 
 ## Non-goals
 
-Phase 4H does not:
+Phase 4J does not:
 
-- write to COQUETTE staging or production;
-- create/update Medusa price sets or price lists;
-- invent tax-inclusive/exclusive semantics not already established by the commerce configuration;
-- create sale schedules;
-- import inventory quantities;
-- unblock configurable parents whose child variants are unresolved;
-- bypass Product ↔ Brand structural relationship requirements.
+- write to production;
+- run automatically against the real COQUETTE staging database;
+- invent currency, price, discount, sale dates or price-list rules;
+- import exact inventory quantities;
+- import unresolved configurable parents/children;
+- bypass structural Product ↔ Brand requirements;
+- overwrite unrelated merchant sale price lists;
+- treat a price manifest as proof of structural or inventory reconciliation.
