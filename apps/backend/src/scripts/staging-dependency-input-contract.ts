@@ -177,7 +177,7 @@ async function main() {
         [stagingDependencyPlanEnvironment.allowedMediaHosts]:
           `${servingHost},coquetteconcept.gr`,
       },
-      /Staging dependency mapping plan is not verified/
+      /coquetteconcept\.gr cannot be configured as a staging serving-media host/
     )
 
     console.log(
