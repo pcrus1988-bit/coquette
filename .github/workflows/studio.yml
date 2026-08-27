@@ -42,6 +42,7 @@ jobs:
         run: |
           node --check apps/studio/login.js
           node --check apps/studio/studio.js
+          node --check apps/studio/new-piece.js
           node --check apps/studio/lib/medusa.js
           node --check apps/studio/api/auth/login.js
           node --check apps/studio/api/auth/me.js
@@ -52,6 +53,8 @@ jobs:
           node --check apps/studio/api/studio/orders.js
           node --check apps/studio/api/studio/order.js
           node --check apps/studio/api/studio/product-drafts.js
+          node --check apps/studio/api/studio/product-draft-update.js
+          node --check apps/studio/api/studio/drafts.js
 
       - name: Validate Vercel configuration
         run: node -e "JSON.parse(require('fs').readFileSync('apps/studio/vercel.json','utf8'))"
@@ -71,12 +74,12 @@ jobs:
             echo 'Browser token/session storage is forbidden in COQUETTE Studio.' >&2
             exit 1
           fi
-          if grep -R -n -E 'Bearer|authorization' apps/studio/login.js apps/studio/studio.js; then
+          if grep -R -n -E 'Bearer|authorization' apps/studio/login.js apps/studio/studio.js apps/studio/new-piece.js; then
             echo 'Browser code must not receive or construct Medusa bearer tokens.' >&2
             exit 1
           fi
 
-      - name: Enforce guarded product draft boundary
+      - name: Enforce guarded product creation boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -91,11 +94,37 @@ jobs:
           count=$(grep -R -l "admin(req, '/admin/products'.*method: 'POST'\|admin(req, '/admin/products'" apps/studio/api/studio | wc -l)
           test "$count" -eq 1
 
+      - name: Enforce guided draft autosave boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=apps/studio/api/studio/product-draft-update.js
+          grep -q "current.status !== 'draft'" "$file"
+          grep -q "coquette_studio_origin" "$file"
+          grep -q "expected_updated_at" "$file"
+          grep -q "stale_draft" "$file"
+          grep -q "coquette_studio_flow = 'guided_new_piece'" "$file"
+          grep -q "product.status !== 'draft'" "$file"
+          if grep -n -E "status:[[:space:]]*['\"]published['\"]|inventory_quantity|inventory_items|sales_channels|prices:|payment_status|fulfillment_status" "$file"; then
+            echo 'Guided autosave must remain descriptive/editorial and unpublished.' >&2
+            exit 1
+          fi
+          grep -q '/api/studio/product-draft-update' apps/studio/new-piece.js
+          grep -q 'expected_updated_at' apps/studio/new-piece.js
+          grep -q '/api/studio/drafts' apps/studio/new-piece.js
+          if grep -n -E "published|inventory_quantity|sales_channels|prices:" apps/studio/new-piece.js | grep -v -E "unpublished|Unpublished|Publish|publication|published product|price|inventory|sales-channel"; then
+            echo 'Review guided New Piece client for an accidental commerce mutation surface.' >&2
+            exit 1
+          fi
+
       - name: Validate production Studio surfaces
         run: |
           grep -q 'COQUETTE Assistant' apps/studio/studio.html
           grep -q 'product-grid' apps/studio/studio.html
           grep -q 'Order Story' apps/studio/studio.html
           grep -q 'workspace-drawer' apps/studio/studio.html
-          grep -q 'quick-draft-form' apps/studio/studio.js
+          grep -q 'guided-new-piece' apps/studio/studio.html
+          grep -q 'new-piece-layer' apps/studio/studio.html
+          grep -q "stepIntro(8, 'Review it like a stylist.'" apps/studio/new-piece.js
+          grep -q 'Publish — guarded activation not enabled yet' apps/studio/new-piece.js
           grep -q 'Ένα κορίτσι πρέπει να είναι δύο πράγματα' apps/studio/index.html

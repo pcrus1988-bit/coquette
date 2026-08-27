@@ -8,6 +8,7 @@
   <title>COQUETTE Studio — Today</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/boutique.css" />
+  <link rel="stylesheet" href="/new-piece.css" />
 </head>
 <body>
   <div class="boot" id="boot">Opening Studio…</div>
@@ -51,7 +52,7 @@
 
       <section class="screen" id="view-boutique">
         <div class="hero compact"><p class="eyebrow">Boutique</p><h1>Τα κομμάτια σας.</h1><p>Μια editorial εικόνα του πραγματικού catalogue — χωρίς να χρειάζεται να σκέφτεστε σε entities, tables ή τεχνικούς κωδικούς.</p></div>
-        <div class="workspace-head"><div><p class="eyebrow">Live catalogue</p><h2>Η συλλογή αυτή τη στιγμή.</h2></div><div class="workspace-count" id="product-count">—</div></div>
+        <div class="workspace-head"><div><p class="eyebrow">Live catalogue</p><h2>Η συλλογή αυτή τη στιγμή.</h2></div><div class="boutique-head-actions"><button class="guided-action" id="guided-new-piece">+ Guided New Piece</button><div class="workspace-count" id="product-count">—</div></div></div>
         <div class="workspace-toolbar">
           <label class="workspace-search"><span>⌕</span><input id="product-search" type="search" placeholder="Όνομα, handle ή προϊόν…" autocomplete="off" /></label>
           <div class="view-switch" aria-label="Catalogue view"><button class="active" data-product-view="grid">Grid</button><button data-product-view="list">List</button></div>
@@ -96,8 +97,10 @@
       <div class="workspace-body" id="workspace-body"><div class="drawer-loading">Loading…</div></div>
     </aside>
 
+    <section class="new-piece-layer" id="new-piece-layer" hidden aria-label="Guided New Piece workspace"></section>
     <section class="palette" id="palette" hidden><div class="palette-box"><div class="palette-input"><span>⌕</span><input id="palette-input" type="search" placeholder="Τι θέλετε να κάνετε;" autocomplete="off" /><kbd>ESC</kbd></div><div id="palette-results"></div></div></section>
   </section>
+  <script src="/new-piece.js" defer></script>
   <script src="/studio.js" defer></script>
 </body>
 </html>
