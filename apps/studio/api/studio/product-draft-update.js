@@ -2,6 +2,11 @@ const { admin, json } = require('../../lib/medusa')
 
 const ALLOWED_ORIGINS = new Set(['quick_draft'])
 const ALLOWED_CHOICE_MODES = new Set(['one-size', 'size', 'color', 'size-color'])
+const LOCKED_CHOICE_METADATA = [
+  'coquette_studio_choice_mode',
+  'coquette_studio_sizes',
+  'coquette_studio_colors',
+]
 
 function bodyObject(req) {
   if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return req.body
@@ -163,6 +168,19 @@ module.exports = async function handler(req, res) {
     }
 
     const existingMetadata = current.metadata && typeof current.metadata === 'object' ? current.metadata : {}
+    if (existingMetadata.coquette_studio_variants_generated === 'true') {
+      const changedLockedChoice = LOCKED_CHOICE_METADATA.some((key) =>
+        Object.prototype.hasOwnProperty.call(studioMetadata.metadata, key) &&
+        studioMetadata.metadata[key] !== existingMetadata[key]
+      )
+      if (changedLockedChoice) {
+        return json(res, 409, {
+          message: 'The size and colour blueprint is locked because its Medusa choices have already been built.',
+          code: 'variant_blueprint_locked',
+        })
+      }
+    }
+
     update.metadata = { ...existingMetadata, ...studioMetadata.metadata }
 
     const result = await admin(req, `/admin/products/${encodeURIComponent(id)}`, {
