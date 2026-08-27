@@ -11,7 +11,7 @@ Magento Admin/database/filesystem/API access is unavailable. Phase 4 therefore r
 
 ## Shipped to `main`
 
-Through Phase 4J merge `891e9111331161cd22a9b1b9a1f99b0ae6024b5c`.
+Through Phase 4K merge `f2c0dcd4d852e2750ef8d04ca894bdf7d9a58bfb`.
 
 ### Platform and commerce foundation
 
@@ -116,18 +116,12 @@ Merged PR #54 as `891e9111331161cd22a9b1b9a1f99b0ae6024b5c` after exact-head CI 
 - disposable PostgreSQL CI proves regular+sale creation, identical rerun, deterministic price update and sale removal
 - Railway deployable artifact and storefront build passed before merge
 
-No real COQUETTE staging or production product/price migration writes were performed while validating Phases 4I–4J.
-
-## Active implementation
-
 ### Phase 4K — deterministic inventory evidence/accountability
 
-Branch: `phase4/deterministic-inventory-evidence`.
+Merged PR #55 as `f2c0dcd4d852e2750ef8d04ca894bdf7d9a58bfb` after exact-head CI passed all gates.
 
-Implemented on the branch:
-
-- inventory is separated from structural product and price domains
-- qualitative public stock evidence can be `state_only`, `unavailable` or `blocked`
+- inventory evidence is separated from structural product and price domains
+- qualitative public stock evidence is classified `state_only`, `unavailable` or `blocked`
 - inventory evidence checksum contains SKU, stock state and low-stock message only
 - price/copy changes do not alter inventory evidence checksum
 - stock-state/low-stock changes do alter the inventory evidence checksum
@@ -137,17 +131,41 @@ Implemented on the branch:
 - missing or explicit unknown public stock becomes an explained `unavailable` outcome
 - conflicting direct/indexed stock evidence blocks inventory evidence for review
 - structurally blocked products remain blocked in the inventory domain
-- Phase 4K deliberately emits `runtimeManifestEntries: []`
-- Phase 4K deliberately exposes `isExecutable: false`
-- there is no Medusa inventory quantity write path in this phase
+- Phase 4K emits no runtime inventory manifest and exposes `isExecutable: false`
+- there is no Medusa inventory quantity write path
+- exact-head CI proved absence of numeric inventory inference and all existing database/build gates remained green
 
-A numeric inventory execution phase is forbidden until an authoritative source exposes exact quantities tied to exact variant/location identities.
+Canonical detail: `docs/migration/INVENTORY_EVIDENCE_PLAN.md`.
+
+No real COQUETTE staging or production product/price/inventory migration writes were performed while validating Phases 4I–4K.
+
+## Active implementation
+
+### Phase 4L — deterministic reconstruction review decisions
+
+Branch: `phase4/reconstruction-review-decisions`.
+
+Implemented on the branch:
+
+- deterministic review items for structural evidence conflicts, missing required fields, localization pairing, unknown/configurable product type, and duplicate product identity blockers
+- domains distinguish publication/visibility, localization, variant identity and other structural evidence
+- every review item carries an exact evidence checksum
+- stale decisions are invalid after evidence changes
+- evidence conflict selection must reference an exact observation already present on the review item
+- invented observation selections are rejected
+- missing publication/status data may receive a constrained target policy record, but that decision is marked `policy_only` and does not claim the legacy value was recovered
+- target publication policy does not create a normalized legacy product and does not unblock missing source evidence
+- missing alternate-locale pairing may be explicitly marked unavailable without inventing a URL
+- configurable products cannot be manually converted to simple products and child SKU/option/relationship identity remains deferred until actual evidence exists
+- duplicate decision keys, duplicate review keys and orphan decisions make the review plan unreconciled
+- reviewer, timestamp and rationale are mandatory
+- Phase 4L itself exposes `isExecutable: false` and performs no migration writes
 
 New CI gate:
 
-1. deterministic inventory evidence contract proving state-only accounting, checksum independence, conflict blocking and absence of any numeric inventory/runtime-manifest inference.
+1. reconstruction review decision contract proving stale-evidence rejection, observed-value-only selection, policy/source separation, localization no-invention, configurable variant fail-closed behavior, and duplicate/orphan decision rejection.
 
-Canonical detail: `docs/migration/INVENTORY_EVIDENCE_PLAN.md`.
+Canonical detail: `docs/migration/RECONSTRUCTION_REVIEW_DECISIONS.md`.
 
 ## Phase status
 
@@ -155,7 +173,7 @@ Canonical detail: `docs/migration/INVENTORY_EVIDENCE_PLAN.md`.
 - **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
 - **Phase 2 — Executable foundation:** Complete.
 - **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
-- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4J shipped, Phase 4K active.
+- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4K shipped, Phase 4L active.
 - **Phase 5 — Merchant back office parity:** Foundation started.
 - **Phase 6 — Storefront parity:** Materially advanced.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of sequence.
@@ -164,8 +182,8 @@ Canonical detail: `docs/migration/INVENTORY_EVIDENCE_PLAN.md`.
 
 ## Next Phase 4 milestones
 
-1. make Phase 4K exact-head CI fully green and merge it;
-2. add explicit review decisions for unresolved publication/visibility, localization and variant identity;
+1. make Phase 4L exact-head CI fully green and merge it;
+2. add a separate application phase that can consume only validated `evidence_selection` decisions while keeping policy-only/unavailable/deferred decisions out of reconstructed legacy facts;
 3. obtain a useful direct legacy capture from an accepted legitimate operator/browser network;
 4. ingest/reconcile the archive and drive candidate/import-plan/URL-universe blockers toward zero without weakening evidence gates;
 5. identify an authoritative exact inventory source before designing any numeric inventory execution path;
@@ -173,4 +191,4 @@ Canonical detail: `docs/migration/INVENTORY_EVIDENCE_PLAN.md`.
 
 ## Production boundary
 
-The legacy shop remains production. Phase 4K is evidence/accountability only and cannot write inventory. No real COQUETTE staging or production migration writes have been performed in this continuation. `coquetteconcept.gr` must not move until reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and blueprint cutover gates pass.
+The legacy shop remains production. Phase 4L is decision validation/accountability only and cannot write migration targets. No real COQUETTE staging or production migration writes have been performed in this continuation. `coquetteconcept.gr` must not move until reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and blueprint cutover gates pass.
