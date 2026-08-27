@@ -114,6 +114,9 @@ jobs:
       - name: Validate deterministic product import plan
         run: pnpm --filter @coquette/backend import-plan:contract
 
+      - name: Validate deterministic price reconstruction plan
+        run: pnpm --filter @coquette/backend price-plan:contract
+
       - name: Validate staging structural product execution preflight
         run: pnpm --filter @coquette/backend staging-product-execution:contract
 

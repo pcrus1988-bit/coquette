@@ -26,6 +26,7 @@
     "product-structure:contract": "ts-node src/scripts/product-structure-contract.ts",
     "archived-product-structure:contract": "ts-node src/scripts/archived-product-structure-contract.ts",
     "import-plan:contract": "ts-node src/scripts/import-plan-contract.ts",
+    "price-plan:contract": "ts-node src/scripts/price-plan-contract.ts",
     "staging-product-execution:contract": "ts-node src/scripts/staging-product-execution-contract.ts",
     "capture:ingest": "ts-node src/scripts/ingest-capture-artifact.ts",
     "staging-product-import": "medusa exec ./src/scripts/staging-product-import.ts",

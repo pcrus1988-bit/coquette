@@ -66,32 +66,54 @@ assert.ok(indexedOnly.blockers.includes("direct_or_authoritative_evidence_requir
 
 const unsafeIndexedStock = buildRecoveryProductCandidate("indexed-stock", [
   {
+    authority: "direct_storefront",
+    sourceUrl: directSource,
+    observedAt: "2026-08-26T12:00:00.000Z",
+    fields: {
+      sourceId: directSource,
+      canonicalUrl: directSource,
+      sku: "COQ-STOCK-DOMAIN",
+      name: "Stock-domain separation fixture",
+      status: "enabled",
+      visibility: "catalog_search",
+      type: "simple",
+      categorySourceIds: [],
+      optionValues: {},
+      mediaSourceIds: [],
+    },
+  },
+  {
     authority: "public_search_index",
     sourceUrl: directSource,
+    observedAt: "2026-08-26T13:00:00.000Z",
     freshnessLabel: "today",
     fields: {
-      name: "Unsafe indexed stock fixture",
       stockState: "in_stock",
     },
   },
 ])
 
+assert.equal(unsafeIndexedStock.disposition, "ready")
+assert.equal(unsafeIndexedStock.normalizedProduct?.sku, "COQ-STOCK-DOMAIN")
 assert.equal(unsafeIndexedStock.selected.stockState, undefined)
 assert.ok(
   unsafeIndexedStock.conflicts.some(
-    (conflict) => conflict.reason === "unsafe_field_authority"
+    (conflict) =>
+      conflict.field === "stockState" &&
+      conflict.reason === "unsafe_field_authority"
   )
 )
 
-const conflict = buildRecoveryProductCandidate("price-conflict", [
+const priceConflict = buildRecoveryProductCandidate("price-conflict", [
   {
-    authority: "authoritative_magento",
-    sourceUrl: "magento://catalog/product/42",
-    observedAt: "2026-08-20T10:00:00.000Z",
+    authority: "direct_storefront",
+    sourceUrl: directSource,
+    observedAt: "2026-08-26T12:00:00.000Z",
     fields: {
-      sourceId: "42",
-      sku: "COQ-42",
-      name: "Conflict fixture",
+      sourceId: directSource,
+      canonicalUrl: directSource,
+      sku: "COQ-PRICE-CONFLICT",
+      name: "Price conflict fixture",
       status: "enabled",
       visibility: "catalog_search",
       type: "simple",
@@ -105,23 +127,53 @@ const conflict = buildRecoveryProductCandidate("price-conflict", [
   {
     authority: "direct_storefront",
     sourceUrl: directSource,
-    observedAt: "2026-08-26T12:00:00.000Z",
+    observedAt: "2026-08-26T13:00:00.000Z",
     fields: {
       regularPrice: 110,
     },
   },
 ])
 
-assert.equal(conflict.disposition, "needs_review")
-assert.equal(conflict.selected.regularPrice, 100)
+assert.equal(priceConflict.disposition, "ready")
+assert.equal(priceConflict.normalizedProduct?.sku, "COQ-PRICE-CONFLICT")
+assert.equal(priceConflict.selected.regularPrice, 110)
 assert.ok(
-  conflict.conflicts.some(
+  priceConflict.conflicts.some(
     (entry) =>
       entry.field === "regularPrice" &&
-      entry.reason === "cross_authority_conflict" &&
+      entry.reason === "same_authority_conflict" &&
       entry.severity === "critical"
   )
 )
+
+const missingPriceCurrency = buildRecoveryProductCandidate(
+  "missing-price-currency",
+  [
+    {
+      authority: "direct_storefront",
+      sourceUrl: directSource,
+      observedAt: "2026-08-26T12:00:00.000Z",
+      fields: {
+        sourceId: directSource,
+        canonicalUrl: directSource,
+        sku: "COQ-NO-CURRENCY",
+        name: "Missing price currency fixture",
+        status: "enabled",
+        visibility: "catalog_search",
+        type: "simple",
+        categorySourceIds: [],
+        optionValues: {},
+        mediaSourceIds: [],
+        regularPrice: 100,
+      },
+    },
+  ]
+)
+
+assert.equal(missingPriceCurrency.disposition, "ready")
+assert.equal(missingPriceCurrency.normalizedProduct?.regularPrice, 100)
+assert.equal(missingPriceCurrency.normalizedProduct?.currencyCode, undefined)
+assert.ok(!missingPriceCurrency.missingRequiredFields.includes("currencyCode"))
 
 const invalidSale = buildRecoveryProductCandidate("invalid-sale", [
   {
@@ -145,7 +197,8 @@ const invalidSale = buildRecoveryProductCandidate("invalid-sale", [
   },
 ])
 
-assert.equal(invalidSale.disposition, "needs_review")
+assert.equal(invalidSale.disposition, "ready")
+assert.equal(invalidSale.normalizedProduct?.salePrice, 120)
 assert.ok(
   invalidSale.conflicts.some(
     (entry) => entry.reason === "invalid_value" && entry.field === "salePrice"
