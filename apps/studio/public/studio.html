@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta name="theme-color" content="#f4f0ea" />
+  <title>COQUETTE Studio — Today</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/boutique.css" />
+  <link rel="stylesheet" href="/new-piece.css" />
+  <link rel="stylesheet" href="/new-piece-media.css" />
+</head>
+<body>
+  <div class="boot" id="boot">Opening Studio…</div>
+  <section class="studio-shell" id="studio" hidden>
+    <aside class="sidebar" id="sidebar">
+      <header class="side-head"><img src="/assets/coquette-logo.svg" alt="COQUETTE Concept Store" /><button class="icon-btn" id="collapse" aria-label="Collapse navigation">‹</button></header>
+      <nav class="nav" aria-label="Studio navigation">
+        <button class="nav-link active" data-view="today"><span>01</span>Today</button>
+        <button class="nav-link" data-view="boutique"><span>02</span>Boutique</button>
+        <button class="nav-link" data-view="orders"><span>03</span>Orders</button>
+        <button class="nav-link" data-view="clients"><span>04</span>Clients</button>
+        <div class="nav-rule"></div>
+        <button class="nav-link muted" data-view="website"><span>05</span>Website</button>
+        <button class="nav-link muted" data-view="operations"><span>06</span>Operations</button>
+      </nav>
+      <footer class="side-foot"><span id="user-email">COQUETTE Studio</span><button id="logout">Sign out</button></footer>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="command" id="command"><span>Τι θέλετε να κάνετε;</span><kbd>Ctrl K</kbd></button>
+        <div class="top-actions"><button class="round" id="refresh" aria-label="Refresh">↻</button><button class="primary" id="new-piece">+ Νέο κομμάτι</button></div>
+      </header>
+
+      <section class="screen active" id="view-today">
+        <div class="hero"><p class="eyebrow" id="today-date"></p><h1 id="greeting">Καλημέρα.</h1><p id="assistant-copy">Συνδέομαι με το κατάστημά σας και ετοιμάζω ό,τι χρειάζεται την προσοχή σας.</p></div>
+        <section class="section">
+          <div class="section-head"><div><p class="eyebrow">Boutique Pulse</p><h2>Μια καθαρή εικόνα.</h2></div><span class="live-state" id="live-state">Connecting</span></div>
+          <div class="pulse">
+            <article class="metric"><span>Προϊόντα</span><strong id="metric-products">—</strong><small>στο Medusa catalogue</small></article>
+            <article class="metric"><span>Παραγγελίες</span><strong id="metric-orders">—</strong><small>συνολικά</small></article>
+            <article class="metric"><span>Νεότερη παραγγελία</span><strong class="small-metric" id="metric-latest">—</strong><small id="metric-latest-time">Δεν έχει φορτωθεί ακόμη</small></article>
+            <article class="metric"><span>Studio</span><strong class="small-metric">Live</strong><small>authenticated admin session</small></article>
+          </div>
+        </section>
+        <section class="section split">
+          <article class="panel"><p class="eyebrow">Από την τελευταία φορά</p><h3>Πρόσφατες παραγγελίες</h3><div class="order-list" id="recent-orders"><p class="empty">Φόρτωση…</p></div></article>
+          <article class="panel assistant-card"><p class="eyebrow">COQUETTE Assistant</p><h3>Τι αξίζει να δείτε πρώτα;</h3><p id="assistant-note">Το Studio δεν θα εφεύρει προτεραιότητες. Θα εμφανίσει πραγματικά δεδομένα μόλις τα λάβει από το Medusa.</p><button class="text-action" data-view="orders">Άνοιγμα παραγγελιών →</button></article>
+        </section>
+      </section>
+
+      <section class="screen" id="view-boutique">
+        <div class="hero compact"><p class="eyebrow">Boutique</p><h1>Τα κομμάτια σας.</h1><p>Μια editorial εικόνα του πραγματικού catalogue — χωρίς να χρειάζεται να σκέφτεστε σε entities, tables ή τεχνικούς κωδικούς.</p></div>
+        <div class="workspace-head"><div><p class="eyebrow">Live catalogue</p><h2>Η συλλογή αυτή τη στιγμή.</h2></div><div class="boutique-head-actions"><button class="guided-action" id="guided-new-piece">+ Guided New Piece</button><div class="workspace-count" id="product-count">—</div></div></div>
+        <div class="workspace-toolbar">
+          <label class="workspace-search"><span>⌕</span><input id="product-search" type="search" placeholder="Όνομα, handle ή προϊόν…" autocomplete="off" /></label>
+          <div class="view-switch" aria-label="Catalogue view"><button class="active" data-product-view="grid">Grid</button><button data-product-view="list">List</button></div>
+        </div>
+        <div class="filter-row" id="product-filters">
+          <button class="filter-chip active" data-product-status="">Όλα</button>
+          <button class="filter-chip" data-product-status="published">Δημοσιευμένα</button>
+          <button class="filter-chip" data-product-status="draft">Drafts</button>
+        </div>
+        <div class="product-grid" id="product-grid"><div class="catalogue-empty"><div><strong>Φόρτωση boutique…</strong><span>Ανακτώ τα πραγματικά προϊόντα του καταστήματος.</span></div></div></div>
+        <div class="pager"><button id="products-prev">← Προηγούμενα</button><span id="products-page">—</span><button id="products-next">Επόμενα →</button></div>
+      </section>
+
+      <section class="screen" id="view-orders">
+        <div class="hero compact"><p class="eyebrow">Orders</p><h1>Order Story.</h1><p>Κάθε παραγγελία ως ιστορία πελάτη και εκπλήρωσης — όχι ως μία σειρά από provider status codes.</p></div>
+        <div class="workspace-head"><div><p class="eyebrow">Live orders</p><h2>Τι κινείται τώρα.</h2></div><div class="workspace-count" id="order-count">—</div></div>
+        <div class="order-toolbar"><label class="workspace-search"><span>⌕</span><input id="order-search" type="search" placeholder="Αναζήτηση παραγγελίας ή πελάτη…" autocomplete="off" /></label></div>
+        <div class="filter-row" id="order-filters">
+          <button class="filter-chip active" data-order-filter="all">Όλες</button>
+          <button class="filter-chip" data-order-filter="attention">Χρειάζονται προσοχή</button>
+          <button class="filter-chip" data-order-filter="paid">Πληρωμένες</button>
+          <button class="filter-chip" data-order-filter="shipped">Απεσταλμένες</button>
+        </div>
+        <div class="panel"><div class="order-list" id="orders-view"><p class="empty">Φόρτωση…</p></div></div>
+        <div class="pager"><button id="orders-prev">← Προηγούμενες</button><span id="orders-page">—</span><button id="orders-next">Επόμενες →</button></div>
+      </section>
+
+      <section class="screen" id="view-clients"><div class="hero compact"><p class="eyebrow">Clients</p><h1>Το Client Book.</h1><p>Το relationship-first Client Book παραμένει το εγκεκριμένο UX. Η live customer σύνδεση ακολουθεί πάνω στο σταθερό orders/products layer που λειτουργεί ήδη εδώ.</p></div><div class="placeholder"><strong>Client Book — next live layer</strong><span>No invented customer data is shown. The next phase will connect customer profiles, purchase history and consent-safe boutique notes.</span></div></section>
+      <section class="screen" id="view-website"><div class="hero compact"><p class="eyebrow">Studio</p><h1>Website.</h1><p>Homepage, lookbooks, media και SEO θα εμφανίσουν τα υπάρχοντα managed content APIs εδώ, αντί να εκθέσουν technical Medusa screens.</p></div></section>
+      <section class="screen" id="view-operations"><div class="hero compact"><p class="eyebrow">Operations</p><h1>Behind the curtain.</h1><p>Payments, shipping και AADE/myDATA ανήκουν εδώ, με progressive disclosure και σαφείς επόμενες ενέργειες.</p></div></section>
+    </main>
+
+    <button class="assistant-tab" id="assistant-tab">COQUETTE Assistant</button>
+    <div class="floating-dock"><button data-view="today">Today</button><button data-view="boutique">Boutique</button><button data-view="orders">Orders</button><button id="focus">Focus</button></div>
+    <div class="mobile-nav"><button data-view="today">Today</button><button data-view="boutique">Boutique</button><button data-view="orders">Orders</button><button data-view="clients">Clients</button></div>
+
+    <div class="overlay" id="overlay" hidden></div>
+    <aside class="drawer" id="drawer"><header><div><p class="eyebrow">Personal assistant</p><h3>COQUETTE Assistant</h3></div><button id="drawer-close">×</button></header><div class="drawer-body"><p id="drawer-copy">I am using only live store information available to this authenticated session.</p><div class="assistant-rule"></div><button data-view="orders">Review recent orders →</button><button data-view="boutique">Open Boutique →</button></div></aside>
+
+    <aside class="workspace-drawer" id="workspace-drawer" aria-hidden="true">
+      <header><div><p class="eyebrow" id="workspace-eyebrow">Studio</p><h2 id="workspace-title">Details</h2></div><button class="close-workspace" id="workspace-close" aria-label="Close">×</button></header>
+      <div class="workspace-body" id="workspace-body"><div class="drawer-loading">Loading…</div></div>
+    </aside>
+
+    <section class="new-piece-layer" id="new-piece-layer" hidden aria-label="Guided New Piece workspace"></section>
+    <section class="palette" id="palette" hidden><div class="palette-box"><div class="palette-input"><span>⌕</span><input id="palette-input" type="search" placeholder="Τι θέλετε να κάνετε;" autocomplete="off" /><kbd>ESC</kbd></div><div id="palette-results"></div></div></section>
+  </section>
+  <script src="/new-piece.js" defer></script>
+  <script src="/new-piece-media.js" defer></script>
+  <script src="/studio.js" defer></script>
+</body>
+</html>
