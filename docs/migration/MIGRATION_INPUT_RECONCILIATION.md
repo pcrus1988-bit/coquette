@@ -6,13 +6,13 @@ Phase 4N creates the frozen, checksum-bound migration input bundle that sits bet
 
 It does **not** write Medusa products, prices, inventory, content, customers, orders, or any other commerce state.
 
-The goal is to prevent a stale or partially reviewed Phase 4F ingestion report from being mistaken for approved staging migration input.
+The goal is to prevent a stale, unverified, or partially reviewed capture-ingestion report from being mistaken for approved staging migration input.
 
 ## Inputs
 
 The reconciler accepts:
 
-1. a Phase 4F capture-ingestion report (`schemaVersion=3`);
+1. a Phase 4F capture-ingestion report (`schemaVersion=3`), now enriched by the Phase 4P operator evidence-package verification result;
 2. explicit Phase 4L review decisions, if any.
 
 It rebuilds and cross-checks all derived migration domains instead of trusting a copied plan blindly.
@@ -23,7 +23,12 @@ A bundle is `isReadyForStagingExecution=true` only when all of the following are
 
 - the capture-ingestion report is schema version 3;
 - a non-empty capture ID exists;
-- capture artifact validation passed;
+- normal capture artifact validation passed;
+- the Phase 4P evidence package independently verified from disk;
+- an evidence-package checksum is present;
+- evidence-package provenance is `operator_local_browser`;
+- evidence-package transport is `browser`;
+- evidence-package browser mode is `headed` or `headless`;
 - the direct capture is explicitly declared complete;
 - no capture failure reason remains;
 - at least one recovered product candidate exists;
@@ -40,6 +45,28 @@ A bundle is `isReadyForStagingExecution=true` only when all of the following are
 - the complete reconstruction URL universe is fully classified with zero unresolved URLs.
 
 Any failure produces explicit `globalBlockers` and the bundle is not staging-ready.
+
+## Phase 4P direct-capture provenance boundary
+
+GitHub/cloud-runner capture attempts remain useful diagnostics, but they cannot satisfy Phase 4N staging readiness.
+
+A direct capture must first pass the Phase 4P operator workflow described in `docs/migration/OPERATOR_DIRECT_CAPTURE.md`. The capture directory is covered by `evidence-package.json`, including SHA-256 checksums for every preserved artifact.
+
+`capture:ingest` re-verifies that package from disk and records the result inside `report.capture.evidencePackage`.
+
+Phase 4N then requires:
+
+```text
+isValid = true
+provenanceMode = operator_local_browser
+transport = browser
+browserMode = headed | headless
+packageChecksum = present
+```
+
+The accepted package checksum is copied to `captureEvidencePackageChecksum` in the frozen Phase 4N bundle and is part of that bundle's semantic checksum.
+
+This means later changing the accepted capture package also changes the Phase 4N bundle and therefore requires a new Phase 4O checksum pin.
 
 ## Price and inventory distinction
 
@@ -66,7 +93,7 @@ Additionally, Phase 4N requires all review items to be closed for staging readin
 
 The bundle contains independent checksums for:
 
-- capture identity/input;
+- capture identity/input, including the evidence-package verification metadata;
 - original candidates;
 - source ProductImportPlan;
 - review decisions;
@@ -77,18 +104,22 @@ The bundle contains independent checksums for:
 - InventoryPlan;
 - reconstruction URL universe.
 
-It also contains one deterministic `bundleChecksum` over the staging-relevant bundle payload.
+It also contains:
 
-`generatedAt` is intentionally excluded from the bundle identity so regenerating identical migration input at a different clock time does not change the checksum.
+- `captureEvidencePackageChecksum`, copied from the accepted Phase 4P evidence package;
+- one deterministic `bundleChecksum` over the staging-relevant bundle payload.
 
-These are deterministic integrity/staleness checks, not cryptographic signatures or authorization credentials.
+`generatedAt` is intentionally excluded from bundle identity so regenerating identical migration input at a different clock time does not change the checksum.
+
+These checksums are deterministic integrity/staleness controls, not cryptographic signatures or authorization credentials.
 
 ## Bundle verification
 
 `verifyMigrationInputReconciliationBundle` recomputes all embedded plan checksums that can be verified from bundle contents and rejects:
 
+- a bundle missing `captureEvidencePackageChecksum`;
 - tampered product/price/inventory/review/URL plan contents;
-- a changed bundle payload without a matching bundle checksum;
+- a changed evidence-package checksum or other bundle payload without a matching bundle checksum;
 - any bundle carrying blockers;
 - a bundle no longer marked reconciled/ready;
 - a non-executable reviewed ProductImportPlan;
@@ -97,7 +128,9 @@ These are deterministic integrity/staleness checks, not cryptographic signatures
 - unresolved URLs;
 - open, deferred, or invalid review items.
 
-## Operator CLI
+Filesystem-level capture-package verification happens during Phase 4P ingestion, before the frozen Phase 4N bundle is created.
+
+## Operator reconciliation CLI
 
 Run:
 
@@ -114,11 +147,13 @@ The command always writes the reconciliation result for auditability. It exits w
 
 It never writes a Medusa runtime manifest.
 
+The historical raw `COQUETTE_RUNTIME_IMPORT_MANIFEST` output from `capture:ingest` is retired by Phase 4P.
+
 ## Executor boundary after Phase 4O
 
 Phase 4O closes the historical raw-report execution gap.
 
-The guarded structural product and price staging executors now require:
+The guarded structural product and price staging executors require:
 
 ```text
 COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE=/path/reconciliation-bundle.json
@@ -135,8 +170,8 @@ Canonical executor detail: `docs/migration/STAGING_MIGRATION_INPUT.md`.
 
 ## Production boundary
 
-Phase 4N is not a production migration or cutover tool, and Phase 4O's executor hardening does not itself authorize a real staging migration.
+Phase 4N is not a production migration or cutover tool. Phase 4P capture provenance and Phase 4O executor hardening do not themselves authorize a real staging migration.
 
 `coquetteconcept.gr` remains the production shop until the full reconstruction, UAT, payment/courier/fiscal, SEO, rollback, backup/restore, and blueprint cutover gates pass.
 
-No real COQUETTE staging or production migration writes are performed by Phase 4N/4O validation.
+No real COQUETTE staging or production migration writes are performed by Phase 4N/4O/4P validation.
