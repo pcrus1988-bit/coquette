@@ -140,6 +140,14 @@ const criticalConflictFields = new Set<keyof RecoveryProductFields>([
   "currencyCode",
 ])
 
+const nonStructuralRecoveryFields = new Set<keyof RecoveryProductFields>([
+  "regularPrice",
+  "salePrice",
+  "currencyCode",
+  "stockState",
+  "lowStockMessage",
+])
+
 function timestamp(value?: string) {
   if (!value) return 0
   const parsed = Date.parse(value)
@@ -207,6 +215,12 @@ function buildEvidence(
       .filter(Boolean)
       .join("; "),
   }))
+}
+
+function isStructuralConflict(conflict: RecoveryCandidateConflict) {
+  return !nonStructuralRecoveryFields.has(
+    conflict.field as keyof RecoveryProductFields
+  )
 }
 
 export function buildRecoveryProductCandidate(
@@ -309,13 +323,6 @@ export function buildRecoveryProductCandidate(
     .filter((field) => !hasUsableValue(selected[field]))
     .map(String)
 
-  if (
-    (selected.regularPrice !== undefined || selected.salePrice !== undefined) &&
-    selected.currencyCode === undefined
-  ) {
-    missingRequiredFields.push("currencyCode")
-  }
-
   const blockers: string[] = []
   const strongObservations = observations.filter(
     (observation) =>
@@ -347,8 +354,11 @@ export function buildRecoveryProductCandidate(
     })
   }
 
+  const structuralConflicts = conflicts.filter(isStructuralConflict)
   const disposition: RecoveryCandidateDisposition =
-    missingRequiredFields.length > 0 || blockers.length > 0 || conflicts.length > 0
+    missingRequiredFields.length > 0 ||
+    blockers.length > 0 ||
+    structuralConflicts.length > 0
       ? "needs_review"
       : "ready"
 
