@@ -1,0 +1,224 @@
+name: COQUETTE Studio Lifecycle CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "apps/studio/new-piece-lifecycle.js"
+      - "apps/studio/new-piece-lifecycle.css"
+      - "apps/studio/public/new-piece-lifecycle.js"
+      - "apps/studio/public/new-piece-lifecycle.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/lifecycle-*.js"
+      - "apps/backend/src/api/admin/studio/lifecycle/**"
+      - "apps/backend/src/lib/studio-lifecycle.ts"
+      - "apps/backend/src/workflows/apply-studio-lifecycle.ts"
+      - "apps/backend/src/scripts/studio-lifecycle-contract.ts"
+      - ".github/workflows/studio-lifecycle.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/studio/new-piece-lifecycle.js"
+      - "apps/studio/new-piece-lifecycle.css"
+      - "apps/studio/public/new-piece-lifecycle.js"
+      - "apps/studio/public/new-piece-lifecycle.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/lifecycle-*.js"
+      - "apps/backend/src/api/admin/studio/lifecycle/**"
+      - "apps/backend/src/lib/studio-lifecycle.ts"
+      - "apps/backend/src/workflows/apply-studio-lifecycle.ts"
+      - "apps/backend/src/scripts/studio-lifecycle-contract.ts"
+      - ".github/workflows/studio-lifecycle.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coquette-studio-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+
+      - name: Validate lifecycle JavaScript syntax
+        run: |
+          node --check apps/studio/new-piece-lifecycle.js
+          node --check apps/studio/public/new-piece-lifecycle.js
+          node --check apps/studio/api/studio/lifecycle-state.js
+          node --check apps/studio/api/studio/lifecycle-plan.js
+          node --check apps/studio/api/studio/lifecycle-apply.js
+
+      - name: Enforce production asset parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s apps/studio/new-piece-lifecycle.js
+          test -s apps/studio/new-piece-lifecycle.css
+          cmp -s apps/studio/new-piece-lifecycle.js apps/studio/public/new-piece-lifecycle.js
+          cmp -s apps/studio/new-piece-lifecycle.css apps/studio/public/new-piece-lifecycle.css
+          cmp -s apps/studio/studio.html apps/studio/public/studio.html
+          grep -q '/new-piece-lifecycle.css' apps/studio/studio.html
+          grep -q '/new-piece-lifecycle.js' apps/studio/studio.html
+          grep -q '/new-piece-lifecycle.css' apps/studio/public/studio.html
+          grep -q '/new-piece-lifecycle.js' apps/studio/public/studio.html
+
+      - name: Enforce guarded visibility boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          domain=apps/backend/src/lib/studio-lifecycle.ts
+          workflow=apps/backend/src/workflows/apply-studio-lifecycle.ts
+          contract=apps/backend/src/scripts/studio-lifecycle-contract.ts
+          apply=apps/backend/src/api/admin/studio/lifecycle/apply/route.ts
+          client=apps/studio/new-piece-lifecycle.js
+
+          grep -q 'createHash("sha256")' "$domain"
+          grep -q 'ProductStatus.DRAFT' "$domain"
+          grep -q 'ProductStatus.PUBLISHED' "$domain"
+          grep -q 'default_sales_channel_id' "$domain"
+          grep -q 'price_fingerprint' "$domain"
+          grep -q 'stale_lifecycle_plan' "$domain"
+          grep -q 'foreign_sales_channel' "$domain"
+          grep -q 'exactly one unrestricted base EUR price' "$domain"
+
+          grep -q 'createLinksWorkflow' "$workflow"
+          grep -q 'updateProductsWorkflow' "$workflow"
+          grep -q 'studio-lifecycle-attach-canonical-channel' "$workflow"
+          grep -q 'when(' "$workflow"
+
+          grep -q 'Modules.LOCKING' "$apply"
+          grep -q 'coquette-studio-lifecycle' "$apply"
+          grep -q 'lifecycle_hash' "$apply"
+
+          grep -q '/api/studio/lifecycle-state' "$client"
+          grep -q '/api/studio/lifecycle-plan' "$client"
+          grep -q '/api/studio/lifecycle-apply' "$client"
+          grep -q 'Canonical channel only' "$client"
+          grep -q 'No archive guessing' "$client"
+          grep -q 'lifecycle_hash' "$client"
+
+          grep -q 'publish_not_ready' "$contract"
+          grep -q 'stale_lifecycle_plan' "$contract"
+          grep -q 'attach_canonical_sales_channel, true' "$contract"
+          grep -q 'attach_canonical_sales_channel, false' "$contract"
+          grep -q 'record.status, "published"' "$contract"
+          grep -q 'record.status, "draft"' "$contract"
+
+          if grep -R -n -E 'stocked_quantity|inventory_hash|manage_inventory|allow_backorder|barcode|category_ids|designer_id|[.]ean\b|[.]upc\b|\bean[[:space:]]*:|\bupc[[:space:]]*:' \
+            apps/backend/src/api/admin/studio/lifecycle apps/backend/src/workflows/apply-studio-lifecycle.ts apps/studio/new-piece-lifecycle.js; then
+            echo 'Studio lifecycle must not mutate inventory, identifiers or taxonomy.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E 'archive|scheduled_at|publish_at|starts_at|ends_at' \
+            apps/backend/src/api/admin/studio/lifecycle apps/backend/src/workflows/apply-studio-lifecycle.ts; then
+            echo 'This lifecycle increment must not invent archive or scheduling semantics.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E 'localStorage|sessionStorage|Bearer|authorization' apps/studio/new-piece-lifecycle.js; then
+            echo 'Lifecycle UI must use the authenticated same-origin Studio session.' >&2
+            exit 1
+          fi
+
+  runtime-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coquette_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coquette_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/coquette_ci
+      REDIS_URL: redis://localhost:6379
+      STORE_CORS: http://localhost:8000
+      ADMIN_CORS: http://localhost:9000
+      AUTH_CORS: http://localhost:8000,http://localhost:9000
+      JWT_SECRET: ci-build-only-secret
+      COOKIE_SECRET: ci-build-only-secret
+      MEDUSA_BACKEND_URL: http://localhost:9000
+      MEDUSA_WORKER_MODE: server
+      DISABLE_MEDUSA_ADMIN: "false"
+      PAYPAL_CLIENT_ID: ci-paypal-client
+      PAYPAL_CLIENT_SECRET: ci-paypal-secret
+      PAYPAL_ENVIRONMENT: sandbox
+      PAYPAL_AUTO_CAPTURE: "false"
+      KLARNA_USERNAME: ci-klarna-user
+      KLARNA_PASSWORD: ci-klarna-password
+      KLARNA_CALLBACK_BASE_URL: https://coquette-ci.example
+      KLARNA_CALLBACK_SECRET: ci-klarna-callback-secret
+      KLARNA_ENVIRONMENT: playground
+      KLARNA_API_REGION: eu
+      KLARNA_PURCHASE_COUNTRY: GR
+      KLARNA_LOCALE: el-GR
+      COQUETTE_STANDARD_SHIPPING_EUR: "4.90"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check lifecycle backend
+        run: pnpm --filter @coquette/backend exec tsc --noEmit
+
+      - name: Enforce Medusa lint rules
+        run: pnpm --filter @coquette/backend lint
+
+      - name: Run Medusa migrations
+        run: pnpm --filter @coquette/backend db:migrate
+
+      - name: Bootstrap canonical staging commerce defaults
+        run: pnpm --filter @coquette/backend staging:bootstrap
+
+      - name: Validate guarded publication lifecycle contract
+        run: pnpm --filter @coquette/backend exec medusa exec ./src/scripts/studio-lifecycle-contract.ts
