@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#f4f0ea" />
   <title>COQUETTE Studio — Today</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/boutique.css" />
 </head>
 <body>
   <div class="boot" id="boot">Opening Studio…</div>
@@ -48,18 +49,53 @@
         </section>
       </section>
 
-      <section class="screen" id="view-boutique"><div class="hero compact"><p class="eyebrow">Boutique</p><h1>Τα κομμάτια σας.</h1><p>Η production σύνδεση ξεκίνησε. Το επόμενο layer συνδέει την editorial product workspace με πραγματικά προϊόντα, stock και media.</p></div><div class="placeholder"><strong>Catalogue connection ready</strong><span>Authentication and same-origin Medusa gateway are active. Product mutations remain intentionally disabled until their guarded workflow is wired.</span></div></section>
-      <section class="screen" id="view-orders"><div class="hero compact"><p class="eyebrow">Orders</p><h1>Παραγγελίες, όχι status codes.</h1><p>Οι πιο πρόσφατες πραγματικές παραγγελίες από το Medusa εμφανίζονται παρακάτω.</p></div><div class="panel"><div class="order-list" id="orders-view"><p class="empty">Φόρτωση…</p></div></div></section>
-      <section class="screen" id="view-clients"><div class="hero compact"><p class="eyebrow">Clients</p><h1>Το Client Book.</h1><p>Το relationship-first Client Book παραμένει το εγκεκριμένο UX. Η live customer σύνδεση θα μπει αφού σταθεροποιηθεί το orders/products read layer.</p></div><div class="placeholder"><strong>Client Book foundation preserved</strong><span>No invented customer data is shown in the production shell.</span></div></section>
-      <section class="screen" id="view-website"><div class="hero compact"><p class="eyebrow">Studio</p><h1>Website.</h1><p>Homepage, lookbooks, media and SEO will surface the existing managed content APIs here rather than expose technical Medusa screens.</p></div></section>
-      <section class="screen" id="view-operations"><div class="hero compact"><p class="eyebrow">Operations</p><h1>Behind the curtain.</h1><p>Payments, shipping and AADE/myDATA belong here, progressively disclosed and translated into actions.</p></div></section>
+      <section class="screen" id="view-boutique">
+        <div class="hero compact"><p class="eyebrow">Boutique</p><h1>Τα κομμάτια σας.</h1><p>Μια editorial εικόνα του πραγματικού catalogue — χωρίς να χρειάζεται να σκέφτεστε σε entities, tables ή τεχνικούς κωδικούς.</p></div>
+        <div class="workspace-head"><div><p class="eyebrow">Live catalogue</p><h2>Η συλλογή αυτή τη στιγμή.</h2></div><div class="workspace-count" id="product-count">—</div></div>
+        <div class="workspace-toolbar">
+          <label class="workspace-search"><span>⌕</span><input id="product-search" type="search" placeholder="Όνομα, handle ή προϊόν…" autocomplete="off" /></label>
+          <div class="view-switch" aria-label="Catalogue view"><button class="active" data-product-view="grid">Grid</button><button data-product-view="list">List</button></div>
+        </div>
+        <div class="filter-row" id="product-filters">
+          <button class="filter-chip active" data-product-status="">Όλα</button>
+          <button class="filter-chip" data-product-status="published">Δημοσιευμένα</button>
+          <button class="filter-chip" data-product-status="draft">Drafts</button>
+        </div>
+        <div class="product-grid" id="product-grid"><div class="catalogue-empty"><div><strong>Φόρτωση boutique…</strong><span>Ανακτώ τα πραγματικά προϊόντα του καταστήματος.</span></div></div></div>
+        <div class="pager"><button id="products-prev">← Προηγούμενα</button><span id="products-page">—</span><button id="products-next">Επόμενα →</button></div>
+      </section>
+
+      <section class="screen" id="view-orders">
+        <div class="hero compact"><p class="eyebrow">Orders</p><h1>Order Story.</h1><p>Κάθε παραγγελία ως ιστορία πελάτη και εκπλήρωσης — όχι ως μία σειρά από provider status codes.</p></div>
+        <div class="workspace-head"><div><p class="eyebrow">Live orders</p><h2>Τι κινείται τώρα.</h2></div><div class="workspace-count" id="order-count">—</div></div>
+        <div class="order-toolbar"><label class="workspace-search"><span>⌕</span><input id="order-search" type="search" placeholder="Αναζήτηση παραγγελίας ή πελάτη…" autocomplete="off" /></label></div>
+        <div class="filter-row" id="order-filters">
+          <button class="filter-chip active" data-order-filter="all">Όλες</button>
+          <button class="filter-chip" data-order-filter="attention">Χρειάζονται προσοχή</button>
+          <button class="filter-chip" data-order-filter="paid">Πληρωμένες</button>
+          <button class="filter-chip" data-order-filter="shipped">Απεσταλμένες</button>
+        </div>
+        <div class="panel"><div class="order-list" id="orders-view"><p class="empty">Φόρτωση…</p></div></div>
+        <div class="pager"><button id="orders-prev">← Προηγούμενες</button><span id="orders-page">—</span><button id="orders-next">Επόμενες →</button></div>
+      </section>
+
+      <section class="screen" id="view-clients"><div class="hero compact"><p class="eyebrow">Clients</p><h1>Το Client Book.</h1><p>Το relationship-first Client Book παραμένει το εγκεκριμένο UX. Η live customer σύνδεση ακολουθεί πάνω στο σταθερό orders/products layer που λειτουργεί ήδη εδώ.</p></div><div class="placeholder"><strong>Client Book — next live layer</strong><span>No invented customer data is shown. The next phase will connect customer profiles, purchase history and consent-safe boutique notes.</span></div></section>
+      <section class="screen" id="view-website"><div class="hero compact"><p class="eyebrow">Studio</p><h1>Website.</h1><p>Homepage, lookbooks, media και SEO θα εμφανίσουν τα υπάρχοντα managed content APIs εδώ, αντί να εκθέσουν technical Medusa screens.</p></div></section>
+      <section class="screen" id="view-operations"><div class="hero compact"><p class="eyebrow">Operations</p><h1>Behind the curtain.</h1><p>Payments, shipping και AADE/myDATA ανήκουν εδώ, με progressive disclosure και σαφείς επόμενες ενέργειες.</p></div></section>
     </main>
 
     <button class="assistant-tab" id="assistant-tab">COQUETTE Assistant</button>
     <div class="floating-dock"><button data-view="today">Today</button><button data-view="boutique">Boutique</button><button data-view="orders">Orders</button><button id="focus">Focus</button></div>
     <div class="mobile-nav"><button data-view="today">Today</button><button data-view="boutique">Boutique</button><button data-view="orders">Orders</button><button data-view="clients">Clients</button></div>
+
     <div class="overlay" id="overlay" hidden></div>
     <aside class="drawer" id="drawer"><header><div><p class="eyebrow">Personal assistant</p><h3>COQUETTE Assistant</h3></div><button id="drawer-close">×</button></header><div class="drawer-body"><p id="drawer-copy">I am using only live store information available to this authenticated session.</p><div class="assistant-rule"></div><button data-view="orders">Review recent orders →</button><button data-view="boutique">Open Boutique →</button></div></aside>
+
+    <aside class="workspace-drawer" id="workspace-drawer" aria-hidden="true">
+      <header><div><p class="eyebrow" id="workspace-eyebrow">Studio</p><h2 id="workspace-title">Details</h2></div><button class="close-workspace" id="workspace-close" aria-label="Close">×</button></header>
+      <div class="workspace-body" id="workspace-body"><div class="drawer-loading">Loading…</div></div>
+    </aside>
+
     <section class="palette" id="palette" hidden><div class="palette-box"><div class="palette-input"><span>⌕</span><input id="palette-input" type="search" placeholder="Τι θέλετε να κάνετε;" autocomplete="off" /><kbd>ESC</kbd></div><div id="palette-results"></div></div></section>
   </section>
   <script src="/studio.js" defer></script>
