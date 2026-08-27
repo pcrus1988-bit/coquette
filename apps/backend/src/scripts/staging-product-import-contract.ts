@@ -4,7 +4,6 @@ import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { buildProductImportPlan } from "../migration/import-plan"
 import {
   buildRecoveryProductCandidate,
   type RecoveryProductObservation,
@@ -13,6 +12,7 @@ import type { MigrationDependencyMapping } from "../migration/staging-product-ex
 import type { MigrationManifestEntry } from "../migration/types"
 import { BRAND_MODULE } from "../modules/brand"
 import type BrandModuleService from "../modules/brand/service"
+import { buildReadyStagingMigrationInputFixture } from "./staging-migration-input-test-fixture"
 import stagingProductImport from "./staging-product-import"
 
 const sku = "COQ-MIG-EXEC-CONTRACT-1"
@@ -72,7 +72,7 @@ export default async function stagingProductImportContract({ container }: ExecAr
   const productModuleService = container.resolve(Modules.PRODUCT)
   const brandModuleService = container.resolve<BrandModuleService>(BRAND_MODULE)
   const root = await mkdtemp(join(tmpdir(), "coquette-staging-import-contract-"))
-  const reportPath = join(root, "capture-report.json")
+  const bundlePath = join(root, "migration-input-bundle.json")
   const dependenciesPath = join(root, "dependencies.json")
   const manifestPath = join(root, "product-manifest.json")
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -88,8 +88,14 @@ export default async function stagingProductImportContract({ container }: ExecAr
       process.env.COQUETTE_MIGRATION_EXPECTED_DATABASE_NAME,
     COQUETTE_MIGRATION_ALLOWED_MEDIA_HOSTS:
       process.env.COQUETTE_MIGRATION_ALLOWED_MEDIA_HOSTS,
+    COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE:
+      process.env.COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE,
+    COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM:
+      process.env.COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM,
     COQUETTE_STAGING_PRODUCT_IMPORT_REPORT:
       process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT,
+    COQUETTE_STAGING_PRICE_IMPORT_REPORT:
+      process.env.COQUETTE_STAGING_PRICE_IMPORT_REPORT,
     COQUETTE_STAGING_PRODUCT_DEPENDENCIES:
       process.env.COQUETTE_STAGING_PRODUCT_DEPENDENCIES,
     COQUETTE_STAGING_PRODUCT_MANIFEST:
@@ -122,7 +128,11 @@ export default async function stagingProductImportContract({ container }: ExecAr
     const candidate = buildRecoveryProductCandidate("ci-staging-import", [
       candidateObservation(),
     ])
-    const importPlan = buildProductImportPlan([candidate])
+    const migrationInput = buildReadyStagingMigrationInputFixture({
+      candidates: [candidate],
+      captureId: `ci-product-import-${suffix}`,
+    })
+    const importPlan = migrationInput.productPlan
     assert.equal(importPlan.isExecutable, true)
 
     const dependencies: MigrationDependencyMapping[] = [
@@ -147,8 +157,8 @@ export default async function stagingProductImportContract({ container }: ExecAr
     ]
 
     await writeFile(
-      reportPath,
-      `${JSON.stringify({ schemaVersion: 3, importPlan }, null, 2)}\n`,
+      bundlePath,
+      `${JSON.stringify(migrationInput, null, 2)}\n`,
       "utf8"
     )
     await writeFile(
@@ -167,7 +177,11 @@ export default async function stagingProductImportContract({ container }: ExecAr
       databaseUrl.pathname.replace(/^\//, "")
     process.env.COQUETTE_MIGRATION_ALLOWED_MEDIA_HOSTS =
       "coquette-media.example"
-    process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT = reportPath
+    process.env.COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE = bundlePath
+    process.env.COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM =
+      migrationInput.bundleChecksum
+    delete process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT
+    delete process.env.COQUETTE_STAGING_PRICE_IMPORT_REPORT
     process.env.COQUETTE_STAGING_PRODUCT_DEPENDENCIES = dependenciesPath
     process.env.COQUETTE_STAGING_PRODUCT_MANIFEST = manifestPath
 
@@ -215,7 +229,7 @@ export default async function stagingProductImportContract({ container }: ExecAr
     assert.equal(secondManifest[0].attempts, 1)
 
     console.log(
-      "COQUETTE clean-database structural product + Product Brand link idempotency contract passed"
+      "COQUETTE clean-database reconciled-bundle structural product + Product Brand link idempotency contract passed"
     )
   } finally {
     for (const [key, value] of Object.entries(priorEnvironment)) {
