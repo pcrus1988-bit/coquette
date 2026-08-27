@@ -123,6 +123,9 @@ jobs:
       - name: Validate reconstruction review decision safety
         run: pnpm --filter @coquette/backend review-decisions:contract
 
+      - name: Validate review evidence-selection application
+        run: pnpm --filter @coquette/backend review-application:contract
+
       - name: Validate staging structural product execution preflight
         run: pnpm --filter @coquette/backend staging-product-execution:contract
 
