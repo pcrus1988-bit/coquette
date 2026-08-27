@@ -125,6 +125,6 @@ jobs:
           grep -q 'workspace-drawer' apps/studio/studio.html
           grep -q 'guided-new-piece' apps/studio/studio.html
           grep -q 'new-piece-layer' apps/studio/studio.html
-          grep -q 'Step 08 of 08' apps/studio/new-piece.js
+          grep -q "stepIntro(8, 'Review it like a stylist.'" apps/studio/new-piece.js
           grep -q 'Publish — guarded activation not enabled yet' apps/studio/new-piece.js
           grep -q 'Ένα κορίτσι πρέπει να είναι δύο πράγματα' apps/studio/index.html
