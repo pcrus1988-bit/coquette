@@ -49,6 +49,14 @@ type TarEntry = {
   data: Buffer
 }
 
+type EmbeddedCaptureManifest = {
+  captureId?: string
+  source?: string
+  transport?: string
+  complete?: boolean
+  failureReason?: string
+}
+
 function unexpected(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
 }
@@ -65,6 +73,22 @@ function safeRelativePath(value: string) {
     !normalized.split("/").includes("..") &&
     !/^[a-zA-Z]:\//.test(normalized)
   )
+}
+
+function validLegacySource(value: string | undefined) {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "coquetteconcept.gr" &&
+      (url.pathname === "/" || url.pathname === "") &&
+      !url.search &&
+      !url.hash
+    )
+  } catch {
+    return false
+  }
 }
 
 async function inventoryFiles(root: string, current = root): Promise<string[]> {
@@ -214,9 +238,118 @@ function handoffPayload(value: Omit<CaptureHandoffManifest, "handoffChecksum">) 
   }
 }
 
+function evidencePayload(evidence: CaptureEvidencePackage) {
+  return {
+    schemaVersion: evidence.schemaVersion,
+    captureId: evidence.captureId,
+    source: evidence.source,
+    provenance: evidence.provenance,
+    files: evidence.files,
+    totals: evidence.totals,
+  }
+}
+
 function archiveChecksumFromFilename(path: string) {
   const match = path.replace(/\\/g, "/").match(/\.handoff\.([a-f0-9]{64})\.tar\.gz$/)
   return match?.[1]
+}
+
+function verifyEmbeddedCaptureEvidence(
+  entries: Map<string, Buffer>,
+  handoff: CaptureHandoffManifest,
+  errors: string[]
+) {
+  const evidenceRaw = entries.get("capture/evidence-package.json")
+  if (!evidenceRaw) {
+    errors.push("capture_evidence_package_missing")
+    return undefined
+  }
+
+  let evidence: CaptureEvidencePackage
+  try {
+    evidence = JSON.parse(evidenceRaw.toString("utf8")) as CaptureEvidencePackage
+  } catch {
+    errors.push("capture_evidence_package_invalid_json")
+    return undefined
+  }
+
+  if (evidence.schemaVersion !== 1) errors.push("capture_evidence_schema_invalid")
+  if (evidence.captureId !== handoff.captureId) errors.push("capture_id_mismatch")
+  if (evidence.source !== handoff.source || !validLegacySource(evidence.source)) {
+    errors.push("capture_source_mismatch_or_invalid")
+  }
+  if (evidence.packageChecksum !== handoff.evidencePackageChecksum) {
+    errors.push("evidence_package_checksum_mismatch")
+  }
+  if (
+    evidence.provenance?.mode !== "operator_local_browser" ||
+    evidence.provenance?.transport !== "browser" ||
+    !["headed", "headless"].includes(evidence.provenance?.browserMode)
+  ) {
+    errors.push("capture_provenance_invalid")
+  }
+
+  const files = Array.isArray(evidence.files) ? evidence.files : []
+  const listedPaths = files.map((file) => file.path)
+  if (
+    listedPaths.some((path) => !safeRelativePath(path)) ||
+    new Set(listedPaths).size !== listedPaths.length
+  ) {
+    errors.push("capture_evidence_file_inventory_invalid")
+  }
+  const sortedFiles = [...files].sort((left, right) => left.path.localeCompare(right.path))
+  if (JSON.stringify(sortedFiles) !== JSON.stringify(files)) {
+    errors.push("capture_evidence_file_inventory_not_sorted")
+  }
+
+  for (const file of files) {
+    const embedded = entries.get(`capture/${file.path}`)
+    if (!embedded) {
+      errors.push(`capture_evidence_file_missing:${file.path}`)
+      continue
+    }
+    if (embedded.length !== file.bytes) {
+      errors.push(`capture_evidence_file_size_mismatch:${file.path}`)
+    }
+    if (sha256(embedded) !== file.checksum) {
+      errors.push(`capture_evidence_file_checksum_mismatch:${file.path}`)
+    }
+  }
+
+  for (const path of entries.keys()) {
+    if (!path.startsWith("capture/")) continue
+    const relativePath = path.slice("capture/".length)
+    if (relativePath === "evidence-package.json") continue
+    if (!listedPaths.includes(relativePath)) {
+      errors.push(`capture_evidence_unlisted_file:${relativePath}`)
+    }
+  }
+
+  const totalBytes = files.reduce((sum, file) => sum + Number(file.bytes || 0), 0)
+  if (evidence.totals?.files !== files.length || evidence.totals?.bytes !== totalBytes) {
+    errors.push("capture_evidence_totals_mismatch")
+  }
+  if (evidence.packageChecksum !== sourceChecksum(evidencePayload(evidence))) {
+    errors.push("capture_evidence_semantic_checksum_mismatch")
+  }
+
+  const rawManifest = entries.get("capture/manifest.json")
+  if (!rawManifest) {
+    errors.push("capture_manifest_missing")
+  } else {
+    try {
+      const manifest = JSON.parse(rawManifest.toString("utf8")) as EmbeddedCaptureManifest
+      if (manifest.captureId !== evidence.captureId) errors.push("capture_manifest_id_mismatch")
+      if (manifest.source !== evidence.source) errors.push("capture_manifest_source_mismatch")
+      if (manifest.transport !== "browser") errors.push("capture_manifest_transport_invalid")
+      if (manifest.complete !== true) errors.push("capture_manifest_not_complete")
+      if (manifest.failureReason?.trim()) errors.push("capture_manifest_failure_reason_present")
+    } catch {
+      errors.push("capture_manifest_invalid_json")
+    }
+  }
+
+  return evidence
 }
 
 export async function createCaptureHandoff(input: {
@@ -259,9 +392,12 @@ export async function createCaptureHandoff(input: {
     throw unexpected("Capture ingestion report captureId does not match evidence package")
   }
   const reportEvidence = reportCapture?.evidencePackage as Record<string, unknown> | undefined
-  if (reportEvidence?.packageChecksum !== evidencePackage.packageChecksum) {
+  if (
+    reportEvidence?.isValid !== true ||
+    reportEvidence?.packageChecksum !== evidencePackage.packageChecksum
+  ) {
     throw unexpected(
-      "Capture ingestion report evidence package checksum does not match capture package"
+      "Capture ingestion report is not bound to a valid matching capture evidence package"
     )
   }
 
@@ -352,6 +488,7 @@ export async function verifyCaptureHandoffArchive(path: string) {
     if (manifest.schemaVersion !== CAPTURE_HANDOFF_SCHEMA_VERSION) {
       errors.push("handoff_schema_version_invalid")
     }
+    if (!validLegacySource(manifest.source)) errors.push("handoff_source_invalid")
     const { handoffChecksum, ...withoutChecksum } = manifest
     if (handoffChecksum !== sourceChecksum(handoffPayload(withoutChecksum))) {
       errors.push("handoff_manifest_checksum_mismatch")
@@ -375,20 +512,25 @@ export async function verifyCaptureHandoffArchive(path: string) {
       errors.push("capture_byte_count_mismatch")
     }
 
-    const evidenceRaw = entries.get("capture/evidence-package.json")
-    if (!evidenceRaw) {
-      errors.push("capture_evidence_package_missing")
-    } else {
+    const evidence = verifyEmbeddedCaptureEvidence(entries, manifest, errors)
+
+    if (ingestionReport) {
       try {
-        const evidence = JSON.parse(evidenceRaw.toString("utf8")) as CaptureEvidencePackage
-        if (evidence.captureId !== manifest.captureId) {
-          errors.push("capture_id_mismatch")
+        const report = JSON.parse(ingestionReport.toString("utf8")) as Record<string, unknown>
+        const reportCapture = report.capture as Record<string, unknown> | undefined
+        const reportEvidence = reportCapture?.evidencePackage as Record<string, unknown> | undefined
+        if (reportCapture?.captureId !== manifest.captureId) {
+          errors.push("ingestion_report_capture_id_mismatch")
         }
-        if (evidence.packageChecksum !== manifest.evidencePackageChecksum) {
-          errors.push("evidence_package_checksum_mismatch")
+        if (
+          reportEvidence?.isValid !== true ||
+          reportEvidence?.packageChecksum !== manifest.evidencePackageChecksum ||
+          (evidence && reportEvidence?.packageChecksum !== evidence.packageChecksum)
+        ) {
+          errors.push("ingestion_report_evidence_binding_invalid")
         }
       } catch {
-        errors.push("capture_evidence_package_invalid_json")
+        errors.push("ingestion_report_invalid_json")
       }
     }
   }
