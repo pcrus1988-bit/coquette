@@ -4,7 +4,10 @@ import { resolve } from "node:path"
 import { gunzipSync } from "node:zlib"
 import { verifyCaptureHandoffArchive } from "./capture-handoff"
 import { sourceChecksum } from "./checksum"
-import { buildDependencyRequirements, type DependencyRequirement } from "./dependency-mapping-reconciliation"
+import {
+  buildDependencyRequirements,
+  type DependencyRequirement,
+} from "./dependency-mapping-reconciliation"
 import {
   buildMigrationInputReconciliation,
   verifyMigrationInputReconciliationBundle,
@@ -28,7 +31,7 @@ export type CaptureHandoffIntake = {
     candidateKey?: string
     field?: string
     evidenceChecksum: string
-    blockers: string[]
+    errors: string[]
   }>
   unresolvedUrls: number
   globalBlockers: string[]
@@ -189,7 +192,7 @@ export async function buildCaptureHandoffIntake(input: {
       ...(item.candidateKey ? { candidateKey: item.candidateKey } : {}),
       ...(item.field ? { field: item.field } : {}),
       evidenceChecksum: item.evidenceChecksum,
-      blockers: [...item.blockers],
+      errors: [...item.errors],
     }))
     .sort((left, right) => left.reviewKey.localeCompare(right.reviewKey))
 
