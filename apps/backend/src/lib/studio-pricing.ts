@@ -42,7 +42,7 @@ type StudioPricingProduct = {
   id: string
   title?: string | null
   status?: string | null
-  updated_at?: string | null
+  updated_at?: string | Date | null
   metadata?: Record<string, unknown> | null
   variants?: Array<{
     id: string
@@ -122,6 +122,13 @@ function unexpectedState(message: string) {
 
 function stableHash(value: object) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex")
+}
+
+function canonicalTimestamp(value: unknown) {
+  if (value == null || value === "") return ""
+  const date = value instanceof Date ? value : new Date(String(value))
+  const time = date.getTime()
+  return Number.isFinite(time) ? new Date(time).toISOString() : ""
 }
 
 export function cleanStudioPricingProductId(value: unknown) {
@@ -282,11 +289,10 @@ export function studioPricingDraftIsStale(
   product: StudioPricingProduct,
   expectedUpdatedAt: string | undefined
 ) {
-  return Boolean(
-    expectedUpdatedAt &&
-      product.updated_at &&
-      product.updated_at !== expectedUpdatedAt
-  )
+  if (!expectedUpdatedAt || !product.updated_at) return false
+  const expected = canonicalTimestamp(expectedUpdatedAt)
+  const actual = canonicalTimestamp(product.updated_at)
+  return !expected || !actual || actual !== expected
 }
 
 export async function findStudioSalePriceList(
@@ -515,7 +521,7 @@ export async function buildStudioPricingPlan(
   const hashInput = {
     version: STUDIO_PRICING_VERSION,
     product_id: product!.id,
-    expected_updated_at: product!.updated_at || "",
+    expected_updated_at: canonicalTimestamp(product!.updated_at),
     currency_code: "eur" as const,
     mode: request.mode,
     studio_sale_price_list_id: studioSaleList?.id || null,
