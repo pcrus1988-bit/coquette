@@ -11,7 +11,7 @@ Magento Admin/database/filesystem/API access is no longer available. Phase 4 rec
 
 ## Shipped to `main`
 
-Through Phase 4G merge `c9b97033bbad2932d1ee5cd9a49d2a8eefdb351b`:
+Through Phase 4H merge `fc17896cfe07d9060d05bde1d17a7afae95a80dc`.
 
 ### Platform / managed infrastructure
 
@@ -69,7 +69,7 @@ Canonical details:
 
 ### Phase 4G — guarded staging structural product execution
 
-- merged PR #50
+- merged PR #50 as `c9b97033bbad2932d1ee5cd9a49d2a8eefdb351b`
 - dependency-aware execution plan with `create`, `skip`, `blocked`
 - requires Phase 4F executable plan plus matching pending runtime product manifest entries
 - category source URLs must map to already-imported Medusa category IDs
@@ -77,7 +77,7 @@ Canonical details:
 - `coquetteconcept.gr` is forbidden as a serving-media host, preventing legacy hotlinks
 - duplicate dependency mappings block the entire execution plan
 - simple products only; configurable products remain blocked upstream
-- Product ↔ Brand relationship is not silently represented as metadata: any `brandSourceId` remains blocked until the actual module-link execution path exists
+- Phase 4G deliberately blocked any `brandSourceId` until the real Product ↔ Brand module-link execution path existed; Phase 4I is implementing that remaining structural dependency
 - prior imported same-checksum products become `skip`
 - prior imported changed-checksum products are blocked until an explicit update path exists
 - prior `pending`/`error` same-checksum entries may retry; changed-checksum retries block
@@ -93,31 +93,55 @@ Canonical details:
 
 Canonical detail: `docs/migration/STAGING_PRODUCT_EXECUTION.md`.
 
-## Active implementation
-
 ### Phase 4H — deterministic public price reconstruction plan
 
-Branch: `phase4/deterministic-pricing-plan`.
-
-Implemented on the branch:
-
+- merged PR #52 as `fc17896cfe07d9060d05bde1d17a7afae95a80dc`
 - independent `price` migration plan and manifest domain
-- consumes only evidence-gated Phase 4F structural product identities
-- structural product state must be `ready` before a price can become `ready`
+- consumes only evidence-gated structurally ready product identities
+- structural readiness is now genuinely independent from price/inventory-domain defects: pricing and stock conflicts remain recorded for their own downstream domains but no longer make an otherwise complete structural product non-ready
 - explicit regular price + explicit EUR currency required for automatic price planning
 - optional sale price must be finite, positive and strictly lower than regular price
 - missing public price becomes explicit `unavailable`, never zero or guessed
-- sale without regular price, missing currency, zero/negative/non-finite values and ambiguous non-discounting sale markup block execution
+- sale without regular price, missing currency, zero/negative/non-finite values, non-discounting sale markup and unresolved pricing-evidence conflicts block the price domain
 - price semantic checksum includes SKU, currency, regular price and optional sale price only
 - structural copy/media/category changes do not alter the price checksum
 - price changes do not alter the product structural checksum
 - price manifest source keys use `entityType=price` and inherit the legacy product source URL/explicit locale
 - Medusa v2.19 major-unit price semantics are preserved; recovered EUR amounts are not multiplied by 100
-- no staging/production price write path in this phase
+- no staging/production price write path in Phase 4H
 - no sale start/end dates are invented
 - exact inventory remains independently blocked where public evidence does not reveal quantities
+- the first Phase 4H CI run exposed the previous readiness coupling; it was corrected rather than weakening the contract
+- corrected exact head `e8e0e7ecc6369df750a4b8e848f79b470a16644a` passed typecheck, lint, all reconstruction contracts, migrations, Admin CRUD, provider registration, commerce bootstrap, Sale pricing graph, clean-DB structural idempotency, Railway artifact build and storefront build before merge
 
 Canonical detail: `docs/migration/PRICE_RECONSTRUCTION_PLAN.md`.
+
+## Active implementation
+
+### Phase 4I — Product ↔ Brand structural link execution
+
+Branch: `phase4/product-brand-link-execution`.
+
+Implemented on the branch so far:
+
+- a brand-bearing structural product remains blocked unless its recovered `brandSourceId` maps to an imported Brand target ID
+- a valid Brand dependency mapping now unblocks structural execution instead of hitting the former `brand_link_execution_not_implemented` sentinel
+- the Brand target is not embedded in product metadata or treated as a pseudo relationship
+- write mode verifies the mapped Brand target resolves to a real COQUETTE Brand
+- the importer queries the existing Product ↔ Brand relationship before writing
+- an exact pre-existing link is accepted idempotently
+- a conflicting pre-existing Brand link fails closed
+- a missing link is created through Medusa's Link service using the existing Product/Brand module link and then re-queried for exact verification
+- relationship verification is performed for newly created products, SKU/metadata manifest-gap recovery and same-checksum `skip` paths
+- the product manifest is marked `imported` only after the required relationship is verified
+- if product creation succeeded but relationship execution/checkpointing failed, a retry can recover the same SKU by exact migration metadata, complete the relationship and checkpoint without duplicating the product
+- dry-run remains write-free and exposes the resolved Brand target in its plan output
+- existing staging-only database write guards remain unchanged
+- preflight contract now proves mapped Brand dependencies unblock execution without leaking the Brand into the product payload
+- disposable clean-DB integration contract now creates a synthetic Brand and requires actual Product ↔ Brand link creation plus idempotent rerun
+- no real COQUETTE staging or production migration writes have been attempted
+
+Canonical detail: `docs/migration/STAGING_PRODUCT_EXECUTION.md`.
 
 ## Phase status
 
@@ -125,7 +149,7 @@ Canonical detail: `docs/migration/PRICE_RECONSTRUCTION_PLAN.md`.
 - **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
 - **Phase 2 — Executable foundation:** Complete.
 - **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
-- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4G shipped, Phase 4H active.
+- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4H shipped, Phase 4I active.
 - **Phase 5 — Merchant back office parity:** Foundation started.
 - **Phase 6 — Storefront parity:** Materially advanced.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of sequence.
@@ -134,13 +158,12 @@ Canonical detail: `docs/migration/PRICE_RECONSTRUCTION_PLAN.md`.
 
 ## Next Phase 4 source milestones
 
-1. validate and merge Phase 4H without staging/production pricing side effects;
-2. implement Brand-link execution before any brand-bearing product can be marked structurally imported;
-3. add guarded staging price execution that resolves the imported variant, writes the regular EUR price and represents recovered lower sale prices through Medusa's `sale` price-list path with idempotent checkpoints;
-4. create a separate deterministic inventory plan/manifest while keeping exact quantities unavailable wherever the public legacy shop does not reveal them;
-5. add explicit merchant/reviewer decisions for unresolved publication/visibility, localization and variant identity where public evidence is insufficient;
-6. run a useful direct capture from an accepted legitimate operator/browser network;
-7. ingest the archive and drive candidate/import-plan/URL-universe blockers toward zero without weakening evidence gates.
+1. validate and merge Phase 4I without any real staging/production migration side effects;
+2. add guarded staging price execution that resolves the imported variant, writes the regular EUR price and represents recovered lower sale prices through Medusa's `sale` price-list path with idempotent checkpoints;
+3. create a separate deterministic inventory plan/manifest while keeping exact quantities unavailable wherever the public legacy shop does not reveal them;
+4. add explicit merchant/reviewer decisions for unresolved publication/visibility, localization and variant identity where public evidence is insufficient;
+5. run a useful direct capture from an accepted legitimate operator/browser network;
+6. ingest the archive and drive candidate/import-plan/URL-universe blockers toward zero without weakening evidence gates.
 
 ## Phase 4 exit boundary
 
@@ -154,4 +177,4 @@ Phase 4 completes only when direct public reconstruction/import is repeatable; e
 
 ## Production boundary
 
-The legacy shop remains production. Phase 4H is **not** a production import or cutover tool and performs no pricing writes. `coquetteconcept.gr` must not move to the replacement until public reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and roadmap cutover gates pass.
+The legacy shop remains production. Phase 4I is **not** a production import or cutover tool. No real staging/production structural importer execution has been performed in this continuation, and Phase 4H introduced no pricing writes. `coquetteconcept.gr` must not move to the replacement until public reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and roadmap cutover gates pass.

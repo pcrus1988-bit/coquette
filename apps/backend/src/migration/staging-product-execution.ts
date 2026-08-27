@@ -198,7 +198,6 @@ function buildEntry(
     } else {
       brandTargetId = mapping.targetId.trim()
     }
-    blockers.push("brand_link_execution_not_implemented")
   }
 
   if (entry.sourceKey) {
@@ -344,11 +343,6 @@ export function prepareMedusaSimpleProductInput(
   }
   if (entry.blockers.length > 0) {
     throw executionError("Blocked product execution entries cannot be prepared")
-  }
-  if (entry.brandTargetId) {
-    throw executionError(
-      "Brand-bearing products require the product-brand link execution path"
-    )
   }
 
   const product = entry.normalizedProduct

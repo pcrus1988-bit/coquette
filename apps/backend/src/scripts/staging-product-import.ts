@@ -19,10 +19,22 @@ import type {
   MigrationManifestEntry,
   MigrationSourceKey,
 } from "../migration/types"
+import { BRAND_MODULE } from "../modules/brand"
 
 type CaptureIngestionReport = {
   schemaVersion?: number
   importPlan?: ProductImportPlan
+}
+
+type ProductBrandGraphRecord = {
+  id: string
+  brand?: { id?: string } | null
+}
+
+type LinkService = {
+  create: (
+    links: Array<Record<string, Record<string, string>>>
+  ) => Promise<unknown>
 }
 
 function unexpectedState(message: string) {
@@ -205,6 +217,74 @@ function metadataString(
   return typeof value === "string" ? value : undefined
 }
 
+async function linkedBrandId(
+  container: ExecArgs["container"],
+  productId: string
+) {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "product",
+    fields: ["id", "brand.id"],
+    filters: { id: productId },
+  })
+  if (data.length !== 1) {
+    throw unexpectedState(
+      `Expected exactly one product while checking brand link for ${productId}, found ${data.length}`
+    )
+  }
+  const product = data[0] as ProductBrandGraphRecord
+  return product.brand?.id
+}
+
+async function assertBrandExists(
+  container: ExecArgs["container"],
+  brandId: string
+) {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "brand",
+    fields: ["id"],
+    filters: { id: brandId },
+  })
+  if (data.length !== 1) {
+    throw unexpectedState(
+      `Brand dependency ${brandId} does not resolve to exactly one COQUETTE Brand record`
+    )
+  }
+}
+
+async function ensureProductBrandLink(
+  container: ExecArgs["container"],
+  productId: string,
+  brandId: string
+) {
+  await assertBrandExists(container, brandId)
+
+  const existingBrandId = await linkedBrandId(container, productId)
+  if (existingBrandId === brandId) return "existing" as const
+  if (existingBrandId) {
+    throw unexpectedState(
+      `Product ${productId} is already linked to different brand ${existingBrandId}; expected ${brandId}`
+    )
+  }
+
+  const link = container.resolve("link") as LinkService
+  await link.create([
+    {
+      [Modules.PRODUCT]: { product_id: productId },
+      [BRAND_MODULE]: { brand_id: brandId },
+    },
+  ])
+
+  const linkedBrand = await linkedBrandId(container, productId)
+  if (linkedBrand !== brandId) {
+    throw unexpectedState(
+      `Product-brand link verification failed for product ${productId} and brand ${brandId}`
+    )
+  }
+  return "created" as const
+}
+
 export default async function stagingProductImport({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const mode = migrationMode()
@@ -274,6 +354,7 @@ export default async function stagingProductImport({ container }: ExecArgs) {
           sku: entry.normalizedProduct?.sku,
           categories: entry.categoryTargetIds.length,
           media: entry.mediaTargetUrls.length,
+          brandTargetId: entry.brandTargetId,
           existingTargetId: entry.existingTargetId,
           executionChecksum: entry.executionChecksum,
         }))
@@ -308,20 +389,32 @@ export default async function stagingProductImport({ container }: ExecArgs) {
       )
     }
 
-    if (entry.action === "skip") {
-      logger.info(
-        `Skipping already imported product ${entry.candidateKey} -> ${entry.existingTargetId}`
-      )
-      continue
-    }
-    if (entry.action !== "create" || !entry.normalizedProduct) {
-      throw unexpectedState(
-        `Unexpected non-create action in executable staging plan: ${entry.action}`
-      )
-    }
-
     const now = new Date().toISOString()
     try {
+      if (entry.action === "skip") {
+        if (!entry.existingTargetId) {
+          throw unexpectedState(
+            `Skip entry ${entry.candidateKey} is missing its existing target ID`
+          )
+        }
+        if (entry.brandTargetId) {
+          await ensureProductBrandLink(
+            container,
+            entry.existingTargetId,
+            entry.brandTargetId
+          )
+        }
+        logger.info(
+          `Skipping already imported product ${entry.candidateKey} -> ${entry.existingTargetId}`
+        )
+        continue
+      }
+      if (entry.action !== "create" || !entry.normalizedProduct) {
+        throw unexpectedState(
+          `Unexpected non-create action in executable staging plan: ${entry.action}`
+        )
+      }
+
       const existing = await existingProductBySku(
         container,
         entry.normalizedProduct.sku
@@ -341,6 +434,14 @@ export default async function stagingProductImport({ container }: ExecArgs) {
         ) {
           throw unexpectedState(
             `SKU ${entry.normalizedProduct.sku} already belongs to an unrelated or changed Medusa product ${existing.id}`
+          )
+        }
+
+        if (entry.brandTargetId) {
+          await ensureProductBrandLink(
+            container,
+            existing.id,
+            entry.brandTargetId
           )
         }
 
@@ -370,6 +471,10 @@ export default async function stagingProductImport({ container }: ExecArgs) {
         throw unexpectedState(
           `Medusa product workflow returned no product ID for ${entry.candidateKey}`
         )
+      }
+
+      if (entry.brandTargetId) {
+        await ensureProductBrandLink(container, created.id, entry.brandTargetId)
       }
 
       const imported = nextImportedManifestEntry(
