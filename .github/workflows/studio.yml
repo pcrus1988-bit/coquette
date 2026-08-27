@@ -1,0 +1,78 @@
+name: COQUETTE Studio CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "apps/studio/**"
+      - ".github/workflows/studio.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/studio/**"
+      - ".github/workflows/studio.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coquette-studio-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+
+      - name: Validate Studio JavaScript syntax
+        run: |
+          node --check apps/studio/login.js
+          node --check apps/studio/studio.js
+          node --check apps/studio/lib/medusa.js
+          node --check apps/studio/api/auth/login.js
+          node --check apps/studio/api/auth/me.js
+          node --check apps/studio/api/auth/logout.js
+          node --check apps/studio/api/studio/summary.js
+
+      - name: Validate Vercel configuration
+        run: node -e "JSON.parse(require('fs').readFileSync('apps/studio/vercel.json','utf8'))"
+
+      - name: Enforce Studio security contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s apps/studio/assets/coquette-logo-transparent.png
+          grep -q '/auth/user/emailpass' apps/studio/api/auth/login.js
+          grep -q '/admin/users/me' apps/studio/api/auth/login.js
+          grep -q 'HttpOnly' apps/studio/lib/medusa.js
+          grep -q 'SameSite=Lax' apps/studio/lib/medusa.js
+          grep -q 'noindex,nofollow,noarchive' apps/studio/index.html
+          grep -q 'noindex,nofollow,noarchive' apps/studio/studio.html
+          if grep -R -n -E 'localStorage|sessionStorage' apps/studio/*.js apps/studio/api apps/studio/lib; then
+            echo 'Browser token/session storage is forbidden in COQUETTE Studio.' >&2
+            exit 1
+          fi
+          if grep -R -n -E 'Bearer|authorization' apps/studio/login.js apps/studio/studio.js; then
+            echo 'Browser code must not receive or construct Medusa bearer tokens.' >&2
+            exit 1
+          fi
+
+      - name: Validate production shell surfaces
+        run: |
+          grep -q 'COQUETTE Assistant' apps/studio/studio.html
+          grep -q 'Boutique' apps/studio/studio.html
+          grep -q 'Orders' apps/studio/studio.html
+          grep -q 'Client Book' apps/studio/studio.html
+          grep -q 'Ένα κορίτσι πρέπει να είναι δύο πράγματα' apps/studio/index.html
