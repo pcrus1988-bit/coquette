@@ -9,7 +9,10 @@ on:
     paths:
       - "apps/studio/**"
       - "apps/backend/src/api/admin/studio/media/**"
+      - "apps/backend/src/api/admin/studio/variants/**"
       - "apps/backend/src/lib/studio-media.ts"
+      - "apps/backend/src/lib/studio-variants.ts"
+      - "apps/backend/src/workflows/generate-studio-product-variants.ts"
       - "docs/studio/**"
       - ".github/workflows/studio.yml"
   pull_request:
@@ -18,7 +21,10 @@ on:
     paths:
       - "apps/studio/**"
       - "apps/backend/src/api/admin/studio/media/**"
+      - "apps/backend/src/api/admin/studio/variants/**"
       - "apps/backend/src/lib/studio-media.ts"
+      - "apps/backend/src/lib/studio-variants.ts"
+      - "apps/backend/src/workflows/generate-studio-product-variants.ts"
       - "docs/studio/**"
       - ".github/workflows/studio.yml"
 
@@ -48,6 +54,8 @@ jobs:
           node --check apps/studio/studio.js
           node --check apps/studio/new-piece.js
           node --check apps/studio/new-piece-media.js
+          node --check apps/studio/new-piece-variants.js
+          node --check apps/studio/public/new-piece-variants.js
           node --check apps/studio/lib/medusa.js
           node --check apps/studio/api/auth/login.js
           node --check apps/studio/api/auth/me.js
@@ -63,6 +71,8 @@ jobs:
           node --check apps/studio/api/studio/media-presign.js
           node --check apps/studio/api/studio/media-attach.js
           node --check apps/studio/api/studio/media-order.js
+          node --check apps/studio/api/studio/variant-plan.js
+          node --check apps/studio/api/studio/variant-generate.js
 
       - name: Validate Vercel configuration
         run: node -e "JSON.parse(require('fs').readFileSync('apps/studio/vercel.json','utf8'))"
@@ -82,7 +92,7 @@ jobs:
             echo 'Browser token/session storage is forbidden in COQUETTE Studio.' >&2
             exit 1
           fi
-          if grep -R -n -E 'Bearer|authorization' apps/studio/login.js apps/studio/studio.js apps/studio/new-piece.js apps/studio/new-piece-media.js; then
+          if grep -R -n -E 'Bearer|authorization' apps/studio/login.js apps/studio/studio.js apps/studio/new-piece.js apps/studio/new-piece-media.js apps/studio/new-piece-variants.js; then
             echo 'Browser code must not receive or construct Medusa bearer tokens.' >&2
             exit 1
           fi
@@ -113,6 +123,9 @@ jobs:
           grep -q "stale_draft" "$file"
           grep -q "coquette_studio_flow = 'guided_new_piece'" "$file"
           grep -q "product.status !== 'draft'" "$file"
+          grep -q "coquette_studio_variants_generated === 'true'" "$file"
+          grep -q "variant_blueprint_locked" "$file"
+          grep -q "LOCKED_CHOICE_METADATA" "$file"
           if grep -n -E "status:[[:space:]]*['\"]published['\"]|inventory_quantity|inventory_items|sales_channels|prices:|payment_status|fulfillment_status" "$file"; then
             echo 'Guided autosave must remain descriptive/editorial and unpublished.' >&2
             exit 1
@@ -163,6 +176,63 @@ jobs:
 
           if grep -n -E 'image_url|external_url|remote_url|hotlink' "$client"; then
             echo 'Managed New Piece media must not expose an arbitrary external URL input.' >&2
+            exit 1
+          fi
+
+      - name: Enforce guarded variant generation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          guard=apps/backend/src/lib/studio-variants.ts
+          plan=apps/backend/src/api/admin/studio/variants/route.ts
+          generate=apps/backend/src/api/admin/studio/variants/generate/route.ts
+          workflow=apps/backend/src/workflows/generate-studio-product-variants.ts
+          client=apps/studio/new-piece-variants.js
+          autosave=apps/studio/api/studio/product-draft-update.js
+
+          grep -q 'product.status !== "draft"' "$guard"
+          grep -q 'coquette_studio_origin !== "quick_draft"' "$guard"
+          grep -q 'STUDIO_MAX_VARIANTS = 120' "$guard"
+          grep -q 'createHash("sha256")' "$guard"
+          grep -q 'studioVariantGraphExists' "$plan"
+          grep -q 'Modules.LOCKING' "$generate"
+          grep -q 'coquette-studio-variants:${productId}' "$generate"
+          grep -q 'expected_updated_at' "$generate"
+          grep -q 'blueprint_hash' "$generate"
+          grep -q 'stale_blueprint' "$generate"
+          grep -q 'studioVariantGraphExists' "$generate"
+          grep -q 'manage_inventory: false' "$generate"
+          grep -q 'allow_backorder: false' "$generate"
+          grep -q 'createAndLinkProductOptionsToProductWorkflow' "$workflow"
+          grep -q 'createProductVariantsWorkflow' "$workflow"
+          grep -q "coquette_studio_variants_generated === 'true'" "$autosave"
+          grep -q 'variant_blueprint_locked' "$autosave"
+          grep -q '/api/studio/variant-plan' "$client"
+          grep -q '/api/studio/variant-generate' "$client"
+          grep -q 'expected_updated_at' "$client"
+          grep -q 'blueprint_hash' "$client"
+          grep -q 'Review saved choices' "$client"
+          grep -q 'Build choices' "$client"
+          grep -q '/new-piece-variants.css' apps/studio/studio.html
+          grep -q '/new-piece-variants.js' apps/studio/studio.html
+          grep -q '/new-piece-variants.css' apps/studio/public/studio.html
+          grep -q '/new-piece-variants.js' apps/studio/public/studio.html
+          test -s apps/studio/new-piece-variants.css
+          test -s apps/studio/new-piece-variants.js
+          cmp -s apps/studio/new-piece-variants.js apps/studio/public/new-piece-variants.js
+          cmp -s apps/studio/new-piece-variants.css apps/studio/public/new-piece-variants.css
+          cmp -s apps/studio/studio.html apps/studio/public/studio.html
+
+          if grep -n -E 'sales_channels|inventory_quantity|inventory_items' "$generate" "$workflow"; then
+            echo 'Variant generation must not assign inventory or change sales-channel visibility.' >&2
+            exit 1
+          fi
+          if grep -n 'status: "published"' "$generate" "$workflow" || grep -n "status: 'published'" "$generate" "$workflow"; then
+            echo 'Variant generation must not publish the product.' >&2
+            exit 1
+          fi
+          if grep -n -E 'amount:[[:space:]]*[0-9]|prices:[[:space:]]*\[' "$generate" "$workflow"; then
+            echo 'Variant generation must not assign or infer monetary amounts.' >&2
             exit 1
           fi
 

@@ -16,6 +16,7 @@
     "capture:coquette": "pnpm --filter @coquette/backend storefront:capture:handoff",
     "capture:coquette:verify": "pnpm --filter @coquette/backend capture-handoff:verify",
     "capture:coquette:intake": "pnpm --filter @coquette/backend capture-handoff:intake",
+    "capture:coquette:dependencies": "pnpm --filter @coquette/backend dependency-provisioning:evidence",
     "railway-build-backend": "pnpm --filter @coquette/backend build:deploy",
     "railway-start-backend": "pnpm --filter @coquette/backend start:deploy",
     "railway-predeploy-backend": "pnpm --filter @coquette/backend predeploy",
