@@ -27,6 +27,8 @@
     "capture-handoff:verify": "ts-node src/scripts/verify-capture-handoff.ts",
     "capture-handoff:intake": "ts-node src/scripts/process-capture-handoff.ts",
     "capture-handoff:intake:contract": "ts-node src/scripts/capture-handoff-intake-contract.ts",
+    "dependency-provisioning:evidence": "ts-node src/scripts/dependency-provisioning-evidence.ts",
+    "dependency-provisioning:evidence:contract": "ts-node src/scripts/dependency-provisioning-evidence-contract.ts",
     "indexed-recovery:contract": "ts-node src/scripts/indexed-recovery-contract.ts",
     "indexed-recovery:candidates": "ts-node src/scripts/indexed-recovery-candidates.ts",
     "recovery-candidates:contract": "ts-node src/scripts/recovery-candidates-contract.ts",
