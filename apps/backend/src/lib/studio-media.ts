@@ -1,5 +1,5 @@
 import type { MedusaRequest } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 export const STUDIO_IMAGE_MIME_TO_EXTENSION = {
   "image/jpeg": "jpg",
@@ -45,7 +45,10 @@ export function isStudioManagedMediaKey(productId: string, key: string) {
 export function studioFileBaseUrl() {
   const value = process.env.S3_FILE_URL?.trim()
   if (!value) {
-    throw new Error("S3_FILE_URL is required for COQUETTE Studio managed media")
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      "S3_FILE_URL is required for COQUETTE Studio managed media"
+    )
   }
   return value.replace(/\/$/, "")
 }
