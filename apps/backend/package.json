@@ -30,6 +30,8 @@
     "inventory-plan:contract": "ts-node src/scripts/inventory-plan-contract.ts",
     "review-decisions:contract": "ts-node src/scripts/review-decisions-contract.ts",
     "review-application:contract": "ts-node src/scripts/review-application-contract.ts",
+    "migration-input-reconciliation:contract": "ts-node src/scripts/migration-input-reconciliation-contract.ts",
+    "migration-input:reconcile": "ts-node src/scripts/reconcile-migration-input.ts",
     "staging-product-execution:contract": "ts-node src/scripts/staging-product-execution-contract.ts",
     "staging-price-execution:contract": "ts-node src/scripts/staging-price-execution-contract.ts",
     "capture:ingest": "ts-node src/scripts/ingest-capture-artifact.ts",
