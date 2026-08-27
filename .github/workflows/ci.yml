@@ -206,6 +206,9 @@ jobs:
       - name: Validate clean-database reconciled-bundle staging price import idempotency and updates
         run: pnpm --filter @coquette/backend staging-price-import:contract
 
+      - name: Validate clean-database Studio guarded pricing execution
+        run: pnpm --filter @coquette/backend exec medusa exec ./src/scripts/studio-pricing-contract.ts
+
       - name: Build deployable Medusa production artifact through Railway wrapper
         env:
           NODE_ENV: production
