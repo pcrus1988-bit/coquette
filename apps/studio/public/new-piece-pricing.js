@@ -388,8 +388,9 @@
     if (!card) return
 
     const intro = root.querySelector('.new-piece-intro>p')
-    if (intro) {
-      intro.textContent = 'Set regular and sale pricing through an explicit server-reviewed action. Inventory remains a separate guarded step.'
+    const introCopy = 'Set regular and sale pricing through an explicit server-reviewed action. Inventory remains a separate guarded step.'
+    if (intro && intro.textContent !== introCopy) {
+      intro.textContent = introCopy
     }
 
     const safety = card.querySelector('.new-piece-safety')
