@@ -1,6 +1,6 @@
 # COQUETTE — Current Delivery Status
 
-**Status date:** 2026-08-26  
+**Status date:** 2026-08-27  
 **Canonical blueprint:** `docs/ROADMAP.md`
 
 ## Current baseline
@@ -11,7 +11,7 @@ Magento Admin/database/filesystem/API access is no longer available. Phase 4 rec
 
 ## Shipped to `main`
 
-Through Phase 4F merge `37fb4779c9780eff02b82ed7d233f92be5363e13`:
+Through Phase 4G merge `c9b97033bbad2932d1ee5cd9a49d2a8eefdb351b`:
 
 ### Platform / managed infrastructure
 
@@ -67,14 +67,9 @@ Canonical details:
 - `docs/migration/PRODUCT_STRUCTURE_EVIDENCE.md`
 - `docs/migration/PRODUCT_IMPORT_PLAN.md`
 
-## Active implementation
-
 ### Phase 4G — guarded staging structural product execution
 
-Branch: `phase4/staging-import-execution`.
-
-Implemented on the branch:
-
+- merged PR #50
 - dependency-aware execution plan with `create`, `skip`, `blocked`
 - requires Phase 4F executable plan plus matching pending runtime product manifest entries
 - category source URLs must map to already-imported Medusa category IDs
@@ -94,8 +89,35 @@ Implemented on the branch:
 - product creation uses Medusa `createProductsWorkflow`, one product per checkpoint
 - product manifest is persisted atomically after each success/recovery/error
 - clean-database CI contract creates one synthetic structural product and reruns the migration to prove SKU idempotency/no duplication
+- exact-head CI for commit `1a51f0c8af26b61be5f359d45ad755c6378b2e47` passed preflight, clean-DB idempotency, migrations, Railway deployable artifact build and storefront build before merge
 
 Canonical detail: `docs/migration/STAGING_PRODUCT_EXECUTION.md`.
+
+## Active implementation
+
+### Phase 4H — deterministic public price reconstruction plan
+
+Branch: `phase4/deterministic-pricing-plan`.
+
+Implemented on the branch:
+
+- independent `price` migration plan and manifest domain
+- consumes only evidence-gated Phase 4F structural product identities
+- structural product state must be `ready` before a price can become `ready`
+- explicit regular price + explicit EUR currency required for automatic price planning
+- optional sale price must be finite, positive and strictly lower than regular price
+- missing public price becomes explicit `unavailable`, never zero or guessed
+- sale without regular price, missing currency, zero/negative/non-finite values and ambiguous non-discounting sale markup block execution
+- price semantic checksum includes SKU, currency, regular price and optional sale price only
+- structural copy/media/category changes do not alter the price checksum
+- price changes do not alter the product structural checksum
+- price manifest source keys use `entityType=price` and inherit the legacy product source URL/explicit locale
+- Medusa v2.19 major-unit price semantics are preserved; recovered EUR amounts are not multiplied by 100
+- no staging/production price write path in this phase
+- no sale start/end dates are invented
+- exact inventory remains independently blocked where public evidence does not reveal quantities
+
+Canonical detail: `docs/migration/PRICE_RECONSTRUCTION_PLAN.md`.
 
 ## Phase status
 
@@ -103,7 +125,7 @@ Canonical detail: `docs/migration/STAGING_PRODUCT_EXECUTION.md`.
 - **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
 - **Phase 2 — Executable foundation:** Complete.
 - **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
-- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4F shipped, Phase 4G active.
+- **Phase 4 — Public legacy storefront reconstruction:** Active; Phase 4A–4G shipped, Phase 4H active.
 - **Phase 5 — Merchant back office parity:** Foundation started.
 - **Phase 6 — Storefront parity:** Materially advanced.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of sequence.
@@ -112,12 +134,13 @@ Canonical detail: `docs/migration/STAGING_PRODUCT_EXECUTION.md`.
 
 ## Next Phase 4 source milestones
 
-1. validate and merge Phase 4G without staging/production side effects outside its clean CI database contract;
+1. validate and merge Phase 4H without staging/production pricing side effects;
 2. implement Brand-link execution before any brand-bearing product can be marked structurally imported;
-3. create separate deterministic price-list and inventory plans/manifests rather than extending the product manifest beyond its domain;
-4. add explicit merchant/reviewer decisions for unresolved publication/visibility, localization and variant identity where public evidence is insufficient;
-5. run a useful direct capture from an accepted legitimate operator/browser network;
-6. ingest the archive and drive candidate/import-plan/URL-universe blockers toward zero without weakening evidence gates.
+3. add guarded staging price execution that resolves the imported variant, writes the regular EUR price and represents recovered lower sale prices through Medusa's `sale` price-list path with idempotent checkpoints;
+4. create a separate deterministic inventory plan/manifest while keeping exact quantities unavailable wherever the public legacy shop does not reveal them;
+5. add explicit merchant/reviewer decisions for unresolved publication/visibility, localization and variant identity where public evidence is insufficient;
+6. run a useful direct capture from an accepted legitimate operator/browser network;
+7. ingest the archive and drive candidate/import-plan/URL-universe blockers toward zero without weakening evidence gates.
 
 ## Phase 4 exit boundary
 
@@ -131,4 +154,4 @@ Phase 4 completes only when direct public reconstruction/import is repeatable; e
 
 ## Production boundary
 
-The legacy shop remains production. Phase 4G is **not** a production import or cutover tool. `coquetteconcept.gr` must not move to the replacement until public reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and roadmap cutover gates pass.
+The legacy shop remains production. Phase 4H is **not** a production import or cutover tool and performs no pricing writes. `coquetteconcept.gr` must not move to the replacement until public reconstruction reconciliation, COQUETTE-owned media recovery, merchant/customer UAT, payment/courier/fiscal testing, SEO redirect verification, rollback preparation and roadmap cutover gates pass.
