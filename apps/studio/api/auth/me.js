@@ -1,4 +1,4 @@
-const { admin, clearSessionCookie, json } = require('../_lib/medusa')
+const { admin, clearSessionCookie, json } = require('../../lib/medusa')
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return json(res, 405, { message: 'Method not allowed' })

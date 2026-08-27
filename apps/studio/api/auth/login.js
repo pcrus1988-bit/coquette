@@ -1,8 +1,15 @@
-const { json, medusa, sessionCookie } = require('../_lib/medusa')
+const { json, medusa, sessionCookie } = require('../../lib/medusa')
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { message: 'Method not allowed' })
-  const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
+
+  let body = {}
+  try {
+    body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
+  } catch {
+    return json(res, 400, { message: 'Invalid request.' })
+  }
+
   const email = String(body.email || '').trim()
   const password = String(body.password || '')
   if (!email || !password) return json(res, 400, { message: 'Email και password είναι απαραίτητα.' })
