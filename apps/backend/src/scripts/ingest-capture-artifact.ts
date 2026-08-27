@@ -145,20 +145,11 @@ async function main() {
   const outputPath = process.env.COQUETTE_CAPTURE_INGESTION_REPORT
   if (outputPath) await writeFile(resolve(outputPath), output, "utf8")
 
-  const runtimeManifestPath = process.env.COQUETTE_RUNTIME_IMPORT_MANIFEST
-  if (runtimeManifestPath) {
-    if (!importPlan.isExecutable) {
-      console.error(
-        "Runtime import manifest was requested, but the product import plan is not fully executable. No runtime manifest was written."
-      )
-      raiseExitCode(3)
-    } else {
-      await writeFile(
-        resolve(runtimeManifestPath),
-        `${JSON.stringify(importPlan.runtimeManifestEntries, null, 2)}\n`,
-        "utf8"
-      )
-    }
+  if (process.env.COQUETTE_RUNTIME_IMPORT_MANIFEST?.trim()) {
+    console.error(
+      "COQUETTE_RUNTIME_IMPORT_MANIFEST is retired. Capture ingestion cannot emit a raw runtime manifest; create and verify a Phase 4N reconciliation bundle instead."
+    )
+    raiseExitCode(4)
   }
 
   console.log(output)
