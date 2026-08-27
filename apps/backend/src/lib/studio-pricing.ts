@@ -8,10 +8,9 @@ import {
   MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
-import {
-  batchPriceListPricesWorkflow,
-  updateProductVariantsWorkflow,
-} from "@medusajs/medusa/core-flows"
+import applyStudioPricingWorkflow, {
+  type ApplyStudioPricingWorkflowInput,
+} from "../workflows/apply-studio-pricing"
 
 export const STUDIO_PRICING_VERSION = "1"
 export const STUDIO_PRICING_CURRENCY = "eur"
@@ -542,42 +541,45 @@ export async function buildStudioPricingPlan(
   }
 }
 
-async function applyRegularPrices(
-  container: MedusaContainer,
+function buildRegularUpdates(
   plan: StudioPricingPlan
-) {
-  const changed = plan.variants.filter((line) => line.regular_action !== "unchanged")
-  if (!changed.length) return
-  await updateProductVariantsWorkflow(container).run({
-    input: {
-      product_variants: changed.map((line) => ({
-        id: line.variant_id,
-        prices: [
-          {
-            amount: amountNumber(line.regular),
-            currency_code: STUDIO_PRICING_CURRENCY,
-          },
-        ],
-      })),
-    },
-  })
+): ApplyStudioPricingWorkflowInput["regular_updates"] {
+  return plan.variants
+    .filter((line) => line.regular_action !== "unchanged")
+    .map((line) => ({
+      id: line.variant_id,
+      prices: [
+        {
+          amount: amountNumber(line.regular),
+          currency_code: "eur" as const,
+        },
+      ],
+    }))
 }
 
-async function applySalePrices(
+async function buildSaleBatch(
   container: MedusaContainer,
   plan: StudioPricingPlan,
   saleList: SalePriceListRecord | undefined
-) {
+): Promise<{
+  apply: boolean
+  data: ApplyStudioPricingWorkflowInput["sale_batch"]
+}> {
   const needsSaleList = plan.variants.some((line) => line.sale != null)
   if (needsSaleList && !saleList) throw unexpectedState("Studio sale price list is required")
-  if (!saleList) return
+  if (!saleList) {
+    return {
+      apply: false,
+      data: { id: "", create: [], update: [], delete: [] },
+    }
+  }
 
   const product = await loadStudioPricingProduct(container, plan.product_id)
   if (!product) throw unexpectedState("Draft disappeared while applying Studio prices")
   const states = await pricingStates(container, product, saleList.id)
   const stateByVariant = new Map(states.map((state) => [state.variant_id, state]))
-  const create: Array<{ amount: number; currency_code: string; variant_id: string }> = []
-  const update: Array<{ id: string; amount: number; currency_code: string; variant_id: string }> = []
+  const create: ApplyStudioPricingWorkflowInput["sale_batch"]["create"] = []
+  const update: ApplyStudioPricingWorkflowInput["sale_batch"]["update"] = []
   const remove: string[] = []
 
   for (const line of plan.variants) {
@@ -587,30 +589,28 @@ async function applySalePrices(
     } else if (!existing) {
       create.push({
         amount: amountNumber(line.sale),
-        currency_code: STUDIO_PRICING_CURRENCY,
+        currency_code: "eur",
         variant_id: line.variant_id,
       })
     } else if (canonicalStoredAmount(existing.amount, `Studio sale ${existing.id}`) !== line.sale) {
       update.push({
         id: existing.id,
         amount: amountNumber(line.sale),
-        currency_code: STUDIO_PRICING_CURRENCY,
+        currency_code: "eur",
         variant_id: line.variant_id,
       })
     }
   }
 
-  if (!create.length && !update.length && !remove.length) return
-  await batchPriceListPricesWorkflow(container).run({
-    input: {
-      data: {
-        id: saleList.id,
-        create,
-        update,
-        delete: remove,
-      },
+  return {
+    apply: create.length > 0 || update.length > 0 || remove.length > 0,
+    data: {
+      id: saleList.id,
+      create,
+      update,
+      delete: remove,
     },
-  })
+  }
 }
 
 export async function applyStudioPricingPlan(
@@ -643,8 +643,16 @@ export async function applyStudioPricingPlan(
     }
   }
 
-  await applyRegularPrices(container, before)
-  await applySalePrices(container, before, saleList)
+  const regularUpdates = buildRegularUpdates(before)
+  const saleBatch = await buildSaleBatch(container, before, saleList)
+
+  await applyStudioPricingWorkflow(container).run({
+    input: {
+      regular_updates: regularUpdates,
+      apply_sale_batch: saleBatch.apply,
+      sale_batch: saleBatch.data,
+    },
+  })
 
   const verified = await buildStudioPricingPlan(
     container,
