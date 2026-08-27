@@ -29,6 +29,17 @@ export type CaptureIngestionReportForReconciliation = {
       isValid?: boolean
       [key: string]: unknown
     }
+    evidencePackage?: {
+      isValid?: boolean
+      packageChecksum?: string
+      provenanceMode?: string
+      transport?: string
+      browserMode?: string
+      codeRevision?: string
+      files?: number
+      bytes?: number
+      [key: string]: unknown
+    }
     [key: string]: unknown
   }
   candidates?: {
@@ -57,6 +68,7 @@ export type MigrationInputReconciliation = {
   schemaVersion: 1
   generatedAt: string
   captureId?: string
+  captureEvidencePackageChecksum?: string
   checksums: MigrationInputReconciliationChecksums
   reviewPlan: ReconstructionReviewPlan
   reviewApplication: ReconstructionReviewApplication
@@ -99,6 +111,7 @@ function bundlePayload(bundle: Omit<MigrationInputReconciliation, "bundleChecksu
   return {
     schemaVersion: bundle.schemaVersion,
     captureId: bundle.captureId,
+    captureEvidencePackageChecksum: bundle.captureEvidencePackageChecksum,
     checksums: bundle.checksums,
     reviewPlan: bundle.reviewPlan,
     reviewApplication: bundle.reviewApplication,
@@ -146,6 +159,7 @@ export function buildMigrationInputReconciliation(input: {
   const globalBlockers: string[] = []
   const warnings: string[] = []
   const report = input.report
+  const evidencePackage = report.capture?.evidencePackage
 
   if (report.schemaVersion !== 3) {
     pushUnique(globalBlockers, "capture_ingestion_schema_version_3_required")
@@ -155,6 +169,24 @@ export function buildMigrationInputReconciliation(input: {
   }
   if (report.capture?.validation?.isValid !== true) {
     pushUnique(globalBlockers, "capture_artifact_validation_must_pass")
+  }
+  if (evidencePackage?.isValid !== true) {
+    pushUnique(globalBlockers, "operator_capture_evidence_package_must_validate")
+  }
+  if (!evidencePackage?.packageChecksum?.trim()) {
+    pushUnique(globalBlockers, "operator_capture_evidence_package_checksum_required")
+  }
+  if (evidencePackage?.provenanceMode !== "operator_local_browser") {
+    pushUnique(globalBlockers, "operator_local_browser_provenance_required")
+  }
+  if (evidencePackage?.transport !== "browser") {
+    pushUnique(globalBlockers, "operator_browser_transport_required")
+  }
+  if (
+    evidencePackage?.browserMode !== "headed" &&
+    evidencePackage?.browserMode !== "headless"
+  ) {
+    pushUnique(globalBlockers, "operator_browser_mode_required")
   }
   if (report.capture?.declaredComplete !== true) {
     pushUnique(globalBlockers, "direct_capture_must_be_declared_complete")
@@ -169,7 +201,6 @@ export function buildMigrationInputReconciliation(input: {
   }
 
   const rebuiltSourceProductPlan = buildProductImportPlan(candidates)
-  const suppliedSourceProductPlan = report.importPlan ?? emptyProductPlan()
   if (!report.importPlan) {
     pushUnique(globalBlockers, "capture_ingestion_product_plan_required")
   } else if (
@@ -179,7 +210,6 @@ export function buildMigrationInputReconciliation(input: {
   }
 
   const sourceProductPlan = report.importPlan ?? rebuiltSourceProductPlan
-  void suppliedSourceProductPlan
   const reviewPlan = buildReconstructionReviewPlan({
     candidates,
     productPlan: sourceProductPlan,
@@ -264,6 +294,7 @@ export function buildMigrationInputReconciliation(input: {
     schemaVersion: 1,
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     captureId: report.capture?.captureId,
+    captureEvidencePackageChecksum: evidencePackage?.packageChecksum,
     checksums,
     reviewPlan,
     reviewApplication,
@@ -289,6 +320,9 @@ export function verifyMigrationInputReconciliationBundle(
 ): MigrationInputBundleVerification {
   const errors: string[] = []
   if (bundle.schemaVersion !== 1) errors.push("migration_input_bundle_schema_version_1_required")
+  if (!bundle.captureEvidencePackageChecksum?.trim()) {
+    errors.push("capture_evidence_package_checksum_missing")
+  }
 
   const expectedChecksums: MigrationInputReconciliationChecksums = {
     capture: bundle.checksums.capture,

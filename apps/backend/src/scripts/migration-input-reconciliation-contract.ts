@@ -21,6 +21,7 @@ const categorySourceUrl =
   "https://coquetteconcept.gr/default/clothing/phase-4n-contract.html"
 const mediaSourceUrl =
   "https://coquetteconcept.gr/media/catalog/product/phase-4n-contract.jpg"
+const packageChecksum = "a".repeat(64)
 
 function observation(
   overrides: Partial<RecoveryProductObservation["fields"]> = {}
@@ -92,11 +93,20 @@ function fixture(
     generatedAt: "2026-08-27T06:31:00.000Z",
     capture: {
       captureId: "phase-4n-contract-capture",
-      source: "operator-browser",
+      source: "https://coquetteconcept.gr/",
       startedAt: "2026-08-27T06:29:00.000Z",
       completedAt: "2026-08-27T06:31:00.000Z",
       declaredComplete: true,
       validation: { isValid: true },
+      evidencePackage: {
+        isValid: true,
+        packageChecksum,
+        provenanceMode: "operator_local_browser",
+        transport: "browser",
+        browserMode: "headed",
+        files: 6,
+        bytes: 4096,
+      },
     },
     candidates: {
       records: [candidate],
@@ -143,6 +153,7 @@ assert.equal(ready.isReconciled, true)
 assert.equal(ready.isReadyForStagingExecution, true)
 assert.equal(ready.isExecutable, false)
 assert.deepEqual(ready.globalBlockers, [])
+assert.equal(ready.captureEvidencePackageChecksum, packageChecksum)
 assert.equal(ready.productPlan.isExecutable, true)
 assert.equal(ready.pricePlan.isReconciled, true)
 assert.equal(ready.pricePlan.totals.ready, 1)
@@ -216,6 +227,50 @@ const invalidCapture = buildMigrationInputReconciliation({
   decisions: [localizationUnavailableDecision(invalidInput)],
 })
 assert.ok(invalidCapture.globalBlockers.includes("capture_artifact_validation_must_pass"))
+
+const missingPackageInput = fixture()
+missingPackageInput.report.capture = {
+  ...missingPackageInput.report.capture,
+  evidencePackage: undefined,
+}
+const missingPackage = buildMigrationInputReconciliation({
+  report: missingPackageInput.report,
+  decisions: [localizationUnavailableDecision(missingPackageInput)],
+})
+assert.equal(missingPackage.isReadyForStagingExecution, false)
+assert.ok(
+  missingPackage.globalBlockers.includes(
+    "operator_capture_evidence_package_must_validate"
+  )
+)
+assert.ok(
+  missingPackage.globalBlockers.includes(
+    "operator_capture_evidence_package_checksum_required"
+  )
+)
+assert.ok(
+  missingPackage.globalBlockers.includes("operator_local_browser_provenance_required")
+)
+
+const wrongProvenanceInput = fixture()
+wrongProvenanceInput.report.capture = {
+  ...wrongProvenanceInput.report.capture,
+  evidencePackage: {
+    ...wrongProvenanceInput.report.capture?.evidencePackage,
+    isValid: true,
+    packageChecksum,
+    provenanceMode: "ci_browser",
+    transport: "browser",
+    browserMode: "headless",
+  },
+}
+const wrongProvenance = buildMigrationInputReconciliation({
+  report: wrongProvenanceInput.report,
+  decisions: [localizationUnavailableDecision(wrongProvenanceInput)],
+})
+assert.ok(
+  wrongProvenance.globalBlockers.includes("operator_local_browser_provenance_required")
+)
 
 const unresolvedInput = fixture()
 unresolvedInput.report.urlUniverse = {
@@ -297,6 +352,20 @@ assert.ok(
   tamperedVerification.errors.includes("migration_input_bundle_checksum_mismatch")
 )
 
+const packageChecksumTampered = JSON.parse(
+  JSON.stringify(ready)
+) as MigrationInputReconciliation
+packageChecksumTampered.captureEvidencePackageChecksum = "b".repeat(64)
+const packageChecksumVerification = verifyMigrationInputReconciliationBundle(
+  packageChecksumTampered
+)
+assert.equal(packageChecksumVerification.valid, false)
+assert.ok(
+  packageChecksumVerification.errors.includes(
+    "migration_input_bundle_checksum_mismatch"
+  )
+)
+
 console.log(
-  "COQUETTE Phase 4N migration input reconciliation contract passed with checksum-bound staging readiness"
+  "COQUETTE Phase 4N/4P migration input reconciliation contract passed with operator-package and checksum-bound staging readiness"
 )

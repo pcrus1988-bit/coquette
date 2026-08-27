@@ -50,22 +50,60 @@ function unexpected(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
 }
 
-async function findChrome() {
-  const configured = process.env.COQUETTE_CHROME_PATH
-  const candidates = [
-    configured,
+function platformChromeCandidates() {
+  if (process.platform === "darwin") {
+    return [
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "/Applications/Chromium.app/Contents/MacOS/Chromium",
+      "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    ]
+  }
+
+  if (process.platform === "win32") {
+    const programFiles = process.env.PROGRAMFILES
+    const programFilesX86 = process.env["PROGRAMFILES(X86)"]
+    const localAppData = process.env.LOCALAPPDATA
+    return [
+      programFiles
+        ? join(programFiles, "Google", "Chrome", "Application", "chrome.exe")
+        : undefined,
+      programFilesX86
+        ? join(programFilesX86, "Google", "Chrome", "Application", "chrome.exe")
+        : undefined,
+      localAppData
+        ? join(localAppData, "Google", "Chrome", "Application", "chrome.exe")
+        : undefined,
+      programFiles
+        ? join(programFiles, "Microsoft", "Edge", "Application", "msedge.exe")
+        : undefined,
+      programFilesX86
+        ? join(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe")
+        : undefined,
+    ].filter((value): value is string => Boolean(value))
+  }
+
+  return [
     "/usr/bin/google-chrome",
     "/usr/bin/google-chrome-stable",
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
-  ].filter((value): value is string => Boolean(value))
+    "/usr/bin/microsoft-edge",
+    "/usr/bin/microsoft-edge-stable",
+  ]
+}
+
+async function findChrome() {
+  const configured = process.env.COQUETTE_CHROME_PATH
+  const candidates = [configured, ...platformChromeCandidates()].filter(
+    (value): value is string => Boolean(value)
+  )
 
   for (const candidate of candidates) {
     if (await executableExists(candidate)) return candidate
   }
 
   throw unexpected(
-    "Browser capture requested but Chrome/Chromium was not found. Set COQUETTE_CHROME_PATH."
+    "Browser capture requested but Chrome/Chromium/Edge was not found. Set COQUETTE_CHROME_PATH."
   )
 }
 
@@ -210,6 +248,11 @@ export class BrowserTransport {
       10
     )
     const mode = process.env.COQUETTE_CAPTURE_BROWSER_MODE ?? "headed"
+    if (mode !== "headed" && mode !== "headless") {
+      throw unexpected(
+        "COQUETTE_CAPTURE_BROWSER_MODE must be either 'headed' or 'headless'"
+      )
+    }
 
     const chromeArgs = [
       `--remote-debugging-port=${port}`,
@@ -230,7 +273,7 @@ export class BrowserTransport {
     let args = chromeArgs
     if (mode === "headless") {
       args = ["--headless=new", ...chromeArgs]
-    } else if (!process.env.DISPLAY) {
+    } else if (process.platform === "linux" && !process.env.DISPLAY) {
       command = process.env.COQUETTE_XVFB_PATH ?? "/usr/bin/xvfb-run"
       args = ["-a", chrome, ...chromeArgs]
     }
@@ -240,10 +283,17 @@ export class BrowserTransport {
       detached: false,
       env: process.env,
     })
+    let spawnError: Error | undefined
+    child.once("error", (error) => {
+      spawnError = error
+    })
 
     const versionUrl = `http://127.0.0.1:${port}/json/version`
     let browserReady = false
     for (let attempt = 0; attempt < 100; attempt += 1) {
+      if (spawnError) {
+        throw unexpected(`Chrome failed to start: ${spawnError.message}`)
+      }
       if (child.exitCode !== null) {
         throw unexpected(
           `Chrome exited before CDP became ready (code ${child.exitCode})`
