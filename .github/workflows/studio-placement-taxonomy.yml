@@ -123,7 +123,7 @@ jobs:
           grep -q 'status, "draft"' "$contract"
           grep -q 'designerB.id' "$contract"
 
-          if grep -R -n -E 'sales_channels|price_set|pricing_hash|inventory_hash|stocked_quantity|manage_inventory|barcode|ean|upc' \
+          if grep -R -n -P 'sales_channels|price_set|pricing_hash|inventory_hash|stocked_quantity|manage_inventory|\b(barcode|ean|upc)\b' \
             apps/backend/src/api/admin/studio/placement-taxonomy apps/backend/src/lib/studio-placement-taxonomy.ts apps/backend/src/workflows/apply-studio-placement-taxonomy.ts apps/studio/new-piece-placement-taxonomy.js; then
             echo 'Studio placement taxonomy must not mutate visibility, pricing, inventory or identifiers.' >&2
             exit 1
