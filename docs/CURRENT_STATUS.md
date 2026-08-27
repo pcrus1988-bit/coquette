@@ -8,24 +8,24 @@
 
 COQUETTE is an isolated Medusa v2 / Next.js commerce platform with dedicated GitHub source, Supabase PostgreSQL/storage, Railway backend/worker/Redis runtime, Vercel storefront and COQUETTE Studio merchant experience.
 
-The legacy `coquetteconcept.gr` Magento shop remains production until reconstruction, UAT and cutover gates pass. Magento Admin/database/filesystem/API access remains unavailable, so Phase 4 reconstructs only legitimately recoverable public storefront state and never invents private Magento-only values.
+The legacy `coquetteconcept.gr` Magento shop remains production until reconstruction, merchant UAT and cutover gates pass. Magento Admin/database/filesystem/API access remains unavailable, so Phase 4 reconstructs only legitimately recoverable public storefront state and never invents private Magento-only values.
 
 ### Validated application and release baseline
 
-- merged `main` application head: `4e6a28c497370ec2e810998841666325762e323f`
-- guarded Studio pricing feature PR: #76 merged
-- exact-head COQUETTE Studio Pricing CI: green
-- exact-head COQUETTE Studio CI: green
-- full clean-database COQUETTE CI: green on the pricing implementation tree and on the controlled Railway release tree
-- controlled Railway release merge: `358e770cf365f6842568ac6bec01b74d7934f3dc`
-- Railway `coquette-backend`: success on release `358e770…`
-- Railway `coquette-worker`: success on the same release
-- Vercel COQUETTE Studio production deployment from `main` `4e6a28c…`: READY
-- deployed `/new-piece-pricing.js`: live HTTP 200 and verified to contain the guarded pricing UI
-- Vercel storefront: healthy
+- merged application implementation head: `71aa81d9ff4281ecf04fadbb16accb58a2ead0f3`
+- guarded Studio category/designer feature: PR #82 merged
+- exact-head Studio placement-taxonomy CI: green
+- Studio compatibility CI for pricing, identifiers, inventory and core Studio: green
+- full clean-database COQUETTE CI: green on the feature tree and exact controlled-release tree
+- exact-tree release candidates: `477da59655afb35db2056ed554b5f7f72af6b08b` for path-specific Studio gates and `95faf96e355b336a13c5cdccb8b94b7d5c1c012b` for full release CI; both carry tree `1643c4308932e18b12bec3c2fb9bc77e559f2836`
+- controlled Railway release: `d450b35edc6e750004df72452950f9246ae3ffff`
+- Railway `coquette-worker`: success on `d450b35e…`
+- Railway `coquette-backend`: success on the same release, public runtime `coquette-backend-production-8b4f.up.railway.app`
+- Vercel COQUETTE Studio production deployment from merged `main` `71aa81d9…`: READY
+- Vercel storefront: healthy; staging-release deployment also completed successfully
 - obsolete Vercel `backend`: still fails and must be removed/disconnected; it is not the Medusa runtime
 
-The release invariant is restored and preserved: `main` is implementation state; Railway `staging` is a deliberate controlled release history; server and worker run the same release commit.
+The release invariant is preserved: `main` is implementation state; Railway `staging` is a deliberate controlled release history; server and worker run the same release commit.
 
 ---
 
@@ -53,30 +53,7 @@ Verified/shipped:
 
 ### Phase 4A–4U — technical reconstruction chain shipped
 
-The shipped chain covers:
-
-- public HTML/media/URL evidence capture
-- indexed recovery and provenance/freshness rules
-- field-level conflicts and explicit unavailable states
-- archive containment/traversal safety
-- direct + indexed URL universe classification
-- archive-native PDP reconstruction
-- deterministic structural ProductImportPlan
-- configurable-parent safeguards
-- guarded staging product execution
-- deterministic independent pricing reconstruction
-- guarded staging price execution and lifecycle idempotency
-- Product ↔ Brand link execution
-- qualitative inventory evidence that never fabricates quantities
-- checksum-bound review decisions and evidence-selection application
-- checksum-bound Phase 4N migration input reconciliation
-- mandatory reconciled staging input
-- operator-local browser evidence package
-- deterministic category/Brand/media dependency mapping reconciliation
-- verified dependency-plan staging input
-- one-command portable operator capture handoff
-- Phase 4T verified handoff reconciliation intake
-- Phase 4U deterministic dependency-provisioning evidence
+The shipped chain covers public HTML/media/URL evidence capture, indexed recovery, provenance/freshness rules, field conflicts, archive safety, deterministic URL and product reconstruction, guarded structural/price execution, Product ↔ Brand linking, qualitative stock evidence, checksum-bound review/reconciliation, dependency mapping/provisioning, operator-local capture handoff and verified intake.
 
 No private Magento fact is fabricated and no qualitative stock signal is converted into an invented numeric quantity.
 
@@ -84,9 +61,7 @@ No private Magento fact is fabricated and no qualitative stock signal is convert
 
 **No real legacy catalogue reconstruction write has yet been performed against COQUETTE staging.**
 
-The next unavoidable acquisition boundary is the authoritative operator-browser capture from an environment/network that can reach `coquetteconcept.gr` and satisfy the required provenance contract. Web retrieval may support research/audit but does not replace the required operator-local capture provenance.
-
-After the handoff exists, receiver-side verification, reconstruction, review reconciliation, dependency planning and guarded staging import are automated/checksum-bound.
+The next unavoidable Phase 4 acquisition boundary is the authoritative operator-browser capture from an environment/network that can reach `coquetteconcept.gr` and satisfy the required provenance contract. After that handoff exists, receiver-side verification, reconstruction, dependency planning and guarded staging import are automated/checksum-bound.
 
 ---
 
@@ -98,7 +73,7 @@ Architectural rule:
 
 > COQUETTE Studio is the primary day-to-day merchant experience. Medusa remains the authoritative commerce engine and technical administration foundation. Studio operates through constrained Medusa interfaces and never becomes a second system of record.
 
-### Shipped foundations
+### Shipped foundations and guarded product workflow
 
 - branded high-class merchant experience direction
 - Today/dashboard/personal-assistant model
@@ -107,31 +82,31 @@ Architectural rule:
 - autosave/resume against Medusa drafts
 - optimistic concurrency/stale-write protection
 - managed product-media upload, ordering and cover selection
-- human Size/Colour blueprint editing and server review
-- guarded creation of real Medusa option/variant graphs
-- draft/provenance guards, locking and post-workflow verification
-- guarded regular EUR pricing
-- uniform or explicit per-variant pricing modes
-- optional lower sale price through a Studio-owned Medusa sale price list
-- current → intended price review with deterministic SHA-256 review hash
-- second explicit apply confirmation and immediate pre-write re-review
-- blocking of conditional/foreign active pricing instead of silent overwrite
-- clean-database create/update/idempotency/sale-removal pricing execution contract
-- source/Vercel static Studio parity contracts
+- human Size/Colour blueprint editing and reviewed creation of real Medusa option/variant graphs
+- guarded regular EUR pricing plus optional lower sale pricing through the Studio-owned Medusa sale price list
+- guarded SKU/EAN/UPC/barcode management for real variants
+- guarded inventory quantities with fixed `COQUETTE Greece` stock-location policy, backorders kept off and reservations/incoming stock read-only
+- guarded multi-category assignment using existing active merchant-facing categories only
+- guarded designer assignment/replacement/removal using the existing COQUETTE Brand module
+- state → deterministic SHA-256 review plan → explicit confirmation → locked apply across commerce-sensitive workflows
+- post-workflow invariant verification and clean-database runtime contracts
+- source/public Studio asset parity and compatibility CI
 
-The pricing workflow intentionally leaves inventory, SKU/barcode, backorders, sales channels, categories/designers and publication untouched.
+The category/designer workflow never creates taxonomy, exposes internal/inactive categories, publishes products or mutates sales channels, pricing, inventory or identifiers.
 
 ### Still required for Phase 5 exit
 
-- SKU/EAN/UPC/barcode management
-- inventory quantities and stock-location policy
-- category/designer application flows
-- tax controls where merchant-facing control is required
+- explicit guarded publication/unpublication lifecycle
+- deliberate archive semantics; Medusa 2.19 has no native `archived` product status
+- publication visibility review that treats product status and sales-channel exposure as separate concerns
+- scheduled publication only after durable scheduling/persistence is deliberately designed
+- merchant-facing tax controls where required
 - merchandising and SEO application
-- explicit publish/schedule/archive lifecycle
 - bulk catalogue operations
 - broader order/customer/refund/fulfillment/payment/shipping/fiscal daily operations
 - role-based acceptance and full merchant UAT
+
+Pinned Medusa 2.19 defines product statuses as `draft`, `proposed`, `published`, `rejected`. Its Store Product routes additionally filter by valid sales channels. Therefore future Studio lifecycle controls must not equate a status change alone with customer visibility, and archive must be a COQUETTE-owned explicit policy rather than a fabricated Medusa status.
 
 ---
 
@@ -139,16 +114,18 @@ The pricing workflow intentionally leaves inventory, SKU/barcode, backorders, sa
 
 AUDIT originally identified badly diverged `main`/Railway `staging` history and the risk that Studio could outrun its deployed Medusa API.
 
-**Resolved and maintained:**
+**Resolved and maintained through the current placement release:**
 
 1. `main` and `staging` histories were reconciled through controlled merges rather than force reset.
 2. Backend and worker were brought onto one successful release.
 3. Phase 4U and guarded variant generation were validated/merged/released.
-4. Guarded regular/sale pricing was exact-head validated and merged as `4e6a28c…`.
-5. A new controlled release `358e770…` preserved staging history while carrying the exact merged application tree.
-6. Release-head full CI passed, including clean-database guarded pricing execution and deployable Railway artifact construction.
-7. Railway backend and worker both succeeded on `358e770…`.
-8. Production COQUETTE Studio is READY and serves the new pricing asset.
+4. Guarded regular/sale pricing was validated/merged/released.
+5. Guarded variant identifiers were validated/merged/released.
+6. Guarded inventory quantity/location policy was validated/merged/released.
+7. Guarded category/designer placement was validated and merged as `71aa81d9…`.
+8. The exact merged application tree was tested through controlled two-parent release candidates before `staging` advanced.
+9. Final release `d450b35e…` preserves prior staging history and carries the exact validated main application tree.
+10. Railway backend and worker both succeeded on `d450b35e…`; storefront deployment also succeeded.
 
 **Remaining account-level cleanup:**
 
@@ -166,7 +143,7 @@ These cleanup items do not justify changing the correct Railway/Medusa architect
 - **Phase 2 — Executable foundation:** Complete.
 - **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete.
 - **Phase 4 — Public legacy reconstruction:** Technical chain very advanced through Phase 4U; authoritative real legacy capture/import pending.
-- **Phase 5 — Merchant back office:** Material implementation shipped through variants and guarded regular/sale pricing; full daily-operation parity pending.
+- **Phase 5 — Merchant back office:** Material implementation shipped through variants, pricing, identifiers, inventory and category/designer placement; lifecycle, broader daily operations and UAT pending.
 - **Phase 6 — Storefront parity:** Materially advanced; real-data acceptance pending.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of original sequence; final real-data QA pending.
 - **Phase 8 — Customer/cart/account:** Foundations materially implemented; final staging E2E pending.
@@ -177,7 +154,7 @@ These cleanup items do not justify changing the correct Railway/Medusa architect
 
 ## Next executable milestones
 
-Two tracks can now advance without violating release alignment:
+Two tracks can advance without violating release alignment.
 
 ### Phase 4 real-data track
 
@@ -192,10 +169,10 @@ Two tracks can now advance without violating release alignment:
 
 ### Phase 5 merchant-workflow track
 
-1. guarded SKU/EAN/UPC/barcode management for real Medusa variants;
-2. guarded inventory quantities/location policy;
-3. category/designer application;
-4. publication/schedule/archive lifecycle;
+1. guarded publication/unpublication readiness and visibility lifecycle, explicitly reviewing sales-channel exposure;
+2. define safe archive semantics separately from Medusa's native status enum;
+3. merchant-facing tax controls where required;
+4. merchandising/SEO application and bulk catalogue operations;
 5. broader daily commerce operations and merchant UAT.
 
 Production cutover remains forbidden until all Blueprint launch gates pass.
@@ -204,7 +181,7 @@ Production cutover remains forbidden until all Blueprint launch gates pass.
 
 ## Human/external dependencies
 
-Needed before the next major data milestone:
+Needed before the next major Phase 4 data milestone:
 
 - a browser/network environment capable of the authoritative `coquetteconcept.gr` operator capture
 - continued public availability of the legacy storefront until accepted capture
