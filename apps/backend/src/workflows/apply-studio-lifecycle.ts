@@ -35,11 +35,9 @@ const applyStudioLifecycleWorkflow = createWorkflow(
 
     const createdLinks = when(
       "studio-lifecycle-attach-canonical-channel",
-      { input, links },
+      { input },
       ({ input: data }) => data.attach_canonical_sales_channel
-    ).then(({ links: linkDefinitions }) =>
-      createLinksWorkflow.runAsStep({ input: linkDefinitions })
-    )
+    ).then(() => createLinksWorkflow.runAsStep({ input: links }))
 
     const productUpdates = transform(
       { input, createdLinks },

@@ -120,7 +120,7 @@ jobs:
           grep -q 'record.status, "published"' "$contract"
           grep -q 'record.status, "draft"' "$contract"
 
-          if grep -R -n -E 'stocked_quantity|inventory_hash|manage_inventory|allow_backorder|barcode|ean|upc|category_ids|designer_id' \
+          if grep -R -n -E 'stocked_quantity|inventory_hash|manage_inventory|allow_backorder|barcode|category_ids|designer_id|[.]ean\b|[.]upc\b|\bean[[:space:]]*:|\bupc[[:space:]]*:' \
             apps/backend/src/api/admin/studio/lifecycle apps/backend/src/workflows/apply-studio-lifecycle.ts apps/studio/new-piece-lifecycle.js; then
             echo 'Studio lifecycle must not mutate inventory, identifiers or taxonomy.' >&2
             exit 1
