@@ -40,6 +40,19 @@ export type CaptureHandoffIntake = {
   isExecutable: false
 }
 
+const readinessOnlyVerificationErrors = new Set([
+  "migration_input_bundle_has_blockers",
+  "migration_input_bundle_not_reconciled",
+  "migration_input_bundle_not_ready",
+  "product_plan_not_executable",
+  "price_plan_not_reconciled",
+  "inventory_plan_not_reconciled",
+  "url_universe_not_fully_classified",
+  "review_items_remain_open",
+  "review_items_remain_deferred",
+  "review_items_invalid",
+])
+
 function unexpected(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
 }
@@ -166,9 +179,17 @@ export async function buildCaptureHandoffIntake(input: {
     generatedAt: input.generatedAt,
   })
   const bundleVerification = verifyMigrationInputReconciliationBundle(migrationInput)
-  if (!bundleVerification.valid) {
+  const integrityErrors = bundleVerification.errors.filter(
+    (error) => !readinessOnlyVerificationErrors.has(error)
+  )
+  if (integrityErrors.length > 0) {
     throw unexpected(
-      `Phase 4N bundle generated from verified handoff failed verification: ${bundleVerification.errors.join(", ")}`
+      `Phase 4N bundle generated from verified handoff failed integrity verification: ${integrityErrors.join(", ")}`
+    )
+  }
+  if (migrationInput.isReadyForStagingExecution && !bundleVerification.valid) {
+    throw unexpected(
+      `Phase 4N bundle claims staging readiness but failed full verification: ${bundleVerification.errors.join(", ")}`
     )
   }
   if (
