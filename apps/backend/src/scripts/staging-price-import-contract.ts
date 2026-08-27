@@ -7,14 +7,13 @@ import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { buildProductImportPlan } from "../migration/import-plan"
-import { buildPricePlan } from "../migration/price-plan"
 import {
   buildRecoveryProductCandidate,
   type RecoveryProductObservation,
 } from "../migration/recovery-candidates"
 import type { MigrationDependencyMapping } from "../migration/staging-product-execution"
 import type { MigrationManifestEntry } from "../migration/types"
+import { buildReadyStagingMigrationInputFixture } from "./staging-migration-input-test-fixture"
 import stagingPriceImport from "./staging-price-import"
 import stagingProductImport from "./staging-product-import"
 
@@ -84,25 +83,28 @@ function candidateObservation(
   }
 }
 
-function reportFor(regularPrice: number, salePrice?: number) {
+function bundleFor(regularPrice: number, salePrice?: number) {
   const candidate = buildRecoveryProductCandidate("ci-staging-price-import", [
     candidateObservation(regularPrice, salePrice),
   ])
-  const importPlan = buildProductImportPlan([candidate])
-  assert.equal(importPlan.isExecutable, true)
-  const pricePlan = buildPricePlan(importPlan)
-  assert.equal(pricePlan.isReconciled, true)
-  return { schemaVersion: 3, importPlan, pricePlan }
+  const bundle = buildReadyStagingMigrationInputFixture({
+    candidates: [candidate],
+    captureId: "ci-staging-price-import",
+  })
+  assert.equal(bundle.productPlan.isExecutable, true)
+  assert.equal(bundle.pricePlan.isReconciled, true)
+  return bundle
 }
 
-async function writeReport(
+async function writeBundle(
   path: string,
   regularPrice: number,
   salePrice?: number
 ) {
-  const report = reportFor(regularPrice, salePrice)
-  await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, "utf8")
-  return report
+  const bundle = bundleFor(regularPrice, salePrice)
+  await writeFile(path, `${JSON.stringify(bundle, null, 2)}\n`, "utf8")
+  process.env.COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM = bundle.bundleChecksum
+  return bundle
 }
 
 async function pricingState(
@@ -171,7 +173,7 @@ function migrationSalePrices(state: PricingState) {
 export default async function stagingPriceImportContract({ container }: ExecArgs) {
   const productModuleService = container.resolve(Modules.PRODUCT)
   const root = await mkdtemp(join(tmpdir(), "coquette-staging-price-contract-"))
-  const reportPath = join(root, "capture-report.json")
+  const bundlePath = join(root, "migration-input-bundle.json")
   const dependenciesPath = join(root, "dependencies.json")
   const productManifestPath = join(root, "product-manifest.json")
   const priceManifestPath = join(root, "price-manifest.json")
@@ -187,6 +189,10 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
       process.env.COQUETTE_MIGRATION_EXPECTED_DATABASE_NAME,
     COQUETTE_MIGRATION_ALLOWED_MEDIA_HOSTS:
       process.env.COQUETTE_MIGRATION_ALLOWED_MEDIA_HOSTS,
+    COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE:
+      process.env.COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE,
+    COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM:
+      process.env.COQUETTE_STAGING_MIGRATION_INPUT_CHECKSUM,
     COQUETTE_STAGING_PRODUCT_IMPORT_REPORT:
       process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT,
     COQUETTE_STAGING_PRODUCT_DEPENDENCIES:
@@ -209,7 +215,10 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
     })
     assert.ok(category.id)
 
-    const initialReport = await writeReport(reportPath, 199, 149)
+    process.env.COQUETTE_STAGING_MIGRATION_INPUT_BUNDLE = bundlePath
+    delete process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT
+    delete process.env.COQUETTE_STAGING_PRICE_IMPORT_REPORT
+    const initialBundle = await writeBundle(bundlePath, 199, 149)
     const dependencies: MigrationDependencyMapping[] = [
       {
         entityType: "category",
@@ -240,7 +249,6 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
       databaseUrl.pathname.replace(/^\//, "")
     process.env.COQUETTE_MIGRATION_ALLOWED_MEDIA_HOSTS =
       "coquette-media.example"
-    process.env.COQUETTE_STAGING_PRODUCT_IMPORT_REPORT = reportPath
     process.env.COQUETTE_STAGING_PRODUCT_DEPENDENCIES = dependenciesPath
     process.env.COQUETTE_STAGING_PRODUCT_MANIFEST = productManifestPath
 
@@ -260,10 +268,9 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
     assert.equal(productManifest[0].targetId, productId)
     assert.equal(
       productManifest[0].sourceChecksum,
-      initialReport.importPlan.entries[0].sourceChecksum
+      initialBundle.productPlan.entries[0].sourceChecksum
     )
 
-    process.env.COQUETTE_STAGING_PRICE_IMPORT_REPORT = reportPath
     process.env.COQUETTE_STAGING_PRICE_MANIFEST = priceManifestPath
 
     await stagingPriceImport({ container } as ExecArgs)
@@ -287,7 +294,7 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
     assert.equal(priceManifest[0].attempts, 1)
     assert.equal(
       priceManifest[0].sourceChecksum,
-      initialReport.pricePlan.runtimeManifestEntries[0].sourceChecksum
+      initialBundle.pricePlan.runtimeManifestEntries[0].sourceChecksum
     )
 
     await stagingPriceImport({ container } as ExecArgs)
@@ -306,14 +313,14 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
     ) as MigrationManifestEntry[]
     assert.equal(priceManifest[0].attempts, 1)
 
-    const changedReport = await writeReport(reportPath, 209, 159)
+    const changedBundle = await writeBundle(bundlePath, 209, 159)
     assert.equal(
-      changedReport.importPlan.entries[0].sourceChecksum,
-      initialReport.importPlan.entries[0].sourceChecksum
+      changedBundle.productPlan.entries[0].sourceChecksum,
+      initialBundle.productPlan.entries[0].sourceChecksum
     )
     assert.notEqual(
-      changedReport.pricePlan.runtimeManifestEntries[0].sourceChecksum,
-      initialReport.pricePlan.runtimeManifestEntries[0].sourceChecksum
+      changedBundle.pricePlan.runtimeManifestEntries[0].sourceChecksum,
+      initialBundle.pricePlan.runtimeManifestEntries[0].sourceChecksum
     )
 
     await stagingPriceImport({ container } as ExecArgs)
@@ -333,7 +340,7 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
     assert.equal(priceManifest[0].attempts, 2)
     assert.equal(
       priceManifest[0].sourceChecksum,
-      changedReport.pricePlan.runtimeManifestEntries[0].sourceChecksum
+      changedBundle.pricePlan.runtimeManifestEntries[0].sourceChecksum
     )
     assert.ok(
       priceManifest[0].warnings.some((warning) =>
@@ -341,10 +348,10 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
       )
     )
 
-    const regularOnlyReport = await writeReport(reportPath, 209)
+    const regularOnlyBundle = await writeBundle(bundlePath, 209)
     assert.equal(
-      regularOnlyReport.importPlan.entries[0].sourceChecksum,
-      initialReport.importPlan.entries[0].sourceChecksum
+      regularOnlyBundle.productPlan.entries[0].sourceChecksum,
+      initialBundle.productPlan.entries[0].sourceChecksum
     )
 
     await stagingPriceImport({ container } as ExecArgs)
@@ -362,7 +369,7 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
     assert.equal(priceManifest[0].attempts, 3)
     assert.equal(
       priceManifest[0].sourceChecksum,
-      regularOnlyReport.pricePlan.runtimeManifestEntries[0].sourceChecksum
+      regularOnlyBundle.pricePlan.runtimeManifestEntries[0].sourceChecksum
     )
 
     const variantsAfterAllRuns = await productModuleService.listProductVariants({ sku })
@@ -371,7 +378,7 @@ export default async function stagingPriceImportContract({ container }: ExecArgs
     assert.equal(variantsAfterAllRuns[0].product_id, productId)
 
     console.log(
-      "COQUETTE clean-database staging price import idempotency/update/sale-removal contract passed"
+      "COQUETTE clean-database reconciled-bundle staging price import idempotency/update/sale-removal contract passed"
     )
   } finally {
     for (const [key, value] of Object.entries(priorEnvironment)) {
