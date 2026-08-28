@@ -27,6 +27,11 @@ export type ApplyStudioTaxWorkflowInput = {
   code: string | null
 }
 
+type TaxMutationResult = {
+  tax_region_id: string | null
+  tax_rate_id: string | null
+}
+
 type TaxCompensation =
   | { kind: "created_region"; id: string }
   | { kind: "created_rate"; id: string }
@@ -42,9 +47,13 @@ type TaxCompensation =
     }
   | { kind: "none" }
 
-const mutateTaxStep = createStep(
+const mutateTaxStep = createStep<
+  ApplyStudioTaxWorkflowInput,
+  TaxMutationResult,
+  TaxCompensation
+>(
   "apply-studio-tax-default-rate",
-  async (input: ApplyStudioTaxWorkflowInput, { container }) => {
+  async (input, { container }) => {
     const tax = container.resolve<ITaxModuleService>(Modules.TAX)
 
     if (input.tax_action === "create_region") {
@@ -58,16 +67,14 @@ const mutateTaxStep = createStep(
           metadata: { coquette_studio_tax: "store-default-v1" },
         },
       })
-      return new StepResponse(
-        { tax_region_id: created.id },
-        { kind: "created_region", id: created.id } satisfies TaxCompensation
+      return new StepResponse<TaxMutationResult, TaxCompensation>(
+        { tax_region_id: created.id, tax_rate_id: null },
+        { kind: "created_region", id: created.id }
       )
     }
 
     if (input.tax_action === "create_rate") {
-      if (!input.tax_region_id) {
-        throw new Error("tax_region_required")
-      }
+      if (!input.tax_region_id) throw new Error("tax_region_required")
       const created = await tax.createTaxRates({
         tax_region_id: input.tax_region_id,
         rate: input.rate,
@@ -76,16 +83,15 @@ const mutateTaxStep = createStep(
         is_default: true,
         metadata: { coquette_studio_tax: "store-default-v1" },
       })
-      return new StepResponse(
+      return new StepResponse<TaxMutationResult, TaxCompensation>(
         { tax_region_id: input.tax_region_id, tax_rate_id: created.id },
-        { kind: "created_rate", id: created.id } satisfies TaxCompensation
+        { kind: "created_rate", id: created.id }
       )
     }
 
     if (input.tax_action === "update_rate") {
-      if (!input.tax_rate_id) {
-        throw new Error("tax_rate_required")
-      }
+      if (!input.tax_region_id) throw new Error("tax_region_required")
+      if (!input.tax_rate_id) throw new Error("tax_rate_required")
       const previous = await tax.retrieveTaxRate(input.tax_rate_id)
       await tax.updateTaxRates(input.tax_rate_id, {
         rate: input.rate,
@@ -93,7 +99,7 @@ const mutateTaxStep = createStep(
         code: input.code,
         is_default: true,
       })
-      return new StepResponse(
+      return new StepResponse<TaxMutationResult, TaxCompensation>(
         { tax_region_id: input.tax_region_id, tax_rate_id: input.tax_rate_id },
         {
           kind: "updated_rate",
@@ -104,16 +110,19 @@ const mutateTaxStep = createStep(
             code: previous.code ?? null,
             is_default: Boolean(previous.is_default),
           },
-        } satisfies TaxCompensation
+        }
       )
     }
 
-    return new StepResponse(
-      { tax_region_id: input.tax_region_id, tax_rate_id: input.tax_rate_id },
-      { kind: "none" } satisfies TaxCompensation
+    return new StepResponse<TaxMutationResult, TaxCompensation>(
+      {
+        tax_region_id: input.tax_region_id || null,
+        tax_rate_id: input.tax_rate_id || null,
+      },
+      { kind: "none" }
     )
   },
-  async (compensation: TaxCompensation | undefined, { container }) => {
+  async (compensation, { container }) => {
     if (!compensation || compensation.kind === "none") return
     const tax = container.resolve<ITaxModuleService>(Modules.TAX)
 
@@ -134,14 +143,14 @@ export const applyStudioTaxWorkflowId = "apply-studio-tax"
 const applyStudioTaxWorkflow = createWorkflow(
   applyStudioTaxWorkflowId,
   (input: WorkflowData<ApplyStudioTaxWorkflowInput>) => {
-    mutateTaxStep(input)
+    const taxMutation = mutateTaxStep(input)
     updateRegionsWorkflow.runAsStep({
       input: {
         selector: { id: input.region_id },
         update: { is_tax_inclusive: input.prices_include_tax },
       },
     })
-    return new WorkflowResponse({ applied: true })
+    return new WorkflowResponse(taxMutation)
   }
 )
 
