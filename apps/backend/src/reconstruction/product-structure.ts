@@ -335,6 +335,14 @@ function optionGroups(html: string) {
 }
 
 export function extractCategoryProductLinks(html: string, pageUrl: string) {
+  try {
+    const listing = new URL(pageUrl)
+    const path = listing.pathname.replace(/\/+$/, "").toLowerCase()
+    if (!path.endsWith(".html")) return []
+  } catch {
+    return []
+  }
+
   const result: string[] = []
   const pattern = /<a\b([^>]*)class=["'][^"']*product-item-link[^"']*["']([^>]*)>/gi
   for (const match of html.matchAll(pattern)) {
