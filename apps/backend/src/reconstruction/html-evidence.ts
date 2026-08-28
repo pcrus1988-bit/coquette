@@ -258,14 +258,47 @@ function firstTextMatch(html: string, patterns: RegExp[]) {
   return undefined
 }
 
+function productTitle(html: string) {
+  return firstTextMatch(html, [
+    /<h[1-3]\b[^>]*class=["'][^"']*product-title[^"']*["'][^>]*>([\s\S]*?)<\/h[1-3]>/i,
+    /<li\b[^>]*class=["'][^"']*item\s+product[^"']*["'][^>]*>[\s\S]*?<strong\b[^>]*>([\s\S]*?)<\/strong>/i,
+    /<span\b[^>]*class=["'][^"']*base[^"']*["'][^>]*data-ui-id=["']page-title-wrapper["'][^>]*>([\s\S]*?)<\/span>/i,
+  ])
+}
+
 function optionLabels(html: string) {
   const labels: string[] = []
-  const pattern = /data-option-label\s*=\s*(?:"([^"]+)"|'([^']+)')/gi
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(html))) {
-    labels.push(decodeHtml(match[1] ?? match[2]).trim())
+  const attributePatterns = [
+    /data-option-label\s*=\s*(?:"([^"]+)"|'([^']+)')/gi,
+    /\boption-label\s*=\s*(?:"([^"]+)"|'([^']+)')/gi,
+    /\boption-tooltip-value\s*=\s*(?:"([^"]+)"|'([^']+)')/gi,
+  ]
+
+  for (const pattern of attributePatterns) {
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(html))) {
+      labels.push(decodeHtml(match[1] ?? match[2]).trim())
+    }
   }
-  return unique(labels)
+
+  const selectPattern = /<select\b[^>]*(?:super-attribute-select|product-custom-option)[^>]*>([\s\S]*?)<\/select>/gi
+  let selectMatch: RegExpExecArray | null
+  while ((selectMatch = selectPattern.exec(html))) {
+    const optionPattern = /<option\b[^>]*value=["'][^"']+["'][^>]*>([\s\S]*?)<\/option>/gi
+    let optionMatch: RegExpExecArray | null
+    while ((optionMatch = optionPattern.exec(selectMatch[1]))) {
+      const value = textContent(optionMatch[1])
+      if (value) labels.push(value)
+    }
+  }
+
+  return unique(
+    labels.filter(
+      (value) =>
+        value &&
+        !/^choose an option|^choose option|^select|^επιλέξτε/i.test(value)
+    )
+  )
 }
 
 function classifyOptionValues(values: string[]) {
@@ -348,7 +381,7 @@ export function extractPageEvidence(html: string, sourceUrl: string): PageEviden
           : undefined)
 
     product = {
-      name: schemaName ?? title,
+      name: schemaName ?? productTitle(html) ?? title,
       sku,
       brand: schemaBrand(productSchema?.brand),
       currency: schemaCurrency ?? metaContent(html, "product:price:currency", "property"),
