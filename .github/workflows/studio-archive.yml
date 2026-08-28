@@ -1,0 +1,159 @@
+name: COQUETTE Studio Archive CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "apps/studio/new-piece-archive.js"
+      - "apps/studio/new-piece-archive.css"
+      - "apps/studio/public/new-piece-archive.js"
+      - "apps/studio/public/new-piece-archive.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/archive-*.js"
+      - "apps/studio/api/studio/drafts.js"
+      - "apps/studio/api/studio/product-draft-update.js"
+      - "apps/backend/src/api/middlewares.ts"
+      - "apps/backend/src/api/admin/studio/archive/**"
+      - "apps/backend/src/lib/studio-archive*.ts"
+      - "apps/backend/src/lib/studio-lifecycle.ts"
+      - "apps/backend/src/workflows/apply-studio-archive.ts"
+      - ".github/workflows/studio-archive.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/studio/new-piece-archive.js"
+      - "apps/studio/new-piece-archive.css"
+      - "apps/studio/public/new-piece-archive.js"
+      - "apps/studio/public/new-piece-archive.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - "apps/studio/api/studio/archive-*.js"
+      - "apps/studio/api/studio/drafts.js"
+      - "apps/studio/api/studio/product-draft-update.js"
+      - "apps/backend/src/api/middlewares.ts"
+      - "apps/backend/src/api/admin/studio/archive/**"
+      - "apps/backend/src/lib/studio-archive*.ts"
+      - "apps/backend/src/lib/studio-lifecycle.ts"
+      - "apps/backend/src/workflows/apply-studio-archive.ts"
+      - ".github/workflows/studio-archive.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coquette-studio-archive-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+
+      - name: Validate Studio JavaScript syntax
+        run: |
+          node --check apps/studio/new-piece-archive.js
+          node --check apps/studio/public/new-piece-archive.js
+          node --check apps/studio/api/studio/archive-state.js
+          node --check apps/studio/api/studio/archive-plan.js
+          node --check apps/studio/api/studio/archive-apply.js
+          node --check apps/studio/api/studio/drafts.js
+          node --check apps/studio/api/studio/product-draft-update.js
+
+      - name: Enforce production asset parity
+        run: |
+          set -euo pipefail
+          cmp -s apps/studio/new-piece-archive.js apps/studio/public/new-piece-archive.js
+          cmp -s apps/studio/new-piece-archive.css apps/studio/public/new-piece-archive.css
+          cmp -s apps/studio/studio.html apps/studio/public/studio.html
+          grep -q '/new-piece-archive.css' apps/studio/studio.html
+          grep -q '/new-piece-archive.js' apps/studio/studio.html
+
+      - name: Enforce archive policy boundaries
+        run: |
+          set -euo pipefail
+          domain=apps/backend/src/lib/studio-archive.ts
+          policy=apps/backend/src/lib/studio-archive-policy.ts
+          workflow=apps/backend/src/workflows/apply-studio-archive.ts
+          middleware=apps/backend/src/api/middlewares.ts
+          lifecycle=apps/backend/src/lib/studio-lifecycle.ts
+          client=apps/studio/new-piece-archive.js
+
+          grep -q 'STUDIO_ARCHIVE_ACTIONS = \["archive", "restore"\]' "$domain"
+          grep -q 'createHash("sha256")' "$domain"
+          grep -q 'stale_archive_plan' "$domain"
+          grep -q 'archived_visibility_violation' "$domain"
+          grep -q 'target_status: "draft"' "$domain"
+          grep -q 'sales_channels: true' "$domain"
+          grep -q 'variants: true' "$domain"
+          grep -q 'pricing: true' "$domain"
+          grep -q 'inventory: true' "$domain"
+          grep -q 'media: true' "$domain"
+          grep -q 'placement: true' "$domain"
+
+          grep -q 'coquette_studio_archived' "$policy"
+          grep -q 'coquette_studio_archive_previous_status' "$policy"
+          grep -q 'updateProductsWorkflow' "$workflow"
+          grep -q 'status: data.target_status' "$workflow"
+          grep -q 'metadata: data.metadata' "$workflow"
+
+          grep -q 'defineMiddlewares' "$middleware"
+          grep -q 'archive_guard_unavailable' "$middleware"
+          grep -q 'product_archived' "$middleware"
+          grep -q 'placement-taxonomy' "$middleware"
+          if grep -q 'admin\\/studio\\/archive' "$middleware"; then
+            echo 'Archive/restore endpoint must remain exempt from the archived-write middleware.' >&2
+            exit 1
+          fi
+
+          grep -q 'studioProductIsArchived' "$lifecycle"
+          grep -q 'product_archived' "$lifecycle"
+          grep -q "coquette_studio_archived !== 'true'" apps/studio/api/studio/drafts.js
+          grep -q "coquette_studio_archived === 'true'" apps/studio/api/studio/product-draft-update.js
+
+          grep -q '/api/studio/archive-state' "$client"
+          grep -q '/api/studio/archive-plan' "$client"
+          grep -q '/api/studio/archive-apply' "$client"
+          grep -q 'archive_hash' "$client"
+          grep -q 'It never republishes automatically' "$client"
+
+          if grep -R -n -E 'deleteProduct|deleteProducts|deleteProductsWorkflow|removeProducts|removeProduct' \
+            apps/backend/src/api/admin/studio/archive apps/backend/src/lib/studio-archive.ts apps/backend/src/workflows/apply-studio-archive.ts; then
+            echo 'Archive policy must not delete catalogue records.' >&2
+            exit 1
+          fi
+
+  backend-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check backend
+        run: pnpm --filter @coquette/backend exec tsc --noEmit
+
+      - name: Enforce backend lint rules
+        run: pnpm --filter @coquette/backend lint
