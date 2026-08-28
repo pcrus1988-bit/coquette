@@ -40,7 +40,10 @@ async function runPnpm(
         cwd: repoRoot,
         env,
         stdio: ["inherit", showStdout ? "inherit" : "ignore", "inherit"],
-        shell: false,
+        // Windows cannot spawn .cmd shims directly with shell:false. pnpm is
+        // installed through Corepack as pnpm.cmd, so allow cmd.exe to resolve
+        // the shim only on Windows while keeping direct spawning elsewhere.
+        shell: process.platform === "win32",
       }
     )
     child.once("error", reject)
