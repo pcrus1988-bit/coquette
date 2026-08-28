@@ -272,7 +272,7 @@ function mergeCategoryReferences(
   return [...byUrl.values()]
 }
 
-function optionGroups(html: string) {
+function selectOptionGroups(html: string) {
   const result: ProductOptionGroupEvidence[] = []
   const selectPattern = /<select\b([^>]*)>([\s\S]*?)<\/select>/gi
   let select: RegExpExecArray | null
@@ -291,19 +291,63 @@ function optionGroups(html: string) {
     )
     if (values.length) result.push({ name, values })
   }
+  return result
+}
 
+function swatchOptionGroups(html: string) {
+  const result: ProductOptionGroupEvidence[] = []
+  const swatchPattern = /<div\b([^>]*)class=["'][^"']*swatch-attribute(?:\s+[^"']*)?["']([^>]*)>([\s\S]*?)(?=<div\b[^>]*class=["'][^"']*swatch-attribute(?:\s+[^"']*)?["']|<\/form>|$)/gi
+  let swatch: RegExpExecArray | null
+
+  while ((swatch = swatchPattern.exec(html))) {
+    const openingTag = `<div ${swatch[1]} class="swatch-attribute" ${swatch[2]}>`
+    const region = swatch[3]
+    const explicitName =
+      attribute(openingTag, "attribute-code") ??
+      attribute(openingTag, "data-attribute-code")
+    const label = region.match(
+      /<span\b[^>]*class=["'][^"']*swatch-attribute-label[^"']*["'][^>]*>([\s\S]*?)<\/span>/i
+    )
+    const name = explicitName ?? (label?.[1] ? textContent(label[1]) : undefined)
+    if (!name) continue
+
+    const values: string[] = []
+    const optionPattern = /<(?:div|a)\b[^>]*class=["'][^"']*swatch-option[^"']*["'][^>]*>/gi
+    for (const match of region.matchAll(optionPattern)) {
+      const value =
+        attribute(match[0], "option-label") ??
+        attribute(match[0], "option-tooltip-value") ??
+        attribute(match[0], "data-option-label")
+      if (value) values.push(value)
+    }
+    if (values.length) result.push({ name, values: unique(values) })
+  }
+  return result
+}
+
+function optionGroups(html: string) {
   const merged = new Map<string, string[]>()
-  for (const group of result) {
+  for (const group of [...selectOptionGroups(html), ...swatchOptionGroups(html)]) {
     const key = group.name.trim().toLowerCase()
     merged.set(key, unique([...(merged.get(key) ?? []), ...group.values]))
   }
-
   return [...merged.entries()].map(([name, values]) => ({ name, values }))
+}
+
+export function extractCategoryProductLinks(html: string, pageUrl: string) {
+  const result: string[] = []
+  const pattern = /<a\b([^>]*)class=["'][^"']*product-item-link[^"']*["']([^>]*)>/gi
+  for (const match of html.matchAll(pattern)) {
+    const tag = `<a ${match[1]} class="product-item-link" ${match[2]}>`
+    const url = safeUrl(attribute(tag, "href"), pageUrl)
+    if (url) result.push(url)
+  }
+  return unique(result)
 }
 
 function directTypeEvidence(html: string) {
   const explicitConfigurable =
-    /spConfig|configurable\.js|Magento_ConfigurableProduct|data-role=["']swatch-options["']/i.test(
+    /spConfig|configurable\.js|Magento_ConfigurableProduct|data-role=["']swatch-options["']|class=["'][^"']*swatch-attribute[^"']*["']/i.test(
       html
     )
   if (explicitConfigurable) {
