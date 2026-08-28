@@ -1,5 +1,5 @@
 import type { ITaxModuleService } from "@medusajs/framework/types"
-import { Modules } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import {
   createStep,
   createWorkflow,
@@ -52,7 +52,7 @@ const mutateTaxStep = createStep<
   TaxMutationResult,
   TaxCompensation
 >(
-  "apply-studio-tax-default-rate",
+  "mutate-tax",
   async (input, { container }) => {
     const tax = container.resolve<ITaxModuleService>(Modules.TAX)
 
@@ -75,7 +75,12 @@ const mutateTaxStep = createStep<
     }
 
     if (input.tax_action === "create_rate") {
-      if (!input.tax_region_id) throw new Error("tax_region_required")
+      if (!input.tax_region_id) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "tax_region_required"
+        )
+      }
       const created = await tax.createTaxRates({
         tax_region_id: input.tax_region_id,
         rate: input.rate,
@@ -91,11 +96,24 @@ const mutateTaxStep = createStep<
     }
 
     if (input.tax_action === "update_rate") {
-      if (!input.tax_region_id) throw new Error("tax_region_required")
-      if (!input.tax_rate_id) throw new Error("tax_rate_required")
+      if (!input.tax_region_id) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "tax_region_required"
+        )
+      }
+      if (!input.tax_rate_id) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "tax_rate_required"
+        )
+      }
       const previous = await tax.retrieveTaxRate(input.tax_rate_id)
       if (!previous.code) {
-        throw new Error("existing_tax_rate_code_missing")
+        throw new MedusaError(
+          MedusaError.Types.UNEXPECTED_STATE,
+          "existing_tax_rate_code_missing"
+        )
       }
       await tax.updateTaxRates(input.tax_rate_id, {
         rate: input.rate,
