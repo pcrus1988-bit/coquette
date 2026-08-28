@@ -22,7 +22,11 @@ module.exports = async function handler(req, res) {
 
     const products = Array.isArray(result.payload?.products) ? result.payload.products : []
     const drafts = products
-      .filter((product) => product?.status === 'draft' && product?.metadata?.coquette_studio_origin === 'quick_draft')
+      .filter((product) =>
+        product?.status === 'draft' &&
+        product?.metadata?.coquette_studio_origin === 'quick_draft' &&
+        product?.metadata?.coquette_studio_archived !== 'true'
+      )
       .map((product) => ({
         id: product.id,
         title: product.title || 'Untitled piece',
