@@ -73,6 +73,7 @@ export default async function studioTaxContract({ container }: ExecArgs) {
   await tax.createTaxRates({
     tax_region_id: state.tax_region.id,
     name: "Foreign override sentinel",
+    code: "FOREIGN-OVERRIDE-SENTINEL",
     rate: 7.75,
     is_default: false,
   })
