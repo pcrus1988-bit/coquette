@@ -24,7 +24,7 @@ export type ApplyStudioTaxWorkflowInput = {
   tax_rate_id?: string | null
   rate: number
   name: string
-  code: string | null
+  code: string
 }
 
 type TaxMutationResult = {
@@ -41,7 +41,7 @@ type TaxCompensation =
       previous: {
         rate: number | null
         name: string
-        code: string | null
+        code: string
         is_default: boolean
       }
     }
@@ -59,6 +59,7 @@ const mutateTaxStep = createStep<
     if (input.tax_action === "create_region") {
       const created = await tax.createTaxRegions({
         country_code: input.country_code,
+        provider_id: "tp_system",
         metadata: { coquette_studio_tax: "store-default-v1" },
         default_tax_rate: {
           rate: input.rate,
@@ -107,7 +108,7 @@ const mutateTaxStep = createStep<
           previous: {
             rate: previous.rate ?? null,
             name: previous.name,
-            code: previous.code ?? null,
+            code: previous.code,
             is_default: Boolean(previous.is_default),
           },
         }
