@@ -1,0 +1,202 @@
+name: COQUETTE Studio Tax CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "apps/backend/src/api/admin/studio/tax/**"
+      - "apps/backend/src/lib/studio-tax.ts"
+      - "apps/backend/src/workflows/apply-studio-tax.ts"
+      - "apps/backend/src/scripts/studio-tax-contract.ts"
+      - "apps/studio/api/studio/tax-*.js"
+      - "apps/studio/operations-tax.js"
+      - "apps/studio/operations-tax.css"
+      - "apps/studio/public/operations-tax.js"
+      - "apps/studio/public/operations-tax.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - ".github/workflows/studio-tax.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/backend/src/api/admin/studio/tax/**"
+      - "apps/backend/src/lib/studio-tax.ts"
+      - "apps/backend/src/workflows/apply-studio-tax.ts"
+      - "apps/backend/src/scripts/studio-tax-contract.ts"
+      - "apps/studio/api/studio/tax-*.js"
+      - "apps/studio/operations-tax.js"
+      - "apps/studio/operations-tax.css"
+      - "apps/studio/public/operations-tax.js"
+      - "apps/studio/public/operations-tax.css"
+      - "apps/studio/studio.html"
+      - "apps/studio/public/studio.html"
+      - ".github/workflows/studio-tax.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coquette-studio-tax-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coquette_tax_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coquette_tax_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/coquette_tax_ci
+      REDIS_URL: redis://localhost:6379
+      STORE_CORS: http://localhost:8000
+      ADMIN_CORS: http://localhost:9000
+      AUTH_CORS: http://localhost:8000,http://localhost:9000
+      JWT_SECRET: ci-tax-only-secret
+      COOKIE_SECRET: ci-tax-only-secret
+      MEDUSA_BACKEND_URL: http://localhost:9000
+      MEDUSA_WORKER_MODE: server
+      DISABLE_MEDUSA_ADMIN: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate tax JavaScript syntax
+        run: |
+          node --check apps/studio/operations-tax.js
+          node --check apps/studio/public/operations-tax.js
+          node --check apps/studio/api/studio/tax-state.js
+          node --check apps/studio/api/studio/tax-plan.js
+          node --check apps/studio/api/studio/tax-apply.js
+
+      - name: Enforce Studio tax asset parity
+        run: |
+          set -euo pipefail
+          cmp -s apps/studio/operations-tax.js apps/studio/public/operations-tax.js
+          cmp -s apps/studio/operations-tax.css apps/studio/public/operations-tax.css
+          cmp -s apps/studio/studio.html apps/studio/public/studio.html
+          grep -q '/operations-tax.css' apps/studio/studio.html
+          grep -q '/operations-tax.js' apps/studio/studio.html
+          grep -q 'operations-tax-panel' apps/studio/studio.html
+
+      - name: Enforce guarded tax ownership boundary
+        run: |
+          set -euo pipefail
+          domain=apps/backend/src/lib/studio-tax.ts
+          workflow=apps/backend/src/workflows/apply-studio-tax.ts
+          plan=apps/backend/src/api/admin/studio/tax/plan/route.ts
+          apply=apps/backend/src/api/admin/studio/tax/apply/route.ts
+          client=apps/studio/operations-tax.js
+          contract=apps/backend/src/scripts/studio-tax-contract.ts
+
+          grep -q 'STUDIO_TAX_COUNTRY_CODE = "gr"' "$domain"
+          grep -q 'createHash("sha256")' "$domain"
+          grep -q 'Tax rate must be entered explicitly' "$domain"
+          grep -q 'foreign_tax_overrides_present' "$domain"
+          grep -q 'foreign_tax_rules_present' "$domain"
+          grep -q 'external_tax_provider_present' "$domain"
+          grep -q 'foreign_tax_subregions_present' "$domain"
+          grep -q 'stale_tax_plan' "$domain"
+          grep -q 'applyStudioTaxWorkflow' "$domain"
+
+          grep -q 'createStep' "$workflow"
+          grep -q 'Modules.TAX' "$workflow"
+          grep -q 'updateRegionsWorkflow.runAsStep' "$workflow"
+          grep -q 'is_tax_inclusive' "$workflow"
+          grep -q 'default_tax_rate' "$workflow"
+
+          grep -q 'expected_state_hash' "$plan"
+          grep -q 'Modules.LOCKING' "$apply"
+          grep -q 'tax_hash' "$apply"
+          grep -q 'coquette-studio-tax' "$apply"
+
+          grep -q '/api/studio/tax-state' "$client"
+          grep -q '/api/studio/tax-plan' "$client"
+          grep -q '/api/studio/tax-apply' "$client"
+          grep -q 'Studio never assumes a VAT percentage' "$client"
+          grep -q 'Separate from AADE / myDATA' "$client"
+          grep -q 'Apply reviewed tax settings' "$client"
+
+          grep -q 'default_rate: "19.5"' "$contract"
+          grep -q 'default_rate: "21.25"' "$contract"
+          grep -q 'change_count, 0' "$contract"
+          grep -q 'foreign_tax_overrides_present' "$contract"
+
+          if grep -R -n -E '(^|[^0-9])24([.]0+)?([^0-9]|$)' \
+            apps/backend/src/lib/studio-tax.ts \
+            apps/backend/src/workflows/apply-studio-tax.ts \
+            apps/backend/src/api/admin/studio/tax \
+            apps/studio/operations-tax.js; then
+            echo 'Studio tax must never seed or infer a 24 percent Greece default.' >&2
+            exit 1
+          fi
+
+          if grep -R -n -E 'product_type|shipping_option|reference_id|AADE|myDATA|MARK|UID' \
+            apps/backend/src/lib/studio-tax.ts \
+            apps/backend/src/workflows/apply-studio-tax.ts \
+            apps/backend/src/api/admin/studio/tax; then
+            echo 'First Studio tax milestone must not own product/shipping overrides or fiscal document treatment.' >&2
+            exit 1
+          fi
+
+          if grep -n -E 'localStorage|sessionStorage|Bearer|authorization' apps/studio/operations-tax.js; then
+            echo 'Tax browser code must not hold Medusa credentials or browser token state.' >&2
+            exit 1
+          fi
+
+      - name: Type-check backend
+        run: pnpm --filter @coquette/backend exec tsc --noEmit
+
+      - name: Run Medusa migrations
+        run: pnpm --filter @coquette/backend db:migrate
+
+      - name: Bootstrap Greece commerce without guessed tax
+        env:
+          COQUETTE_STANDARD_SHIPPING_EUR: "4.90"
+        run: |
+          pnpm --filter @coquette/backend staging:bootstrap
+          pnpm --filter @coquette/backend staging:bootstrap
+
+      - name: Validate guarded Studio store-tax runtime contract
+        run: pnpm --filter @coquette/backend exec medusa exec ./src/scripts/studio-tax-contract.ts
