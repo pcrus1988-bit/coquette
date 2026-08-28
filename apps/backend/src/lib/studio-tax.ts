@@ -114,6 +114,10 @@ function unexpectedState(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
 }
 
+function guardedConflict(message: string) {
+  return new MedusaError(MedusaError.Types.NOT_ALLOWED, message)
+}
+
 function stableHash(value: object) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex")
 }
@@ -335,8 +339,10 @@ export async function buildStudioTaxPlan(
   request: StudioTaxRequest
 ): Promise<StudioTaxPlan> {
   const state = await readStudioTaxState(container)
-  if (state.state_hash !== expectedStateHash) throw new Error("stale_tax_state")
-  if (state.blocked) throw new Error(`tax_state_blocked:${state.blockers.join(",")}`)
+  if (state.state_hash !== expectedStateHash) throw guardedConflict("stale_tax_state")
+  if (state.blocked) {
+    throw guardedConflict(`tax_state_blocked:${state.blockers.join(",")}`)
+  }
 
   const desired = normalizeRequest(request)
   let taxAction: StudioTaxMutationAction = "none"
@@ -396,7 +402,7 @@ export async function applyStudioTaxPlan(
   expectedTaxHash: string
 ) {
   const plan = await buildStudioTaxPlan(container, expectedStateHash, request)
-  if (plan.tax_hash !== expectedTaxHash) throw new Error("stale_tax_plan")
+  if (plan.tax_hash !== expectedTaxHash) throw guardedConflict("stale_tax_plan")
   if (plan.change_count === 0) return plan
 
   const input: ApplyStudioTaxWorkflowInput = {
