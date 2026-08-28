@@ -10,29 +10,38 @@ COQUETTE is an isolated Medusa v2 / Next.js commerce platform with dedicated Git
 
 The legacy `coquetteconcept.gr` Magento shop remains production until reconstruction, merchant UAT and cutover gates pass. Magento Admin/database/filesystem/API access remains unavailable, so Phase 4 reconstructs only legitimately recoverable public storefront state and never invents private Magento-only values.
 
-### Current implementation head
+### Validated implementation and current release
 
-- `main`: `4536ba682e6587f7b330f4acb1cfb9d0a67f5e6e`
+- current `main`: `23b66c145cf128c4eec2f1d269c8d04e2f2d394a`
+- current validated application/documentation tree: `ffab2f2f15f0bd3910a38acd67c7c84837edba31`
 - PR #85: guarded archive/restore policy merged and validated
 - PR #86: Railway-equivalent production runtime smoke gate merged
 - PR #87: Studio archive/backend fail-soft compatibility merged and deployed READY on Vercel
+- PR #88: Blueprint/AUDIT/CURRENT_STATUS synchronization merged
+- recovered same-tree Railway baseline: `eb03c253919171dd6d5c0a96d253b70174ee8afb`
+- exact-tree archive recovery candidate: `aabe3c1af20ccc545a54dd0c36bd55682ce42e32`
+- all 8 applicable candidate workflows: SUCCESS
+- current controlled Railway release: `ae4d971b0a4e30882474e81a769c5f0a32268eda`
+- Railway `coquette-backend`: SUCCESS on `ae4d971b…`
+- Railway `coquette-worker`: SUCCESS on `ae4d971b…`
+- Railway server/worker same-release invariant: RESTORED
+- Vercel storefront: SUCCESS on the final release
+- Vercel COQUETTE Studio: READY from the compatibility-safe `main` deployment
+- obsolete Vercel `backend`: remains cleanup noise and is not the Medusa runtime
 
-### Railway incident state
+The release invariant is again satisfied: `main` is the validated implementation baseline; Railway `staging` is a deliberate history-preserving release line; backend and worker are successful on the exact same release commit.
 
-The archive release did **not** fail because CI merely built an invalid Medusa artifact. Full CI now performs the Railway-equivalent backend path: migrations/predeploy → built production server start → HTTP 2xx `/health`, and that contract is green.
+### Resolved Railway builder incident
 
-Railway evidence instead shows a service-level deployment blocker:
+The 2026-08-28 backend failures were ultimately traced to Railway's build infrastructure rather than COQUETTE code. The decisive failed build reported:
 
-- archive release `fb3a931349f52457135300393bd67edf56c554ce`: worker succeeded, backend failed;
-- identical-application retry `86c668a8d3488d7f0111f2034021839ab4ec10cd`: backend failed again;
-- forward-only rollback release `2b4f20e0678669b23be697b7108bb55510c8554d`, carrying the prior known-good application tree: worker succeeded, backend failed;
-- therefore the current fault boundary is the Railway backend service/environment/platform deployment path, not a demonstrated archive-code defect.
+`DeadlineExceeded: failed to load cache key: failed to do request: Head "https://registry-1.docker.io/v2/library/alpine/manifests/latest": ... i/o timeout`
 
-Current Railway `staging` points to `2b4f20e…`. The server/worker same-release invariant is currently **not satisfied**, because the worker accepted that release and the backend could not deploy it.
+Repository verification found no `alpine:latest` or `FROM alpine` application reference. The failure occurred before the COQUETTE build completed, and there were no Deploy Logs because no deployable image had been produced.
 
-The last previously verified aligned Railway baseline before this incident was `d450b35edc6e750004df72452950f9246ae3ffff`.
+A forward-only exact-same-tree retry `eb03c253…` then succeeded on both Railway backend and worker without any application change. That proves the earlier failure was a transient Railway builder / Docker Hub connectivity incident rather than a demonstrated defect in Medusa, migrations, Redis, start commands, healthcheck configuration or the archive implementation.
 
-**Immediate release rule:** no new backend-dependent Studio phase may assume deployment until Railway backend is repaired and backend + worker are again successful on one controlled release.
+After recovery, the full current `main` tree was re-promoted through the controlled release discipline and succeeded as `ae4d971b…`.
 
 ---
 
@@ -54,7 +63,8 @@ Verified/shipped:
 - PayPal and Klarna foundations
 - clean PostgreSQL CI, Admin CRUD, payment/bootstrap, reconstruction/import/reconciliation and storefront build gates
 - Railway production artifact build gate
-- **actual production Medusa startup + `/health` gate** added in PR #86
+- actual production Medusa predeploy/start/HTTP-2xx `/health` CI gate from PR #86
+- controlled exact-tree Railway release process proven again after the builder incident
 
 ---
 
@@ -76,13 +86,13 @@ The next unavoidable Phase 4 acquisition boundary is the authoritative operator-
 
 ## COQUETTE Studio — merchant experience state
 
-**Status: MATERIAL PHASE 5 IMPLEMENTATION SHIPPED; RAILWAY RELEASE OF NEWEST BACKEND API BLOCKED**
+**Status: MATERIAL PHASE 5 IMPLEMENTATION SHIPPED AND CURRENT BACKEND API RELEASED**
 
 Architectural rule:
 
 > COQUETTE Studio is the primary day-to-day merchant experience. Medusa remains the authoritative commerce engine and technical administration foundation. Studio operates through constrained Medusa interfaces and never becomes a second system of record.
 
-### Implemented and validated product workflow
+### Implemented, validated and release-aligned product workflow
 
 - branded high-class merchant experience direction
 - Today/dashboard/personal-assistant model
@@ -103,18 +113,18 @@ Architectural rule:
 - post-workflow invariant verification and clean-database runtime contracts
 - source/public Studio asset parity and compatibility CI
 
-### Archive deployment compatibility
+### Archive deployment state
 
-Archive/restore is implemented and validated on `main`, but is **not yet Railway-released**.
+Archive/restore is now **Railway-released** in controlled release `ae4d971b…`.
 
-PR #87 prevents Studio from outrunning the backend:
+PR #87 remains a permanent compatibility safeguard:
 
-- if `/admin/studio/archive` is unavailable on the deployed backend, Studio treats archive as an unavailable capability;
-- Archive/Restore controls are hidden instead of failing visibly;
+- if `/admin/studio/archive` is unavailable on a future deployed backend, Studio treats archive as an unavailable capability;
+- Archive/Restore controls hide instead of failing visibly;
 - other product workflows remain usable;
-- once Railway successfully deploys the archive API, the same Studio UI activates automatically.
+- when the API is available, the same UI activates automatically.
 
-Vercel production deployment from `4536ba68…` is READY.
+Pinned Medusa 2.19 defines native product statuses as `draft`, `proposed`, `published`, `rejected`; it has no native `archived` status. Archive therefore remains a COQUETTE metadata/policy layer, while customer visibility continues to require separate status and sales-channel reasoning.
 
 ### Still required for Phase 5 exit
 
@@ -125,41 +135,33 @@ Vercel production deployment from `4536ba68…` is READY.
 - scheduled publication only if durable persistence/scheduling is deliberately implemented
 - role-based acceptance and full merchant UAT
 
-Pinned Medusa 2.19 defines native product statuses as `draft`, `proposed`, `published`, `rejected`; it has no native `archived` status. Archive is therefore a COQUETTE policy layer, while customer visibility continues to require separate status and sales-channel reasoning.
-
 ---
 
 ## Release/AUDIT status
 
-The original AUDIT release-history problem was resolved previously. The current issue is different: Railway backend deployment itself is failing even for a rollback carrying the prior known-good application tree.
+The original AUDIT release-history problem and the later Railway builder incident are both resolved.
 
-### Verified 2026-08-28 sequence
+### Verified 2026-08-28 incident and recovery sequence
 
 1. Guarded archive/restore merged in PR #85.
-2. Exact-tree release validation passed.
-3. Release `fb3a9313…` advanced `staging` without force.
-4. Worker succeeded, backend failed.
-5. PR #86 added production-start `/health` verification to full CI.
-6. Corrected runtime smoke passed.
-7. Same-tree retry still failed on Railway backend.
-8. Forward-only rollback `2b4f20e…` restored the prior known-good application tree without rewriting history.
-9. Worker succeeded on rollback; backend failed again.
-10. PR #87 added Studio capability fallback and is READY on Vercel.
-
-### Required next evidence
-
-Railway `coquette-backend` failed deployment:
-
-- Build Logs
-- Deploy Logs
-- build/predeploy/start/healthcheck service settings relevant to the failure
-- current injected environment/configuration relevant to those stages
-
-Do not invent a source-code workaround before inspecting those diagnostics.
+2. Original exact-tree archive release validation passed.
+3. Release `fb3a9313…` advanced `staging` without force; worker succeeded and backend failed.
+4. PR #86 added production-start `/health` verification to full CI.
+5. Corrected runtime smoke passed.
+6. Same-tree archive retry still failed on Railway backend.
+7. Forward-only rollback `2b4f20e…` restored the prior known-good application tree; worker succeeded and backend again failed.
+8. Railway Build Logs identified the failure before deploy: Docker Hub `alpine:latest` manifest request timed out in Railway's build daemon.
+9. Repository inspection confirmed the Alpine reference was not COQUETTE application configuration.
+10. Exact-same-tree retry `eb03c253…` succeeded on both Railway backend and worker, confirming a transient builder/network incident.
+11. Current `main` tree was carried into exact-tree two-parent candidate `aabe3c1…`, preserving recovered staging as first parent and current main as second parent.
+12. All 8 applicable candidate workflows passed, including production artifact build, predeploy, actual server start, HTTP-2xx `/health` smoke and storefront build.
+13. Final release `ae4d971b…` used the exact same tree and ordered parents and advanced `staging` without force.
+14. Railway backend and worker both succeeded on `ae4d971b…`; storefront deployment also succeeded.
+15. GitHub issue #89 was closed as completed.
 
 ### Remaining account-level cleanup
 
-- remove/disconnect obsolete Vercel `backend` so its false red deployment signal disappears
+- remove/disconnect obsolete Vercel `backend` so its false red deployment signal disappears; tracked in issue #90
 - configure appropriate GitHub branch/ruleset protection if account administration permits
 
 ---
@@ -169,9 +171,9 @@ Do not invent a source-code workaround before inspecting those diagnostics.
 - **Phase 0 — Workspace/isolation:** Complete.
 - **Phase 1 — Audit/architecture:** Complete; public audit remains continuous.
 - **Phase 2 — Executable foundation:** Complete, including production runtime-start smoke verification.
-- **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete; Railway backend deployment incident open.
+- **Phase 3 — Domain model/managed infrastructure:** Technical exit gate complete; Railway release alignment restored.
 - **Phase 4 — Public legacy reconstruction:** Technical chain very advanced through Phase 4U; authoritative real legacy capture/import pending.
-- **Phase 5 — Merchant back office:** Material implementation through variants, pricing, identifiers, inventory, placement, publication lifecycle and archive policy; newest backend-dependent release blocked on Railway.
+- **Phase 5 — Merchant back office:** Material implementation through variants, pricing, identifiers, inventory, placement, publication lifecycle and archive/restore; current catalogue API release aligned. Tax/SEO/bulk/broader daily operations and UAT remain.
 - **Phase 6 — Storefront parity:** Materially advanced; real-data acceptance pending.
 - **Phase 7 — Search/discovery/merchandising:** Substantially implemented ahead of original sequence; final real-data QA pending.
 - **Phase 8 — Customer/cart/account:** Foundations materially implemented; final staging E2E pending.
@@ -182,14 +184,16 @@ Do not invent a source-code workaround before inspecting those diagnostics.
 
 ## Next executable milestones
 
-### Immediate release-recovery track — BLOCKING
+### Phase 5 merchant-workflow track
 
-1. inspect Railway backend Build Logs / Deploy Logs and relevant service settings;
-2. correct the Railway backend service/environment issue without changing architecture unnecessarily;
-3. create/advance a controlled staging release without force;
-4. require backend and worker success on the same release;
-5. verify backend `/health`, Store API, Admin API and Studio compatibility;
-6. mark archive/restore Railway-released only after this alignment exists.
+With Railway release alignment restored, the next bounded backend-dependent catalogue workflow is merchant-facing tax controls where appropriate. It must use native Medusa tax concepts and may not invent tax treatment or fiscal facts.
+
+After tax controls:
+
+1. merchandising/SEO application;
+2. bulk catalogue operations;
+3. broader order/customer/refund/fulfillment/payment/shipping/fiscal daily operations;
+4. role-based merchant UAT.
 
 ### Phase 4 real-data track
 
@@ -202,19 +206,14 @@ Do not invent a source-code workaround before inspecting those diagnostics.
 7. run guarded structural product import and guarded price import;
 8. reconcile catalogue/media/URL results.
 
-### Phase 5 non-blocked work
-
-Documentation, storefront-only work, evidence processing and design work that do not depend on a newer Railway Medusa API can proceed. New backend-dependent merchant workflows remain release-paused until alignment is restored.
-
 Production cutover remains forbidden until all Blueprint launch gates pass.
 
 ---
 
 ## Human/external dependencies
 
-Needed now:
+Needed for the next major Phase 4 milestone:
 
-- Railway backend deployment diagnostics/service configuration access
 - browser/network environment capable of the authoritative `coquetteconcept.gr` operator capture
 - continued public availability of the legacy storefront until accepted capture
 
@@ -235,7 +234,6 @@ The target is a working staging store and then a controlled cutover, not a perma
 
 COQUETTE remains intentionally pre-cutover until:
 
-- Railway backend/worker release alignment is restored;
 - real reconstructed data is present in staging;
 - merchant UAT passes;
 - payment/courier/fiscal/SEO redirect gates pass;
