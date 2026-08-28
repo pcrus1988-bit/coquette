@@ -159,12 +159,6 @@ module.exports = async function handler(req, res) {
     if (!ALLOWED_ORIGINS.has(origin)) {
       return json(res, 403, { message: 'This draft was not created through the guarded COQUETTE Studio flow' })
     }
-    if (current.metadata?.coquette_studio_archived === 'true') {
-      return json(res, 409, {
-        message: 'This product is archived. Restore it to an editable draft before making changes.',
-        code: 'product_archived',
-      })
-    }
     if (expectedUpdatedAt && current.updated_at && expectedUpdatedAt !== current.updated_at) {
       return json(res, 409, {
         message: 'This draft changed in another session. Reload it before continuing.',

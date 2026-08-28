@@ -12,7 +12,6 @@ import {
 import applyStudioLifecycleWorkflow, {
   type ApplyStudioLifecycleWorkflowInput,
 } from "../workflows/apply-studio-lifecycle"
-import { studioProductIsArchived } from "./studio-archive-policy"
 
 export const STUDIO_LIFECYCLE_VERSION = "1"
 export const STUDIO_LIFECYCLE_ACTIONS = ["publish", "unpublish"] as const
@@ -141,11 +140,6 @@ function assertStudioLifecycleProduct(product: StudioLifecycleProduct | undefine
   if (product.metadata?.coquette_studio_origin !== "quick_draft") {
     throw unexpectedState(
       "not_studio_product: This product is outside the guarded COQUETTE Studio product flow."
-    )
-  }
-  if (studioProductIsArchived(product.metadata)) {
-    throw unexpectedState(
-      "product_archived: Restore this product to an editable draft before changing publication visibility."
     )
   }
   if (product.status !== ProductStatus.DRAFT && product.status !== ProductStatus.PUBLISHED) {
