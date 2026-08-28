@@ -14,6 +14,8 @@ import applyStudioTaxWorkflow, {
 export const STUDIO_TAX_VERSION = "1"
 export const STUDIO_TAX_COUNTRY_CODE = "gr" as const
 export const STUDIO_TAX_REGION_NAME = "Greece"
+export const STUDIO_TAX_SYSTEM_PROVIDER_ID = "tp_system"
+export const STUDIO_TAX_INTERNAL_DEFAULT_CODE = "COQUETTE-STUDIO-DEFAULT"
 
 export type StudioTaxRequest = {
   default_rate: string
@@ -162,7 +164,20 @@ function canonicalCode(value: unknown) {
   const code = value.trim()
   if (!code) return null
   if (code.length > 40) throw unexpectedState("Tax rate code must contain at most 40 characters")
+  if (code === STUDIO_TAX_INTERNAL_DEFAULT_CODE) {
+    throw unexpectedState("That tax rate code is reserved internally by COQUETTE Studio")
+  }
   return code
+}
+
+function displayCode(value: unknown) {
+  if (value == null || value === "") return null
+  const code = String(value)
+  return code === STUDIO_TAX_INTERNAL_DEFAULT_CODE ? null : code
+}
+
+function storedCode(value: string | null) {
+  return value || STUDIO_TAX_INTERNAL_DEFAULT_CODE
 }
 
 function normalizeRequest(request: StudioTaxRequest) {
@@ -240,13 +255,19 @@ export async function readStudioTaxState(container: MedusaContainer): Promise<St
   if (rates.some((rate) => (rate.rules?.length || 0) > 0)) {
     blockers.push("foreign_tax_rules_present")
   }
-  if (taxRegion?.provider_id) blockers.push("external_tax_provider_present")
+  if (
+    taxRegion?.provider_id &&
+    taxRegion.provider_id !== STUDIO_TAX_SYSTEM_PROVIDER_ID
+  ) {
+    blockers.push("external_tax_provider_present")
+  }
   if (taxRegion && countryRegions.some((record) => record.id !== taxRegion.id)) {
     blockers.push("foreign_tax_subregions_present")
   }
 
   const defaultRate = defaults[0]
   const defaultRateValue = defaultRate ? canonicalStoredRate(defaultRate.rate) : null
+  const defaultRateDisplayCode = defaultRate ? displayCode(defaultRate.code) : null
   const pricesIncludeTax = Boolean(preference?.is_tax_inclusive)
 
   const stateCore = {
@@ -275,7 +296,7 @@ export async function readStudioTaxState(container: MedusaContainer): Promise<St
           id: defaultRate.id,
           rate: defaultRateValue,
           name: defaultRate.name || "",
-          code: defaultRate.code || null,
+          stored_code: defaultRate.code || "",
           updated_at: canonicalTimestamp(defaultRate.updated_at),
         }
       : null,
@@ -299,7 +320,7 @@ export async function readStudioTaxState(container: MedusaContainer): Promise<St
           id: defaultRate.id,
           rate: defaultRateValue || "0",
           name: defaultRate.name || "",
-          code: defaultRate.code || null,
+          code: defaultRateDisplayCode,
         }
       : null,
     blocked: blockers.length > 0,
@@ -387,7 +408,7 @@ export async function applyStudioTaxPlan(
     tax_rate_id: plan.tax_rate_id,
     rate: Number(plan.desired.default_rate),
     name: plan.desired.name,
-    code: plan.desired.code,
+    code: storedCode(plan.desired.code),
   }
   await applyStudioTaxWorkflow(container).run({ input })
 
