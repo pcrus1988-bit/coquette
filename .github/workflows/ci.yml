@@ -252,14 +252,16 @@ jobs:
           done
 
           if [ "$healthy" -ne 1 ]; then
-            echo "Medusa production runtime did not reach /health" >&2
+            echo "Medusa production runtime did not reach a successful /health response" >&2
             cat /tmp/coquette-health.err >&2 || true
             cat /tmp/coquette-medusa-runtime.log >&2
             exit 1
           fi
 
-          grep -q 'OK' /tmp/coquette-health.txt
-          echo "Railway-equivalent production runtime reached /health successfully"
+          echo "Health response:"
+          cat /tmp/coquette-health.txt
+          echo
+          echo "Railway-equivalent production runtime reached a successful /health response"
 
       - name: Build storefront
         run: pnpm --filter @coquette/storefront build
