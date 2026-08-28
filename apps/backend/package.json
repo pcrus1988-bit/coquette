@@ -22,6 +22,7 @@
     "storefront:capture:operator": "ts-node src/scripts/capture-legacy-storefront-operator.ts",
     "storefront:capture:handoff": "ts-node src/scripts/operator-capture-handoff.ts",
     "storefront:capture:repair": "ts-node src/scripts/repair-operator-capture.ts",
+    "storefront:capture:repair:resume": "ts-node src/scripts/resume-operator-capture-repair.ts",
     "capture-evidence-package:contract": "ts-node src/scripts/capture-evidence-package-contract.ts",
     "capture-evidence:verify": "ts-node src/scripts/verify-capture-evidence-package.ts",
     "capture-handoff:contract": "ts-node src/scripts/capture-handoff-contract.ts",
