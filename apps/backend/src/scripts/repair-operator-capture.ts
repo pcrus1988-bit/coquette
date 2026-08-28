@@ -10,7 +10,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises"
-import { basename, extname, join, resolve } from "node:path"
+import { basename, extname, isAbsolute, join, relative, resolve } from "node:path"
 import { MedusaError } from "@medusajs/framework/utils"
 import {
   CAPTURE_EVIDENCE_PACKAGE_FILE,
@@ -387,7 +387,11 @@ async function main() {
     process.env.COQUETTE_CAPTURE_REPAIR_DIR?.trim() ||
       join(migrationRoot, "storefront-captures", repairCaptureId)
   )
-  if (repairDir === sourceCaptureDir || repairDir.startsWith(`${sourceCaptureDir}/`)) {
+  const repairRelativeToSource = relative(sourceCaptureDir, repairDir)
+  if (
+    repairRelativeToSource === "" ||
+    (!repairRelativeToSource.startsWith("..") && !isAbsolute(repairRelativeToSource))
+  ) {
     throw unexpected("Repair capture directory must be separate from the verified source capture")
   }
   try {
@@ -522,11 +526,8 @@ async function main() {
     )
     for (const result of mediaResults) mediaByUrl.set(result.sourceUrl, result)
 
-    const remainingNonHtml = repairedPages.filter(
-      (record) =>
-        record.status === "skipped" &&
-        (record.error === "Non-HTML response" ||
-          record.error?.startsWith("Targeted repair still received non-HTML DOM"))
+    const remainingRetryFailures = targetIndexes.filter(
+      ({ index }) => repairedPages[index].status !== "captured"
     ).length
     const repairErrors = repairedPages.filter(
       (record) => record.status === "error"
@@ -577,9 +578,9 @@ async function main() {
         errors: mediaRecords.filter((record) => record.status === "error").length,
         bytes: mediaRecords.reduce((sum, record) => sum + (record.bytes ?? 0), 0),
       },
-      complete: remainingNonHtml === 0 && repairErrors === 0,
+      complete: remainingRetryFailures === 0 && repairErrors === 0,
       remainingQueue: 0,
-      ...(remainingNonHtml > 0 || repairErrors > 0
+      ...(remainingRetryFailures > 0 || repairErrors > 0
         ? { failureReason: "targeted_capture_repair_incomplete" }
         : { failureReason: undefined }),
       repair: {
@@ -587,7 +588,8 @@ async function main() {
         repairedAt: completedAt,
         retriedNonHtmlUrls: targetIndexes.length,
         recoveredHtmlUrls: recovered.size,
-        remainingNonHtmlUrls: remainingNonHtml,
+        remainingNonHtmlUrls: remainingRetryFailures,
+        remainingRetryFailures,
       },
     }
     if (manifest.failureReason === undefined) delete manifest.failureReason
@@ -599,7 +601,7 @@ async function main() {
 
     if (!manifest.complete) {
       throw unexpected(
-        `Targeted repair is incomplete: remainingNonHtml=${remainingNonHtml}, pageErrors=${repairErrors}`
+        `Targeted repair is incomplete: remainingRetries=${remainingRetryFailures}, pageErrors=${repairErrors}`
       )
     }
   } finally {
