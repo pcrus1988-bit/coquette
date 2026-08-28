@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/new-piece-placement-taxonomy.css" />
   <link rel="stylesheet" href="/new-piece-lifecycle.css" />
   <link rel="stylesheet" href="/new-piece-archive.css" />
+  <link rel="stylesheet" href="/operations-tax.css" />
 </head>
 <body>
   <div class="boot" id="boot">Opening Studio…</div>
@@ -90,7 +91,10 @@
 
       <section class="screen" id="view-clients"><div class="hero compact"><p class="eyebrow">Clients</p><h1>Το Client Book.</h1><p>Το relationship-first Client Book παραμένει το εγκεκριμένο UX. Η live customer σύνδεση ακολουθεί πάνω στο σταθερό orders/products layer που λειτουργεί ήδη εδώ.</p></div><div class="placeholder"><strong>Client Book — next live layer</strong><span>No invented customer data is shown. The next phase will connect customer profiles, purchase history and consent-safe boutique notes.</span></div></section>
       <section class="screen" id="view-website"><div class="hero compact"><p class="eyebrow">Studio</p><h1>Website.</h1><p>Homepage, lookbooks, media και SEO θα εμφανίσουν τα υπάρχοντα managed content APIs εδώ, αντί να εκθέσουν technical Medusa screens.</p></div></section>
-      <section class="screen" id="view-operations"><div class="hero compact"><p class="eyebrow">Operations</p><h1>Behind the curtain.</h1><p>Payments, shipping και AADE/myDATA ανήκουν εδώ, με progressive disclosure και σαφείς επόμενες ενέργειες.</p></div></section>
+      <section class="screen" id="view-operations">
+        <div class="hero compact"><p class="eyebrow">Operations</p><h1>Behind the curtain.</h1><p>Payments, shipping, tax και AADE/myDATA ανήκουν εδώ, με progressive disclosure και σαφείς επόμενες ενέργειες.</p></div>
+        <div class="ops-tax-wrap" id="operations-tax-panel"><div class="ops-tax-loading">Loading store tax settings…</div></div>
+      </section>
     </main>
 
     <button class="assistant-tab" id="assistant-tab">COQUETTE Assistant</button>
@@ -117,6 +121,7 @@
   <script src="/new-piece-placement-taxonomy.js" defer></script>
   <script src="/new-piece-lifecycle.js" defer></script>
   <script src="/new-piece-archive.js" defer></script>
+  <script src="/operations-tax.js" defer></script>
   <script src="/studio.js" defer></script>
 </body>
 </html>
