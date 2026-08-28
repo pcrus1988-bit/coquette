@@ -94,6 +94,9 @@ const mutateTaxStep = createStep<
       if (!input.tax_region_id) throw new Error("tax_region_required")
       if (!input.tax_rate_id) throw new Error("tax_rate_required")
       const previous = await tax.retrieveTaxRate(input.tax_rate_id)
+      if (!previous.code) {
+        throw new Error("existing_tax_rate_code_missing")
+      }
       await tax.updateTaxRates(input.tax_rate_id, {
         rate: input.rate,
         name: input.name,
