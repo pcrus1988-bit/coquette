@@ -49,6 +49,28 @@ assert.deepEqual(evidence.product?.colors, ["Passion Red"])
 assert.equal(evidence.media[0], "https://coquetteconcept.gr/media/catalog/product/sample.jpg")
 assert.equal(evidence.hreflang.length, 2)
 
+const legacyMagentoHtml = `<!doctype html>
+<html><head><title>Women Clothes - Coquette Concept</title></head>
+<body class="catalog-product-view">
+  <h1 class="logo">Women Clothes - Coquette Concept</h1>
+  <h2 class="product-title">FABBIA TOP CIEL</h2>
+  <div class="product attribute sku"><span itemprop="sku">snp26-78ftc</span></div>
+  <div class="swatch-attribute size" attribute-code="size">
+    <div class="swatch-attribute-options">
+      <div class="swatch-option text" option-label="S">S</div>
+      <div class="swatch-option text" option-label="L">L</div>
+    </div>
+  </div>
+</body></html>`
+const legacyMagento = extractPageEvidence(
+  legacyMagentoHtml,
+  "https://coquetteconcept.gr/en/fabbia-top-ciel.html"
+)
+assert.equal(legacyMagento.pageType, "product")
+assert.equal(legacyMagento.product?.name, "FABBIA TOP CIEL")
+assert.equal(legacyMagento.product?.sku, "snp26-78ftc")
+assert.deepEqual(legacyMagento.product?.sizes, ["S", "L"])
+
 assert.equal(
   normalizeCrawlUrl(
     "https://coquetteconcept.gr/en/clothing.html?p=2&utm_source=test#products",
