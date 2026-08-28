@@ -11,7 +11,14 @@ module.exports = async function handler(req, res) {
     const result = await admin(req, `/admin/studio/archive?product_id=${encodeURIComponent(productId)}`)
     if (result.unauthorized) return json(res, 401, { message: 'Unauthorized' })
     if (!result.response) return json(res, 502, { message: 'Archive state service unavailable' })
-    return json(res, result.response.status, result.payload || {})
+    if (result.response.status === 404) {
+      return json(res, 200, {
+        available: false,
+        reason: 'backend_archive_api_unavailable',
+      })
+    }
+    if (!result.response.ok) return json(res, result.response.status, result.payload || {})
+    return json(res, 200, { available: true, ...(result.payload || {}) })
   } catch (error) {
     console.error('studio archive state failed', error)
     return json(res, 502, { message: 'Archive state service unavailable' })
