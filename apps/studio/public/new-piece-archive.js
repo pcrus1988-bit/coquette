@@ -37,7 +37,7 @@
   function render() {
     const panel = ensurePanel()
     if (!panel) return
-    if (!model.productId) {
+    if (!model.productId || model.state?.available === false) {
       panel.innerHTML = ''
       panel.hidden = true
       return
@@ -119,7 +119,7 @@
   }
 
   async function review(action) {
-    if (!model.state || model.busy) return
+    if (!model.state || model.state.available === false || model.busy) return
     model.busy = true
     model.error = ''
     render()
