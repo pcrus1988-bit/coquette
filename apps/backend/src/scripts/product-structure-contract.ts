@@ -127,6 +127,13 @@ assert.deepEqual(
     "https://coquetteconcept.gr/default/sample-top.html",
   ]
 )
+assert.deepEqual(
+  extractCategoryProductLinks(
+    listingHtml,
+    "https://coquetteconcept.gr/default/checkout/cart/"
+  ),
+  []
+)
 
 const ambiguousSimpleHtml = `<!doctype html>
 <html><body class="catalog-product-view">
