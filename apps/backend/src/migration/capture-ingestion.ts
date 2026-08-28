@@ -3,7 +3,9 @@ import { readFile, realpath } from "node:fs/promises"
 import { isAbsolute, relative, resolve, sep } from "node:path"
 import { discoverMedia } from "../reconstruction/html-evidence"
 import {
+  extractCategoryProductLinks,
   extractPublicProductStructure,
+  type ProductCategoryReference,
   type PublicProductStructureEvidence,
 } from "../reconstruction/product-structure"
 import {
@@ -42,6 +44,7 @@ export type CapturePageRecord = {
   capturedAt?: string
   pageFile?: string
   pageType?: string
+  title?: string
   canonicalUrl?: string
   checksum?: string
   error?: string
@@ -97,6 +100,17 @@ function validHttpUrl(value?: string) {
 function validHttpUrlOnHost(value: string | undefined, expectedHost: string) {
   const url = validHttpUrl(value)
   return url?.hostname === expectedHost ? url.toString() : undefined
+}
+
+function explicitLegacyLocale(value: string) {
+  try {
+    const path = new URL(value).pathname.toLowerCase()
+    if (path === "/en" || path.startsWith("/en/")) return "en" as const
+    if (path === "/default" || path.startsWith("/default/")) return "el" as const
+    return undefined
+  } catch {
+    return undefined
+  }
 }
 
 function numeric(value: unknown): value is number {
@@ -252,6 +266,65 @@ function directObservation(
   }
 }
 
+function mergeStringArrays(
+  left: string[] | undefined,
+  right: string[] | undefined
+) {
+  return [...new Set([...(left ?? []), ...(right ?? [])])]
+}
+
+function mergedLocalePairObservation(
+  primary: RecoveryProductObservation,
+  alternate: RecoveryProductObservation
+) {
+  const primaryFields = primary.fields
+  const alternateFields = alternate.fields
+  const fields: RecoveryProductFields = {
+    ...alternateFields,
+    ...primaryFields,
+    sourceId: primary.sourceUrl,
+    alternateLocaleUrl: alternate.sourceUrl,
+  }
+
+  const categorySourceIds =
+    primaryFields.categorySourceIds?.length
+      ? primaryFields.categorySourceIds
+      : alternateFields.categorySourceIds
+  if (categorySourceIds?.length) fields.categorySourceIds = categorySourceIds
+
+  const mediaSourceIds = mergeStringArrays(
+    primaryFields.mediaSourceIds,
+    alternateFields.mediaSourceIds
+  )
+  if (mediaSourceIds.length) fields.mediaSourceIds = mediaSourceIds
+
+  return {
+    authority: "direct_storefront" as const,
+    sourceUrl: primary.sourceUrl,
+    observedAt: primary.observedAt,
+    note: [
+      primary.note,
+      `Bilingual storefront identity reconciled by matching SKU; alternate_locale=${alternate.sourceUrl}`,
+    ]
+      .filter(Boolean)
+      .join("; "),
+    fields,
+  }
+}
+
+function uniqueProductsBySourceUrl(
+  products: CapturedProductRecord[],
+  expectedHost: string
+) {
+  const byUrl = new Map<string, CapturedProductRecord>()
+  for (const product of products) {
+    const sourceUrl = validHttpUrlOnHost(product.sourceUrl, expectedHost)
+    if (!sourceUrl || byUrl.has(sourceUrl)) continue
+    byUrl.set(sourceUrl, { ...product, sourceUrl })
+  }
+  return [...byUrl.values()]
+}
+
 export function buildDirectCaptureProductCandidates(
   bundle: CaptureArtifactBundle,
   expectedHost = COQUETTE_LEGACY_HOST
@@ -259,22 +332,79 @@ export function buildDirectCaptureProductCandidates(
   const capturedAt = bundle.manifest.completedAt ?? bundle.manifest.startedAt
   if (!capturedAt || Number.isNaN(Date.parse(capturedAt))) return []
   const productStructures = bundle.productStructures ?? {}
-
-  return bundle.products.flatMap((product) => {
-    const observation = directObservation(
-      product,
-      capturedAt,
-      productStructures,
-      expectedHost
+  const observations = uniqueProductsBySourceUrl(bundle.products, expectedHost)
+    .map((product) =>
+      directObservation(product, capturedAt, productStructures, expectedHost)
     )
-    if (!observation) return []
-    return [
-      buildRecoveryProductCandidate(
-        `direct:${observation.sourceUrl}`,
-        [observation]
-      ),
-    ]
-  })
+    .filter((value): value is RecoveryProductObservation => Boolean(value))
+
+  const withSku = new Map<string, RecoveryProductObservation[]>()
+  const withoutSku: RecoveryProductObservation[] = []
+  for (const observation of observations) {
+    const sku = observation.fields.sku?.trim()
+    if (!sku) {
+      withoutSku.push(observation)
+      continue
+    }
+    const key = sku.toLowerCase()
+    const group = withSku.get(key) ?? []
+    group.push(observation)
+    withSku.set(key, group)
+  }
+
+  const candidates: RecoveryProductCandidate[] = withoutSku.map((observation) =>
+    buildRecoveryProductCandidate(`direct:${observation.sourceUrl}`, [observation])
+  )
+
+  for (const group of withSku.values()) {
+    const sku = group[0].fields.sku!
+    const byLocale = new Map<string, RecoveryProductObservation[]>()
+    for (const observation of group) {
+      const locale = explicitLegacyLocale(observation.sourceUrl) ?? "unknown"
+      const entries = byLocale.get(locale) ?? []
+      entries.push(observation)
+      byLocale.set(locale, entries)
+    }
+
+    const el = byLocale.get("el") ?? []
+    const en = byLocale.get("en") ?? []
+    const unknown = byLocale.get("unknown") ?? []
+    const cleanBilingualPair =
+      group.length === 2 && el.length === 1 && en.length === 1 && unknown.length === 0
+
+    if (cleanBilingualPair) {
+      const primary = el[0]
+      const alternate = en[0]
+      const merged = mergedLocalePairObservation(primary, alternate)
+      const alternateEvidence: RecoveryProductObservation = {
+        authority: "direct_storefront",
+        sourceUrl: alternate.sourceUrl,
+        observedAt: alternate.observedAt,
+        note: "Alternate-locale direct storefront evidence retained for the reconciled SKU identity.",
+        fields: {},
+      }
+      candidates.push(
+        buildRecoveryProductCandidate(
+          `direct:sku:${encodeURIComponent(sku)}`,
+          [merged, alternateEvidence]
+        )
+      )
+      continue
+    }
+
+    // Never auto-merge multiple URLs from the same locale or other ambiguous
+    // SKU groupings. Preserve them independently so the duplicate-SKU gate
+    // remains visible for evidence review.
+    for (const observation of group) {
+      candidates.push(
+        buildRecoveryProductCandidate(`direct:${observation.sourceUrl}`, [observation])
+      )
+    }
+  }
+
+  return candidates.sort((left, right) =>
+    left.candidateKey.localeCompare(right.candidateKey)
+  )
 }
 
 async function readJsonl<T>(path: string): Promise<T[]> {
@@ -366,6 +496,66 @@ async function reconstructPageMedia(
   return relationships
 }
 
+function normalizedCategorySourceUrl(value: string | undefined, expectedHost: string) {
+  const url = validHttpUrl(value)
+  if (!url || url.hostname !== expectedHost) return undefined
+  const path = url.pathname.replace(/\/+$/, "") || "/"
+  if (path === "/" || path === "/default" || path === "/en") return undefined
+  url.search = ""
+  return url.toString()
+}
+
+async function reconstructListingCategoryRelationships(
+  captureDir: string,
+  pages: CapturePageRecord[],
+  expectedHost: string
+) {
+  const byProduct = new Map<string, ProductCategoryReference[]>()
+
+  for (const page of pages) {
+    if (page.status !== "captured" || page.pageType !== "category") continue
+    const pageUrl = validHttpUrlOnHost(
+      page.finalUrl ?? page.sourceUrl,
+      expectedHost
+    )
+    if (!pageUrl) continue
+    const categoryUrl =
+      normalizedCategorySourceUrl(page.canonicalUrl, expectedHost) ??
+      normalizedCategorySourceUrl(pageUrl, expectedHost)
+    if (!categoryUrl) continue
+
+    const archiveFile = await resolveArchiveFile(captureDir, page.pageFile)
+    if (!archiveFile) continue
+    try {
+      const html = await readFile(archiveFile, "utf8")
+      for (const productUrl of extractCategoryProductLinks(html, pageUrl)) {
+        const normalizedProductUrl = validHttpUrlOnHost(productUrl, expectedHost)
+        if (!normalizedProductUrl) continue
+        const existing = byProduct.get(normalizedProductUrl) ?? []
+        if (!existing.some((reference) => reference.url === categoryUrl)) {
+          existing.push({ url: categoryUrl })
+        }
+        byProduct.set(normalizedProductUrl, existing)
+      }
+    } catch {
+      // The original category page remains preserved for review.
+    }
+  }
+
+  return byProduct
+}
+
+function mergeCategoryReferences(
+  left: ProductCategoryReference[],
+  right: ProductCategoryReference[]
+) {
+  const byUrl = new Map<string, ProductCategoryReference>()
+  for (const reference of [...left, ...right]) {
+    if (!byUrl.has(reference.url)) byUrl.set(reference.url, reference)
+  }
+  return [...byUrl.values()].sort((a, b) => a.url.localeCompare(b.url))
+}
+
 async function reconstructProductStructures(
   captureDir: string,
   products: CapturedProductRecord[],
@@ -383,6 +573,11 @@ async function reconstructProductStructures(
       .filter((record) => record.status === "captured")
       .map((record) => validHttpUrlOnHost(record.sourceUrl, expectedHost))
       .filter((value): value is string => typeof value === "string")
+  )
+  const listingCategories = await reconstructListingCategoryRelationships(
+    captureDir,
+    pages,
+    expectedHost
   )
   const structures: Record<string, PublicProductStructureEvidence> = {}
 
@@ -405,8 +600,17 @@ async function reconstructProductStructures(
     try {
       const html = await readFile(archiveFile, "utf8")
       const structure = extractPublicProductStructure(html, pageUrl)
+      const canonicalUrl = validHttpUrlOnHost(page.canonicalUrl, expectedHost)
+      const listingReferences = mergeCategoryReferences(
+        listingCategories.get(pageUrl) ?? [],
+        canonicalUrl ? listingCategories.get(canonicalUrl) ?? [] : []
+      )
       structures[pageUrl] = {
         ...structure,
+        categoryReferences: mergeCategoryReferences(
+          structure.categoryReferences,
+          listingReferences
+        ),
         galleryMedia: structure.galleryMedia.filter((url) => capturedMedia.has(url)),
       }
     } catch {

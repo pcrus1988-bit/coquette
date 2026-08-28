@@ -220,6 +220,7 @@ type BrowserSnapshot = {
   title: string
   url: string
   readyState: string
+  contentType: string
 }
 
 export class BrowserTransport {
@@ -352,7 +353,7 @@ export class BrowserTransport {
       result?: { value?: BrowserSnapshot }
     }>("Runtime.evaluate", {
       expression:
-        "({html:document.documentElement?document.documentElement.outerHTML:'',title:document.title||'',url:location.href,readyState:document.readyState})",
+        "({html:document.documentElement?document.documentElement.outerHTML:'',title:document.title||'',url:location.href,readyState:document.readyState,contentType:document.contentType||''})",
       returnByValue: true,
     })
     return (
@@ -361,6 +362,7 @@ export class BrowserTransport {
         title: "",
         url: "",
         readyState: "loading",
+        contentType: "",
       }
     )
   }
@@ -421,7 +423,7 @@ export class BrowserTransport {
       ok: status >= 200 && status < 400 && !challenged,
       status,
       url: snapshot.url || latestDocumentUrl,
-      contentType: latestMimeType || "text/html",
+      contentType: snapshot.contentType || latestMimeType || "text/html",
       text: snapshot.html,
     }
   }

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
-import { extractPublicProductStructure } from "../reconstruction/product-structure"
+import {
+  extractCategoryProductLinks,
+  extractPublicProductStructure,
+} from "../reconstruction/product-structure"
 
 const pageUrl = "https://coquetteconcept.gr/default/sample-dress.html"
 const categoryUrl = "https://coquetteconcept.gr/default/clothing.html"
@@ -96,6 +99,41 @@ assert.deepEqual(structure.optionGroups, [
 ])
 assert.equal(structure.typeHint, "configurable")
 assert.match(structure.typeEvidence ?? "", /configurable-product/i)
+
+const swatchHtml = `<!doctype html><html><body class="catalog-product-view">
+<div class="swatch-attribute size" attribute-code="size">
+  <span class="swatch-attribute-label">ΜΕΓΕΘΟΣ</span>
+  <div class="swatch-attribute-options clearfix">
+    <div class="swatch-option text" option-label="S">S</div>
+    <div class="swatch-option text" option-label="L">L</div>
+  </div>
+</div>
+</body></html>`
+const swatchStructure = extractPublicProductStructure(swatchHtml, pageUrl)
+assert.deepEqual(swatchStructure.optionGroups, [
+  { name: "size", values: ["S", "L"] },
+])
+assert.equal(swatchStructure.typeHint, "configurable")
+
+const listingHtml = `<!doctype html><html><body>
+<a class="product-item-link" href="/default/sample-dress.html">Sample Dress</a>
+<a class="action compare" href="/catalog/product_compare/add/product/1">Compare</a>
+<a class="product-item-link" href="https://coquetteconcept.gr/default/sample-top.html">Sample Top</a>
+</body></html>`
+assert.deepEqual(
+  extractCategoryProductLinks(listingHtml, categoryUrl),
+  [
+    "https://coquetteconcept.gr/default/sample-dress.html",
+    "https://coquetteconcept.gr/default/sample-top.html",
+  ]
+)
+assert.deepEqual(
+  extractCategoryProductLinks(
+    listingHtml,
+    "https://coquetteconcept.gr/default/checkout/cart/"
+  ),
+  []
+)
 
 const ambiguousSimpleHtml = `<!doctype html>
 <html><body class="catalog-product-view">

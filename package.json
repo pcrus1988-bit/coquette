@@ -14,6 +14,7 @@
     "backend:dev": "turbo dev --filter=@coquette/backend",
     "storefront:dev": "turbo dev --filter=@coquette/storefront",
     "capture:coquette": "pnpm --filter @coquette/backend storefront:capture:handoff",
+    "capture:coquette:repair": "pnpm --filter @coquette/backend storefront:capture:repair",
     "capture:coquette:verify": "pnpm --filter @coquette/backend capture-handoff:verify",
     "capture:coquette:intake": "pnpm --filter @coquette/backend capture-handoff:intake",
     "capture:coquette:dependencies": "pnpm --filter @coquette/backend dependency-provisioning:evidence",
