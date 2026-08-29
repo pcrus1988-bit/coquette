@@ -95,6 +95,9 @@ const bundle: CaptureArtifactBundle = {
         { name: "color", values: ["Black"] },
         { name: "size", values: ["S", "M"] },
       ],
+      configurableVariants: [],
+      configurableVariantMatrixComplete: false,
+      configurableVariantMatrixIssues: [],
     },
   },
 }

@@ -60,6 +60,17 @@ export type MigrationManifestEntry = MigrationSourceKey & {
   lastAttemptAt?: string
 }
 
+export type RecoveredConfigurableVariant = {
+  /** Magento child product ID observed in the configurable product jsonConfig. */
+  sourceProductId: string
+  /** Exact option-label combination observed for this child product ID. */
+  optionValues: Record<string, string>
+  /** Child SKU remains absent until independently observed; it is never derived from the parent. */
+  sku?: string
+  regularPrice?: number
+  salePrice?: number
+}
+
 export type NormalizedStorefrontProduct = {
   sourceId: string
   canonicalUrl?: string
@@ -76,6 +87,12 @@ export type NormalizedStorefrontProduct = {
   categorySourceIds: string[]
   optionValues: Record<string, string>
   mediaSourceIds: string[]
+  /**
+   * Direct Magento configurable-parent evidence. This is preserved for
+   * reconciliation even while child SKU identity is still unavailable.
+   */
+  configurableVariants?: RecoveredConfigurableVariant[]
+  configurableVariantMatrixComplete?: boolean
   stockState?: "in_stock" | "out_of_stock" | "unknown"
   lowStockMessage?: string
   regularPrice?: number
