@@ -1,0 +1,48 @@
+name: COQUETTE Streaming Handoff
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - "phase4/**"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coquette-streaming-handoff-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check backend
+        run: pnpm --filter @coquette/backend exec tsc --noEmit
+
+      - name: Validate bounded-memory streaming handoff
+        run: pnpm --filter @coquette/backend capture-handoff:streaming:contract
