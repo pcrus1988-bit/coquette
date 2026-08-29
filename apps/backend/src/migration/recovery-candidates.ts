@@ -33,6 +33,7 @@ export type RecoveryProductFields = Partial<
     | "sourceId"
     | "canonicalUrl"
     | "alternateLocaleUrl"
+    | "legacyProductId"
     | "sku"
     | "name"
     | "status"
@@ -102,6 +103,7 @@ const candidateFields = [
   "sourceId",
   "canonicalUrl",
   "alternateLocaleUrl",
+  "legacyProductId",
   "sku",
   "name",
   "status",
@@ -137,6 +139,7 @@ const requiredFields = [
 
 const criticalConflictFields = new Set<keyof RecoveryProductFields>([
   "sourceId",
+  "legacyProductId",
   "sku",
   "type",
   "configurableVariants",
