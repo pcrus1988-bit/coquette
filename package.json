@@ -16,6 +16,7 @@
     "capture:coquette": "pnpm --filter @coquette/backend storefront:capture:handoff",
     "capture:coquette:repair": "pnpm --filter @coquette/backend storefront:capture:repair",
     "capture:coquette:repair:resume": "pnpm --filter @coquette/backend storefront:capture:repair:resume",
+    "capture:coquette:repair:finalize": "pnpm --filter @coquette/backend storefront:capture:repair:finalize",
     "capture:coquette:verify": "pnpm --filter @coquette/backend capture-handoff:verify",
     "capture:coquette:intake": "pnpm --filter @coquette/backend capture-handoff:intake",
     "capture:coquette:dependencies": "pnpm --filter @coquette/backend dependency-provisioning:evidence",
