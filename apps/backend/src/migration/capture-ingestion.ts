@@ -1,7 +1,14 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import { readFile, realpath } from "node:fs/promises"
 import { isAbsolute, relative, resolve, sep } from "node:path"
-import { discoverMedia } from "../reconstruction/html-evidence"
+import {
+  discoverMedia,
+  extractPageEvidence,
+} from "../reconstruction/html-evidence"
+import {
+  extractAuthoritativeProductPageEvidence,
+  type ConfigurableVariantEvidence,
+} from "../reconstruction/authoritative-product-page"
 import {
   extractCategoryProductLinks,
   extractPublicProductStructure,
@@ -72,13 +79,24 @@ export type CaptureManifest = {
   failureReason?: string
 }
 
+export type RecoveredProductStructureEvidence = Omit<
+  PublicProductStructureEvidence,
+  "typeHint"
+> & {
+  typeHint?: "simple" | "configurable" | "virtual"
+  parentProductId?: string
+  configurableVariants: ConfigurableVariantEvidence[]
+  configurableVariantMatrixComplete: boolean
+  configurableVariantMatrixIssues: string[]
+}
+
 export type CaptureArtifactBundle = {
   manifest: CaptureManifest
   products: CapturedProductRecord[]
   pages: CapturePageRecord[]
   media: CaptureMediaRecord[]
   pageMedia: Record<string, string[]>
-  productStructures?: Record<string, PublicProductStructureEvidence>
+  productStructures?: Record<string, RecoveredProductStructureEvidence>
 }
 
 function nonEmptyString(value: unknown): value is string {
@@ -140,7 +158,7 @@ function fallbackOptionValues(product: CapturedProductRecord) {
   return result
 }
 
-function structuralOptionValues(structure?: PublicProductStructureEvidence) {
+function structuralOptionValues(structure?: RecoveredProductStructureEvidence) {
   const result: Record<string, string> = {}
   for (const group of structure?.optionGroups ?? []) {
     if (group.values.length !== 1) continue
@@ -175,7 +193,7 @@ function alternateLocaleUrl(product: CapturedProductRecord, expectedHost: string
 
 function productFields(
   product: CapturedProductRecord,
-  structure: PublicProductStructureEvidence | undefined,
+  structure: RecoveredProductStructureEvidence | undefined,
   expectedHost: string
 ): RecoveryProductFields {
   const fields: RecoveryProductFields = {}
@@ -207,11 +225,15 @@ function productFields(
   }
   if (product.currency === "EUR") fields.currencyCode = "EUR"
 
-  const options = {
-    ...fallbackOptionValues(product),
-    ...structuralOptionValues(structure),
+  if (structure?.typeHint) fields.type = structure.typeHint
+
+  if (structure?.typeHint !== "configurable") {
+    const options = {
+      ...fallbackOptionValues(product),
+      ...structuralOptionValues(structure),
+    }
+    if (Object.keys(options).length > 0) fields.optionValues = options
   }
-  if (Object.keys(options).length > 0) fields.optionValues = options
 
   const categorySourceIds = (structure?.categoryReferences ?? [])
     .map((reference) => validHttpUrlOnHost(reference.url, expectedHost))
@@ -225,7 +247,11 @@ function productFields(
     .filter((value): value is string => typeof value === "string")
   if (galleryMedia.length > 0) fields.mediaSourceIds = [...new Set(galleryMedia)]
 
-  if (structure?.typeHint === "configurable") fields.type = "configurable"
+  if (structure?.typeHint === "configurable") {
+    fields.configurableVariants = structure.configurableVariants
+    fields.configurableVariantMatrixComplete =
+      structure.configurableVariantMatrixComplete
+  }
 
   return fields
 }
@@ -233,7 +259,7 @@ function productFields(
 function directObservation(
   product: CapturedProductRecord,
   capturedAt: string,
-  productStructures: Record<string, PublicProductStructureEvidence>,
+  productStructures: Record<string, RecoveredProductStructureEvidence>,
   expectedHost: string
 ): RecoveryProductObservation | undefined {
   const sourceUrl = validHttpUrlOnHost(product.sourceUrl, expectedHost)
@@ -244,6 +270,9 @@ function directObservation(
         `categories=${structure.categoryReferences.length}`,
         `gallery_media=${structure.galleryMedia.length}`,
         `option_groups=${structure.optionGroups.length}`,
+        structure.typeHint === "configurable"
+          ? `configurable_variants=${structure.configurableVariants.length}`
+          : undefined,
         structure.typeEvidence,
       ]
         .filter(Boolean)
@@ -393,8 +422,8 @@ export function buildDirectCaptureProductCandidates(
     }
 
     // Never auto-merge multiple URLs from the same locale or other ambiguous
-    // SKU groupings. Preserve them independently so the duplicate-SKU gate
-    // remains visible for evidence review.
+    // SKU groupings. A later evidence-only identity pass may fold exact Magento
+    // route aliases while preserving genuinely ambiguous duplicates.
     for (const observation of group) {
       candidates.push(
         buildRecoveryProductCandidate(`direct:${observation.sourceUrl}`, [observation])
@@ -452,6 +481,77 @@ async function requireArchiveFile(captureDir: string, archivePath: string) {
     MedusaError.Types.INVALID_DATA,
     `Capture artifact file is missing, unsafe, or resolves outside the capture directory: ${archivePath}`
   )
+}
+
+function capturedPageIndex(
+  pages: CapturePageRecord[],
+  expectedHost: string
+) {
+  const byUrl = new Map<string, CapturePageRecord>()
+  for (const page of pages) {
+    if (page.status !== "captured" || !page.pageFile) continue
+    for (const rawUrl of [page.sourceUrl, page.finalUrl]) {
+      const url = validHttpUrlOnHost(rawUrl, expectedHost)
+      if (url && !byUrl.has(url)) byUrl.set(url, page)
+    }
+  }
+  return byUrl
+}
+
+async function reparseCapturedProducts(
+  captureDir: string,
+  products: CapturedProductRecord[],
+  pages: CapturePageRecord[],
+  expectedHost: string
+) {
+  const pageIndex = capturedPageIndex(pages, expectedHost)
+  const reparsed: CapturedProductRecord[] = []
+
+  for (const product of products) {
+    const sourceUrl = validHttpUrlOnHost(product.sourceUrl, expectedHost)
+    const page = sourceUrl ? pageIndex.get(sourceUrl) : undefined
+    const archiveFile = page
+      ? await resolveArchiveFile(captureDir, page.pageFile)
+      : undefined
+    if (!sourceUrl || !archiveFile) {
+      reparsed.push(product)
+      continue
+    }
+
+    try {
+      const html = await readFile(archiveFile, "utf8")
+      const pageEvidence = extractPageEvidence(html, sourceUrl)
+      const productEvidence = pageEvidence.product
+      if (!productEvidence || pageEvidence.pageType !== "product") {
+        reparsed.push(product)
+        continue
+      }
+      const authoritative = extractAuthoritativeProductPageEvidence(html, sourceUrl)
+      reparsed.push({
+        ...product,
+        sourceUrl,
+        checksum: pageEvidence.checksum,
+        title: pageEvidence.title,
+        canonicalUrl: pageEvidence.canonicalUrl,
+        hreflang: pageEvidence.hreflang,
+        name: productEvidence.name,
+        sku: productEvidence.sku,
+        brand: productEvidence.brand,
+        currency: authoritative.currencyCode ?? productEvidence.currency,
+        regularPrice: authoritative.regularPrice,
+        salePrice: authoritative.salePrice,
+        availability: authoritative.availability,
+        colors: productEvidence.colors,
+        sizes: productEvidence.sizes,
+        optionLabels: productEvidence.optionLabels,
+        description: productEvidence.description,
+      })
+    } catch {
+      reparsed.push(product)
+    }
+  }
+
+  return reparsed
 }
 
 async function reconstructPageMedia(
@@ -579,7 +679,7 @@ async function reconstructProductStructures(
     pages,
     expectedHost
   )
-  const structures: Record<string, PublicProductStructureEvidence> = {}
+  const structures: Record<string, RecoveredProductStructureEvidence> = {}
 
   for (const page of pages) {
     const pageUrl = validHttpUrlOnHost(
@@ -600,6 +700,7 @@ async function reconstructProductStructures(
     try {
       const html = await readFile(archiveFile, "utf8")
       const structure = extractPublicProductStructure(html, pageUrl)
+      const authoritative = extractAuthoritativeProductPageEvidence(html, pageUrl)
       const canonicalUrl = validHttpUrlOnHost(page.canonicalUrl, expectedHost)
       const listingReferences = mergeCategoryReferences(
         listingCategories.get(pageUrl) ?? [],
@@ -607,6 +708,20 @@ async function reconstructProductStructures(
       )
       structures[pageUrl] = {
         ...structure,
+        ...(authoritative.productType
+          ? { typeHint: authoritative.productType }
+          : structure.typeHint
+            ? { typeHint: structure.typeHint }
+            : {}),
+        typeEvidence: authoritative.typeEvidence ?? structure.typeEvidence,
+        ...(authoritative.parentProductId
+          ? { parentProductId: authoritative.parentProductId }
+          : {}),
+        configurableVariants: authoritative.configurableVariants,
+        configurableVariantMatrixComplete:
+          authoritative.configurableMatrixComplete,
+        configurableVariantMatrixIssues:
+          authoritative.configurableMatrixIssues,
         categoryReferences: mergeCategoryReferences(
           structure.categoryReferences,
           listingReferences
@@ -631,9 +746,15 @@ export async function readCaptureArtifactBundle(
   const mediaPath = await requireArchiveFile(captureDir, "media.jsonl")
 
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as CaptureManifest
-  const products = await readJsonl<CapturedProductRecord>(productsPath)
+  const rawProducts = await readJsonl<CapturedProductRecord>(productsPath)
   const pages = await readJsonl<CapturePageRecord>(pagesPath)
   const media = await readJsonl<CaptureMediaRecord>(mediaPath)
+  const products = await reparseCapturedProducts(
+    captureDir,
+    rawProducts,
+    pages,
+    expectedHost
+  )
 
   return {
     manifest,
