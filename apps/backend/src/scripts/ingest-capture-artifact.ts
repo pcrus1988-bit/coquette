@@ -180,7 +180,51 @@ async function main() {
     raiseExitCode(4)
   }
 
-  console.log(output)
+  if (outputPath) {
+    console.log(
+      JSON.stringify(
+        {
+          captureId: bundle.manifest.captureId,
+          evidencePackageChecksum: evidencePackage?.packageChecksum,
+          analysisCodeRevision,
+          reportPath: resolve(outputPath),
+          validation: {
+            critical: validation.critical,
+            review: validation.review,
+            isValid: validation.isValid,
+          },
+          productStructure: {
+            productsReparsed: structures.length,
+            explicitlyConfigurable: structures.filter(
+              (structure) => structure.typeHint === "configurable"
+            ).length,
+          },
+          candidates: {
+            total: candidates.length,
+            ready: candidates.filter(
+              (candidate) => candidate.disposition === "ready"
+            ).length,
+            needsReview: candidates.filter(
+              (candidate) => candidate.disposition === "needs_review"
+            ).length,
+            rejected: candidates.filter(
+              (candidate) => candidate.disposition === "rejected"
+            ).length,
+          },
+          importPlan: {
+            totals: importPlan.totals,
+            duplicateSkus: importPlan.duplicateSkus.length,
+            isExecutable: importPlan.isExecutable,
+          },
+          unresolvedUrls: urlUniverse.unresolved,
+        },
+        null,
+        2
+      )
+    )
+  } else {
+    console.log(output)
+  }
 
   if (!validation.isValid) {
     raiseExitCode(2)
