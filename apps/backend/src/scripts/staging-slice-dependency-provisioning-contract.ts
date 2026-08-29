@@ -10,6 +10,7 @@ import {
 } from "../migration/staging-slice-dependency-provisioning"
 
 const categorySourceId = "https://coquetteconcept.gr/default/dresses.html"
+const categoryPageSourceId = categorySourceId
 const mediaSourceId = "https://coquetteconcept.gr/media/catalog/product/test.jpg"
 const categoryEvidenceChecksum = sourceChecksum({ categorySourceId, name: "Dresses" })
 const mediaEvidenceChecksum = sourceChecksum({ mediaSourceId, checksum: "a".repeat(64) })
@@ -33,6 +34,7 @@ const evidencePayload = {
       category: {
         name: "Dresses",
         productSourceIds: ["https://coquetteconcept.gr/default/test.html"],
+        categoryPageSourceIds: [categoryPageSourceId],
       },
     },
     {
