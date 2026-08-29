@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { extractAuthoritativeProductPageEvidence } from "../reconstruction/authoritative-product-page"
 import {
   extractCategoryProductLinks,
   extractPublicProductStructure,
@@ -157,5 +158,126 @@ const foreignMediaHtml = `<!doctype html>
 </body></html>`
 const foreign = extractPublicProductStructure(foreignMediaHtml, pageUrl)
 assert.deepEqual(foreign.galleryMedia, [])
+
+// Real-capture regression shape: the page contains unrelated recommendation
+// prices, while the current configurable product has its own price box/jsonConfig.
+// Only the current product evidence may be accepted.
+const authoritativeConfigurableHtml = `<!doctype html>
+<html>
+<head>
+  <meta property="product:price:currency" content="EUR">
+  <script type="application/ld+json">
+    {"@type":"Product","name":"Current Product","sku":"PARENT-1","offers":{"@type":"Offer","price":"16","priceCurrency":"EUR","availability":"https://schema.org/InStock"}}
+  </script>
+</head>
+<body class="catalog-product-view page-product-configurable catalog_product_view_type_configurable catalog_product_view_id_500">
+  <form id="product_addtocart_form" data-product-sku="PARENT-1">
+    <input type="hidden" name="product" value="500">
+  </form>
+  <div class="price-box" data-product-id="500">
+    <span data-price-type="oldPrice" data-price-amount="80"><span class="price">€80</span></span>
+    <span data-price-type="finalPrice" data-price-amount="16"><span class="price">€16</span></span>
+  </div>
+  <section class="related-products">
+    <div class="price-box" data-product-id="999">
+      <span data-price-type="oldPrice" data-price-amount="139"><span class="price">€139</span></span>
+      <span data-price-type="finalPrice" data-price-amount="31"><span class="price">€31</span></span>
+    </div>
+  </section>
+  <script type="text/x-magento-init">
+  {
+    "#product_addtocart_form": {
+      "configurable": {
+        "jsonConfig": {
+          "productId": "500",
+          "prices": {
+            "oldPrice": {"amount": 80},
+            "basePrice": {"amount": 16},
+            "finalPrice": {"amount": 16}
+          },
+          "attributes": {
+            "144": {
+              "id": "144",
+              "code": "size",
+              "label": "Size",
+              "options": [
+                {"id": "10", "label": "S", "products": ["501"]},
+                {"id": "11", "label": "M", "products": ["502"]}
+              ]
+            },
+            "93": {
+              "id": "93",
+              "code": "color",
+              "label": "Color",
+              "options": [
+                {"id": "20", "label": "Black", "products": ["501","502"]}
+              ]
+            }
+          },
+          "index": {
+            "501": {"144":"10","93":"20"},
+            "502": {"144":"11","93":"20"}
+          },
+          "optionPrices": {
+            "501": {"oldPrice":{"amount":80},"basePrice":{"amount":16},"finalPrice":{"amount":16}},
+            "502": {"oldPrice":{"amount":80},"basePrice":{"amount":20},"finalPrice":{"amount":20}}
+          },
+          "images": []
+        }
+      }
+    }
+  }
+  </script>
+</body>
+</html>`
+
+const authoritative = extractAuthoritativeProductPageEvidence(
+  authoritativeConfigurableHtml,
+  pageUrl
+)
+assert.equal(authoritative.productType, "configurable")
+assert.equal(authoritative.parentProductId, "500")
+assert.equal(authoritative.regularPrice, 80)
+assert.equal(authoritative.salePrice, 16)
+assert.equal(authoritative.currencyCode, "EUR")
+assert.equal(authoritative.availability, "https://schema.org/InStock")
+assert.equal(authoritative.configurableMatrixComplete, true)
+assert.deepEqual(authoritative.configurableMatrixIssues, [])
+assert.deepEqual(authoritative.configurableVariants, [
+  {
+    sourceProductId: "501",
+    optionValues: { size: "S", color: "Black" },
+    regularPrice: 80,
+    salePrice: 16,
+  },
+  {
+    sourceProductId: "502",
+    optionValues: { size: "M", color: "Black" },
+    regularPrice: 80,
+    salePrice: 20,
+  },
+])
+assert.ok(
+  !authoritative.configurableVariants.some((variant) => "sku" in variant),
+  "Child SKU must remain absent when Magento jsonConfig does not expose it"
+)
+
+const simpleHtml = `<!doctype html>
+<html><head>
+<script type="application/ld+json">
+{"@type":"Product","name":"Simple Product","sku":"SIMPLE-1","offers":{"@type":"Offer","price":"49","priceCurrency":"EUR"}}
+</script>
+</head><body class="catalog-product-view page-product-simple catalog_product_view_type_simple catalog_product_view_id_700">
+<form data-product-sku="SIMPLE-1"><input name="product" value="700"></form>
+<div class="price-box" data-product-id="700"><span data-price-type="finalPrice" data-price-amount="49">€49</span></div>
+<div class="related-products"><span class="price">€999</span></div>
+</body></html>`
+const simple = extractAuthoritativeProductPageEvidence(simpleHtml, pageUrl)
+assert.equal(simple.productType, "simple")
+assert.equal(simple.parentProductId, "700")
+assert.equal(simple.regularPrice, 49)
+assert.equal(simple.salePrice, undefined)
+assert.deepEqual(simple.configurableVariants, [])
+assert.equal(simple.configurableMatrixComplete, false)
 
 console.log("COQUETTE public product structure contract checks passed")
