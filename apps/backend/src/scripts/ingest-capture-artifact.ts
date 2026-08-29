@@ -1,10 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { verifyCaptureEvidencePackage } from "../migration/capture-evidence-package"
-import {
-  buildDirectCaptureProductCandidates,
-  readCaptureArtifactBundle,
-} from "../migration/capture-ingestion"
+import { buildCanonicalCaptureProductCandidates } from "../migration/canonical-product-identity"
+import { readCaptureArtifactBundle } from "../migration/capture-ingestion"
 import {
   validateCaptureArtifactBundle,
   type CaptureValidationIssue,
@@ -53,6 +51,22 @@ async function main() {
   const evidencePackageValidation = await verifyCaptureEvidencePackage(
     resolvedCaptureDir
   )
+  const evidencePackage = evidencePackageValidation.package
+  const expectedEvidenceChecksum =
+    process.env.COQUETTE_EXPECTED_EVIDENCE_PACKAGE_CHECKSUM?.trim()
+  if (
+    expectedEvidenceChecksum &&
+    evidencePackage?.packageChecksum !== expectedEvidenceChecksum
+  ) {
+    console.error(
+      `Evidence package checksum mismatch: expected ${expectedEvidenceChecksum}, received ${
+        evidencePackage?.packageChecksum ?? "missing"
+      }`
+    )
+    process.exitCode = 1
+    return
+  }
+
   const bundle = await readCaptureArtifactBundle(resolvedCaptureDir)
   const artifactValidation = validateCaptureArtifactBundle(bundle)
   const packageIssues: CaptureValidationIssue[] =
@@ -74,7 +88,7 @@ async function main() {
   const manualUnavailable = await optionalManualUnavailable(
     process.env.COQUETTE_UNAVAILABLE_URLS_FILE
   )
-  const candidates = buildDirectCaptureProductCandidates(bundle)
+  const candidates = buildCanonicalCaptureProductCandidates(bundle)
   const importPlan = buildProductImportPlan(candidates)
   const urlUniverse = buildReconstructionUrlUniverse(
     bundle.pages,
@@ -83,11 +97,25 @@ async function main() {
   )
   const productStructures = bundle.productStructures ?? {}
   const structures = Object.values(productStructures)
-  const evidencePackage = evidencePackageValidation.package
 
+  const analysisCodeRevision =
+    process.env.COQUETTE_CAPTURE_ANALYSIS_CODE_REVISION?.trim()
   const report = {
     schemaVersion: 3,
     generatedAt: new Date().toISOString(),
+    ...(analysisCodeRevision || expectedEvidenceChecksum
+      ? {
+          analysis: {
+            ...(analysisCodeRevision
+              ? { codeRevision: analysisCodeRevision }
+              : {}),
+            ...(expectedEvidenceChecksum
+              ? { expectedEvidencePackageChecksum: expectedEvidenceChecksum }
+              : {}),
+            actualEvidencePackageChecksum: evidencePackage?.packageChecksum,
+          },
+        }
+      : {}),
     capture: {
       captureId: bundle.manifest.captureId,
       source: bundle.manifest.source,
