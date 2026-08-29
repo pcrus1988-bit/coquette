@@ -2,7 +2,8 @@ import { loadEnv, defineConfig } from "@medusajs/framework/utils"
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
-const redisUrl = process.env.REDIS_URL
+const redisUrl =
+  process.env.COQUETTE_DISABLE_REDIS === "true" ? undefined : process.env.REDIS_URL
 const redisInfrastructureModules: Array<Record<string, unknown>> = []
 
 if (redisUrl) {
