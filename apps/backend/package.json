@@ -36,7 +36,7 @@
     "indexed-recovery:contract": "ts-node src/scripts/indexed-recovery-contract.ts",
     "indexed-recovery:candidates": "ts-node src/scripts/indexed-recovery-candidates.ts",
     "recovery-candidates:contract": "ts-node src/scripts/recovery-candidates-contract.ts",
-    "capture-ingestion:contract": "ts-node src/scripts/capture-ingestion-contract.ts",
+    "capture-ingestion:contract": "ts-node src/scripts/capture-ingestion-contract.ts && ts-node src/scripts/canonical-product-identity-contract.ts",
     "product-structure:contract": "ts-node src/scripts/product-structure-contract.ts",
     "archived-product-structure:contract": "ts-node src/scripts/archived-product-structure-contract.ts",
     "import-plan:contract": "ts-node src/scripts/import-plan-contract.ts",
