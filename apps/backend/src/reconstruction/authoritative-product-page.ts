@@ -185,7 +185,17 @@ function productPriceBox(html: string, productId?: string): PricePair {
   while ((match = pattern.exec(html))) {
     const opening = match[0]
     if (attribute(opening, "data-product-id") !== productId) continue
-    const region = html.slice(match.index, match.index + 4000)
+
+    // Keep the scan strictly inside the current price-box region. A fixed-size
+    // slice alone can otherwise reach a recommendation/related-product box and
+    // accidentally fill a missing price type from another product.
+    pattern.lastIndex = match.index + opening.length
+    const nextPriceBox = pattern.exec(html)
+    const regionEnd = Math.min(
+      nextPriceBox?.index ?? html.length,
+      match.index + 4000
+    )
+    const region = html.slice(match.index, regionEnd)
     const amounts: Record<string, number> = {}
 
     for (const tag of region.match(/<(?:span|div)\b[^>]*data-price-(?:amount|type)=[^>]*>/gi) ?? []) {
@@ -343,10 +353,9 @@ export function extractAuthoritativeProductPageEvidence(
   const offer = schemaOffer(productSchema)
   const schemaFinalPrice = numericPrice(offer?.price ?? offer?.lowPrice)
   const metaFinalPrice = numericPrice(metaContent(html, "product:price:amount"))
+  const fallbackFinalPrice = metaFinalPrice ?? schemaFinalPrice
   const fallbackPrice =
-    metaFinalPrice ?? schemaFinalPrice
-      ? { regularPrice: metaFinalPrice ?? schemaFinalPrice }
-      : {}
+    fallbackFinalPrice === undefined ? {} : { regularPrice: fallbackFinalPrice }
   const prices = firstPricePair(boxPrices, configPrices, fallbackPrice)
 
   const currency =
