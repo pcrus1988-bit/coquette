@@ -157,17 +157,21 @@ async function main() {
       { name: "size", values: ["S", "M"] },
     ])
     assert.equal(structure.typeHint, "configurable")
+    assert.deepEqual(structure.configurableVariants, [])
+    assert.equal(structure.configurableVariantMatrixComplete, false)
 
     const candidates = buildDirectCaptureProductCandidates(bundle)
     assert.equal(candidates.length, 1)
     const candidate = candidates[0]
     assert.deepEqual(candidate.selected.mediaSourceIds, [productMedia])
     assert.deepEqual(candidate.selected.categorySourceIds, [categoryUrl])
-    assert.equal(candidate.selected.optionValues?.color, "Black")
-    assert.equal(candidate.selected.optionValues?.size, undefined)
+    assert.equal(candidate.selected.optionValues, undefined)
+    assert.deepEqual(candidate.selected.configurableVariants, [])
+    assert.equal(candidate.selected.configurableVariantMatrixComplete, false)
     assert.equal(candidate.selected.type, "configurable")
     assert.ok(candidate.missingRequiredFields.includes("status"))
     assert.ok(candidate.missingRequiredFields.includes("visibility"))
+    assert.ok(candidate.missingRequiredFields.includes("optionValues"))
     assert.equal(candidate.disposition, "needs_review")
 
     console.log("COQUETTE archive-native product structure contract checks passed")
