@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { lstat, readFile, realpath } from "node:fs/promises"
 import { isAbsolute, join, relative, resolve, sep } from "node:path"
 import { MedusaError } from "@medusajs/framework/utils"
+import { textContent } from "../reconstruction/html-evidence"
 import type { CaptureEvidencePackage } from "./capture-evidence-package"
 import { sourceChecksum } from "./checksum"
 import type { ProductImportPlan } from "./import-plan"
@@ -28,6 +29,7 @@ export type StagingSliceDependencyRequirement = {
 type CategoryEvidence = {
   name: string
   productSourceIds: string[]
+  categoryPageSourceIds: string[]
 }
 
 type BrandEvidence = {
@@ -99,6 +101,15 @@ export type StagingSliceMediaRecord = {
 export type StagingSliceProductRecord = {
   sourceUrl?: string
   brand?: string
+}
+
+export type StagingSlicePageRecord = {
+  sourceUrl?: string
+  finalUrl?: string
+  status?: "captured" | "skipped" | "error"
+  pageType?: string
+  pageFile?: string
+  canonicalUrl?: string
 }
 
 function unexpected(message: string) {
@@ -234,41 +245,160 @@ function productEvidenceSourceIdsForRequirement(
   ).sort()
 }
 
-function categoryEntry(input: {
+async function containedCaptureFile(captureDir: string, relativePath: string) {
+  const normalized = normalizedRelativePath(relativePath)
+  if (!normalized || !safeRelativePath(normalized)) return undefined
+  try {
+    const root = await realpath(resolve(captureDir))
+    const candidate = await realpath(join(root, normalized))
+    const relation = relative(root, candidate)
+    if (
+      relation === ".." ||
+      relation.startsWith(`..${sep}`) ||
+      isAbsolute(relation)
+    ) {
+      return undefined
+    }
+    const metadata = await lstat(candidate)
+    if (!metadata.isFile() || metadata.isSymbolicLink()) return undefined
+    return candidate
+  } catch {
+    return undefined
+  }
+}
+
+function extractCategoryPageName(html: string) {
+  const blocks = [
+    ...html.matchAll(
+      /<(?:div|nav|ul)\b[^>]*class=["'][^"']*breadcrumbs?[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|nav|ul)>/gi
+    ),
+  ]
+  for (const block of blocks) {
+    const names = [...block[1].matchAll(/<strong\b[^>]*>([\s\S]*?)<\/strong>/gi)]
+      .map((match) => textContent(match[1]))
+      .filter(Boolean)
+    if (names.length > 0) return names.at(-1)
+  }
+  return undefined
+}
+
+function categoryPagesForRequirement(
+  pages: StagingSlicePageRecord[],
+  requirement: StagingSliceDependencyRequirement
+) {
+  const captured = pages.filter(
+    (page) => page.status === "captured" && page.pageType === "category"
+  )
+  const exact = captured.filter(
+    (page) =>
+      sameUrl(page.sourceUrl, requirement.sourceId) ||
+      sameUrl(page.finalUrl, requirement.sourceId)
+  )
+  if (exact.length > 0) return exact
+  return captured.filter((page) => sameUrl(page.canonicalUrl, requirement.sourceId))
+}
+
+async function categoryEntry(input: {
   requirement: StagingSliceDependencyRequirement
   productPlan: ProductImportPlan
   structures: Record<string, ProductStructureRecord>
-}): StagingSliceDependencyEvidenceEntry {
+  captureDir: string
+  pages: StagingSlicePageRecord[]
+  evidenceFiles: Map<string, { bytes: number; checksum: string }>
+}): Promise<StagingSliceDependencyEvidenceEntry> {
   const productSourceIds = productEvidenceSourceIdsForRequirement(
     input.productPlan,
     input.requirement
   )
-  const names = uniqueStrings(
+  const productNames = uniqueStrings(
     productSourceIds.flatMap((sourceId) =>
       (input.structures[sourceId]?.categoryReferences ?? [])
         .filter((reference) => sameUrl(reference.url, input.requirement.sourceId))
         .map((reference) => reference.name)
     )
   )
+
   const blockers: string[] = []
+  const categoryPageEvidence: Array<{
+    sourceUrl?: string
+    pageFile?: string
+    bytes?: number
+    checksum?: string
+    name?: string
+  }> = []
+  const pageNames: string[] = []
+
+  if (productNames.length === 0) {
+    const categoryPages = categoryPagesForRequirement(input.pages, input.requirement)
+    if (categoryPages.length === 0) blockers.push("category_page_capture_missing")
+
+    for (const page of categoryPages) {
+      const pageFile = normalizedRelativePath(page.pageFile)
+      const sourceUrl = page.finalUrl ?? page.sourceUrl ?? page.canonicalUrl
+      if (!pageFile || !safeRelativePath(pageFile)) {
+        blockers.push("category_page_file_path_invalid")
+        categoryPageEvidence.push({ sourceUrl, pageFile })
+        continue
+      }
+
+      const evidenceFile = input.evidenceFiles.get(pageFile)
+      if (!evidenceFile) {
+        blockers.push("category_page_missing_from_evidence_package_inventory")
+      }
+      const absolute = await containedCaptureFile(input.captureDir, pageFile)
+      if (!absolute) {
+        blockers.push("category_page_bytes_missing_or_unsafe")
+        categoryPageEvidence.push({ sourceUrl, pageFile })
+        continue
+      }
+
+      const bytes = await readFile(absolute)
+      const checksum = sha256(bytes)
+      if (evidenceFile && evidenceFile.bytes !== bytes.length) {
+        blockers.push("category_page_evidence_package_byte_count_mismatch")
+      }
+      if (evidenceFile && evidenceFile.checksum !== checksum) {
+        blockers.push("category_page_evidence_package_checksum_mismatch")
+      }
+
+      const name = extractCategoryPageName(bytes.toString("utf8"))
+      if (name) pageNames.push(name)
+      categoryPageEvidence.push({
+        sourceUrl,
+        pageFile,
+        bytes: bytes.length,
+        checksum,
+        name,
+      })
+    }
+  }
+
+  const names = uniqueStrings([...productNames, ...pageNames])
   if (productSourceIds.length === 0) {
     blockers.push("category_evidence_product_source_missing")
   }
   if (names.length === 0) blockers.push("category_public_name_missing")
   if (names.length > 1) blockers.push("category_public_name_conflict")
-  const category = blockers.length === 0
-    ? { name: names[0], productSourceIds }
+
+  const uniqueBlockers = [...new Set(blockers)].sort()
+  const categoryPageSourceIds = uniqueStrings(
+    categoryPageEvidence.map((entry) => entry.sourceUrl)
+  ).sort()
+  const category = uniqueBlockers.length === 0
+    ? { name: names[0], productSourceIds, categoryPageSourceIds }
     : undefined
   const evidenceChecksum = sourceChecksum({
     requirementChecksum: input.requirement.requirementChecksum,
     productSourceIds,
+    productNames,
+    categoryPageEvidence,
     names,
-    blockers,
+    blockers: uniqueBlockers,
   })
   return {
     ...input.requirement,
-    state: blockers.length ? "blocked" : "ready",
-    blockers,
+    state: uniqueBlockers.length ? "blocked" : "ready",
+    blockers: uniqueBlockers,
     evidenceChecksum,
     ...(category ? { category } : {}),
   }
@@ -311,28 +441,6 @@ function brandEntry(input: {
     blockers,
     evidenceChecksum,
     ...(brand ? { brand } : {}),
-  }
-}
-
-async function containedCaptureFile(captureDir: string, relativePath: string) {
-  const normalized = normalizedRelativePath(relativePath)
-  if (!normalized || !safeRelativePath(normalized)) return undefined
-  try {
-    const root = await realpath(resolve(captureDir))
-    const candidate = await realpath(join(root, normalized))
-    const relation = relative(root, candidate)
-    if (
-      relation === ".." ||
-      relation.startsWith(`..${sep}`) ||
-      isAbsolute(relation)
-    ) {
-      return undefined
-    }
-    const metadata = await lstat(candidate)
-    if (!metadata.isFile() || metadata.isSymbolicLink()) return undefined
-    return candidate
-  } catch {
-    return undefined
   }
 }
 
@@ -538,6 +646,7 @@ export async function buildStagingSliceDependencyEvidencePlan(input: {
   evidencePackage: CaptureEvidencePackage
   mediaRecords: StagingSliceMediaRecord[]
   products: StagingSliceProductRecord[]
+  pages: StagingSlicePageRecord[]
   expectedEvidencePackageChecksum?: string
 }): Promise<StagingSliceDependencyEvidencePlan> {
   const globalBlockers: string[] = []
@@ -622,7 +731,16 @@ export async function buildStagingSliceDependencyEvidencePlan(input: {
   const entries: StagingSliceDependencyEvidenceEntry[] = []
   for (const requirement of requirements) {
     if (requirement.entityType === "category") {
-      entries.push(categoryEntry({ requirement, productPlan, structures }))
+      entries.push(
+        await categoryEntry({
+          requirement,
+          productPlan,
+          structures,
+          captureDir: input.captureDir,
+          pages: input.pages,
+          evidenceFiles,
+        })
+      )
     } else if (requirement.entityType === "brand") {
       entries.push(
         brandEntry({ requirement, productPlan, products: input.products })
