@@ -116,7 +116,7 @@ assert.deepEqual(swatchStructure.optionGroups, [
 ])
 assert.equal(swatchStructure.typeHint, "configurable")
 
-const listingHtml = `<!doctype html><html><body>
+const listingHtml = `<!doctype html><html><body class="page-products catalog-category-view categorypath-clothing">
 <a class="product-item-link" href="/default/sample-dress.html">Sample Dress</a>
 <a class="action compare" href="/catalog/product_compare/add/product/1">Compare</a>
 <a class="product-item-link" href="https://coquetteconcept.gr/default/sample-top.html">Sample Top</a>
@@ -132,6 +132,20 @@ assert.deepEqual(
   extractCategoryProductLinks(
     listingHtml,
     "https://coquetteconcept.gr/default/checkout/cart/"
+  ),
+  []
+)
+
+const recommendationOnlyHtml = `<!doctype html><html><body class="cms-page-view">
+<section class="recommendations">
+<a class="product-item-link" href="/default/sample-dress.html">Sample Dress</a>
+<a class="product-item-link" href="/default/sample-top.html">Sample Top</a>
+</section>
+</body></html>`
+assert.deepEqual(
+  extractCategoryProductLinks(
+    recommendationOnlyHtml,
+    "https://coquetteconcept.gr/default/lyra-black-orange.html"
   ),
   []
 )
