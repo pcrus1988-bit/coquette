@@ -1,7 +1,6 @@
 import { sourceChecksum } from "./checksum"
 import { buildProductImportPlan, type ProductImportPlan } from "./import-plan"
 import type {
-  RecoveryCandidateConflict,
   RecoveryProductCandidate,
 } from "./recovery-candidates"
 import type {
@@ -82,6 +81,12 @@ function quarantineReasons(candidate: RecoveryProductCandidate) {
   for (const field of structuralMissingFields(candidate)) {
     reasons.push(`missing_structural_field:${field}`)
   }
+  if (!candidate.selected.categorySourceIds?.length) {
+    reasons.push("missing_structural_field:categorySourceIds")
+  }
+  if (!candidate.selected.mediaSourceIds?.length) {
+    reasons.push("missing_structural_field:mediaSourceIds")
+  }
   for (const blocker of candidate.blockers) {
     reasons.push(`source_blocker:${blocker}`)
   }
@@ -113,8 +118,8 @@ function stagedCandidate(candidate: RecoveryProductCandidate): RecoveryProductCa
     disposition: "ready",
     normalizedProduct: targetNormalizedProduct(candidate),
     missingRequiredFields: structuralMissingFields(candidate),
-    conflicts: candidate.conflicts.filter((conflict) =>
-      publicationFields.has(conflict.field) ? false : true
+    conflicts: candidate.conflicts.filter(
+      (conflict) => !publicationFields.has(conflict.field)
     ),
   }
 }
@@ -185,8 +190,9 @@ export function buildStagingTargetPolicyApplication(
   }
 
   const productPlan = buildProductImportPlan(finalCandidates)
-  const normalizedQuarantine = quarantined
-    .sort((left, right) => left.candidateKey.localeCompare(right.candidateKey))
+  const normalizedQuarantine = quarantined.sort((left, right) =>
+    left.candidateKey.localeCompare(right.candidateKey)
+  )
 
   return {
     schemaVersion: 1,
