@@ -45,6 +45,8 @@ export type RecoveryProductFields = Partial<
     | "categorySourceIds"
     | "optionValues"
     | "mediaSourceIds"
+    | "configurableVariants"
+    | "configurableVariantMatrixComplete"
     | "stockState"
     | "lowStockMessage"
     | "regularPrice"
@@ -112,6 +114,8 @@ const candidateFields = [
   "categorySourceIds",
   "optionValues",
   "mediaSourceIds",
+  "configurableVariants",
+  "configurableVariantMatrixComplete",
   "stockState",
   "lowStockMessage",
   "regularPrice",
@@ -135,6 +139,8 @@ const criticalConflictFields = new Set<keyof RecoveryProductFields>([
   "sourceId",
   "sku",
   "type",
+  "configurableVariants",
+  "configurableVariantMatrixComplete",
   "regularPrice",
   "salePrice",
   "currencyCode",
