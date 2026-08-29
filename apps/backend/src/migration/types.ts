@@ -71,6 +71,21 @@ export type RecoveredConfigurableVariant = {
   salePrice?: number
 }
 
+/**
+ * Safe target-only publication policy for Phase 4 staging imports.
+ * These values describe the new COQUETTE staging target. They are never
+ * represented as facts recovered from the legacy Magento storefront.
+ */
+export type StagingTargetPublicationPolicy = {
+  schemaVersion: 1
+  provenance: "migration_target_policy"
+  target: "staging"
+  status: "disabled"
+  visibility: "not_visible"
+  medusaStatus: "draft"
+  rationale: string
+}
+
 export type NormalizedStorefrontProduct = {
   sourceId: string
   canonicalUrl?: string
@@ -100,6 +115,11 @@ export type NormalizedStorefrontProduct = {
   regularPrice?: number
   salePrice?: number
   currencyCode?: "EUR"
+  /**
+   * Present only on a derived staging slice. When present, status/visibility
+   * above are target values from this policy, not recovered legacy facts.
+   */
+  targetPublicationPolicy?: StagingTargetPublicationPolicy
   evidence: ReconstructionEvidence[]
   capturedAt?: string
 }
