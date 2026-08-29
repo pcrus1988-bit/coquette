@@ -334,6 +334,12 @@ function optionGroups(html: string) {
   return [...merged.entries()].map(([name, values]) => ({ name, values }))
 }
 
+function hasDirectMagentoCategoryViewEvidence(html: string) {
+  return /<body\b[^>]*class=["'][^"']*(?:^|\s)catalog-category-view(?:\s|$)[^"']*["']/i.test(
+    html
+  )
+}
+
 export function extractCategoryProductLinks(html: string, pageUrl: string) {
   try {
     const listing = new URL(pageUrl)
@@ -342,6 +348,11 @@ export function extractCategoryProductLinks(html: string, pageUrl: string) {
   } catch {
     return []
   }
+
+  // Product recommendation widgets reuse Magento's `product-item-link` class on
+  // product/content pages. Only a page that explicitly identifies itself as a
+  // Magento category view may contribute product→category relationships.
+  if (!hasDirectMagentoCategoryViewEvidence(html)) return []
 
   const result: string[] = []
   const pattern = /<a\b([^>]*)class=["'][^"']*product-item-link[^"']*["']([^>]*)>/gi
