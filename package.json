@@ -24,6 +24,7 @@
     "capture:coquette:staging-slice": "pnpm --filter @coquette/backend staging-target-policy:build",
     "capture:coquette:staging-dependencies": "pnpm --filter @coquette/backend staging-slice:dependency-evidence",
     "capture:coquette:staging-dependencies:provision": "pnpm --filter @coquette/backend staging-slice:dependency-provision",
+    "capture:coquette:staging-dependencies:rollback": "pnpm --filter @coquette/backend staging-slice:dependency-rollback",
     "capture:coquette:staging-storage-recovery-rehearsal": "pnpm --filter @coquette/backend staging:storage-recovery-rehearsal",
     "capture:coquette:child-skus": "pnpm --filter @coquette/backend configurable-child-sku:probe",
     "railway-build-backend": "pnpm --filter @coquette/backend build:deploy",
