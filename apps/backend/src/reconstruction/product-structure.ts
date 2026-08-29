@@ -335,7 +335,7 @@ function optionGroups(html: string) {
 }
 
 function hasDirectMagentoCategoryViewEvidence(html: string) {
-  return /<body\b[^>]*class=["'][^"']*(?:^|\s)catalog-category-view(?:\s|$)[^"']*["']/i.test(
+  return /<body\b[^>]*class=["'][^"']*\bcatalog-category-view\b[^"']*["']/i.test(
     html
   )
 }
