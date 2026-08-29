@@ -75,6 +75,8 @@ export type NormalizedStorefrontProduct = {
   sourceId: string
   canonicalUrl?: string
   alternateLocaleUrl?: string
+  /** Magento parent product ID observed in product-specific storefront evidence. */
+  legacyProductId?: string
   sku: string
   name: string
   status: "enabled" | "disabled"
