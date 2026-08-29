@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { buildRecoveryProductCandidate, type RecoveryProductObservation } from "../migration/recovery-candidates"
 import {
   buildStagingTargetPolicyApplication,
+  stagingTargetPolicyBundleChecksum,
   stagingTargetPublicationPolicy,
 } from "../migration/staging-target-policy"
 
@@ -13,6 +14,7 @@ function observation(input: {
   sku: string
   type?: "simple" | "configurable"
   media?: boolean
+  options?: boolean
   status?: "enabled" | "disabled"
   visibility?: "catalog_search" | "not_visible"
 }): RecoveryProductObservation {
@@ -30,7 +32,12 @@ function observation(input: {
       ...(input.visibility ? { visibility: input.visibility } : {}),
       type: input.type ?? "simple",
       categorySourceIds: [categoryUrl],
-      optionValues: input.type === "configurable" ? {} : { size: "S" },
+      ...(input.options === false
+        ? {}
+        : {
+            optionValues:
+              input.type === "configurable" ? {} : { size: "S" },
+          }),
       mediaSourceIds:
         input.media === false
           ? []
@@ -66,6 +73,15 @@ const alreadyPublishedLegacy = candidate({
 })
 assert.equal(alreadyPublishedLegacy.disposition, "ready")
 
+const optionlessSimple = candidate({
+  slug: "optionless-simple",
+  sku: "SAFE-3",
+  options: false,
+})
+assert.equal(optionlessSimple.disposition, "needs_review")
+assert.ok(optionlessSimple.missingRequiredFields.includes("optionValues"))
+assert.equal(optionlessSimple.selected.optionValues, undefined)
+
 const configurable = candidate({
   slug: "configurable-parent",
   sku: "CONFIG-1",
@@ -82,6 +98,7 @@ const duplicateB = candidate({ slug: "duplicate-b", sku: "DUP-1" })
 const application = buildStagingTargetPolicyApplication([
   missingPublication,
   alreadyPublishedLegacy,
+  optionlessSimple,
   configurable,
   missingMedia,
   duplicateA,
@@ -98,12 +115,12 @@ assert.deepEqual(stagingTargetPublicationPolicy, {
   rationale:
     "Phase 4 real-data imports are quarantined as draft/not-visible until catalogue acceptance and UAT explicitly promote them.",
 })
-assert.equal(application.sourceCandidateCount, 6)
-assert.equal(application.eligibleCandidateCount, 2)
+assert.equal(application.sourceCandidateCount, 7)
+assert.equal(application.eligibleCandidateCount, 3)
 assert.equal(application.quarantinedCandidateCount, 4)
 assert.equal(application.isExecutable, true)
 assert.equal(application.productPlan.isExecutable, true)
-assert.equal(application.productPlan.totals.ready, 2)
+assert.equal(application.productPlan.totals.ready, 3)
 assert.equal(application.productPlan.totals.blocked, 0)
 
 const stagedMissing = application.productPlan.entries.find(
@@ -132,11 +149,20 @@ assert.equal(
   "migration_target_policy"
 )
 
+const stagedOptionless = application.productPlan.entries.find(
+  (entry) => entry.sku === "SAFE-3"
+)
+assert.ok(stagedOptionless?.normalizedProduct)
+assert.deepEqual(stagedOptionless.normalizedProduct.optionValues, {})
+assert.equal(stagedOptionless.normalizedProduct.status, "disabled")
+assert.equal(stagedOptionless.normalizedProduct.visibility, "not_visible")
+
 // The authoritative candidates are not rewritten by the target overlay.
 assert.equal(missingPublication.selected.status, undefined)
 assert.equal(missingPublication.selected.visibility, undefined)
 assert.equal(alreadyPublishedLegacy.selected.status, "enabled")
 assert.equal(alreadyPublishedLegacy.selected.visibility, "catalog_search")
+assert.equal(optionlessSimple.selected.optionValues, undefined)
 
 const configQuarantine = application.quarantined.find(
   (entry) => entry.sku === "CONFIG-1"
@@ -160,6 +186,24 @@ assert.ok(
   )
 )
 
+const bundleBase = {
+  schemaVersion: 1 as const,
+  captureId: "capture-fixture",
+  evidencePackageChecksum: "evidence-fixture",
+  sourceIngestionReportChecksum: "ingestion-fixture",
+  application,
+}
+assert.equal(
+  stagingTargetPolicyBundleChecksum({
+    ...bundleBase,
+    generatedAt: "2026-08-29T11:30:00.000Z",
+  }),
+  stagingTargetPolicyBundleChecksum({
+    ...bundleBase,
+    generatedAt: "2026-08-29T12:30:00.000Z",
+  })
+)
+
 console.log(
-  "COQUETTE staging target policy contract passed: safe simple products are draft/not-visible while blocked identities remain quarantined"
+  "COQUETTE staging target policy contract passed: optionless simple products are safe draft targets, blocked identities remain quarantined, and bundle checksums ignore timestamps"
 )
