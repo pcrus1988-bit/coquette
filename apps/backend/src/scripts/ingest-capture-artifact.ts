@@ -7,6 +7,10 @@ import {
   validateCaptureArtifactBundle,
   type CaptureValidationIssue,
 } from "../migration/capture-validation"
+import {
+  applyConfigurableChildSkuSupplement,
+  type ConfigurableChildSkuSupplement,
+} from "../migration/configurable-child-sku-supplement"
 import { buildProductImportPlan } from "../migration/import-plan"
 import type { IndexedRecoveryBaseline } from "../migration/indexed-recovery"
 import { buildReconstructionUrlUniverse } from "../migration/url-universe"
@@ -24,6 +28,13 @@ async function optionalManualUnavailable(path?: string): Promise<ManualUnavailab
     if (!record.url.trim() || !record.note.trim()) return []
     return [{ url: record.url, note: record.note }]
   })
+}
+
+async function optionalChildSkuSupplement(path?: string) {
+  if (!path?.trim()) return undefined
+  return JSON.parse(
+    await readFile(resolve(path), "utf8")
+  ) as ConfigurableChildSkuSupplement
 }
 
 function raiseExitCode(code: number) {
@@ -88,7 +99,20 @@ async function main() {
   const manualUnavailable = await optionalManualUnavailable(
     process.env.COQUETTE_UNAVAILABLE_URLS_FILE
   )
-  const candidates = buildCanonicalCaptureProductCandidates(bundle)
+  const sourceCandidates = buildCanonicalCaptureProductCandidates(bundle)
+  const childSkuSupplement = await optionalChildSkuSupplement(
+    process.env.COQUETTE_CONFIGURABLE_CHILD_SKU_EVIDENCE_FILE
+  )
+  const childSkuApplication = childSkuSupplement
+    ? applyConfigurableChildSkuSupplement({
+        candidates: sourceCandidates,
+        evidence: childSkuSupplement,
+        expectedCaptureId: bundle.manifest.captureId,
+        expectedEvidencePackageChecksum:
+          evidencePackage?.packageChecksum ?? "missing",
+      })
+    : undefined
+  const candidates = childSkuApplication?.candidates ?? sourceCandidates
   const importPlan = buildProductImportPlan(candidates)
   const urlUniverse = buildReconstructionUrlUniverse(
     bundle.pages,
@@ -103,7 +127,7 @@ async function main() {
   const report = {
     schemaVersion: 3,
     generatedAt: new Date().toISOString(),
-    ...(analysisCodeRevision || expectedEvidenceChecksum
+    ...(analysisCodeRevision || expectedEvidenceChecksum || childSkuApplication
       ? {
           analysis: {
             ...(analysisCodeRevision
@@ -113,6 +137,12 @@ async function main() {
               ? { expectedEvidencePackageChecksum: expectedEvidenceChecksum }
               : {}),
             actualEvidencePackageChecksum: evidencePackage?.packageChecksum,
+            ...(childSkuApplication
+              ? {
+                  configurableChildSkuEvidenceChecksum:
+                    childSkuApplication.evidenceChecksum,
+                }
+              : {}),
           },
         }
       : {}),
@@ -155,6 +185,18 @@ async function main() {
       ).length,
       records: productStructures,
     },
+    ...(childSkuApplication
+      ? {
+          configurableChildSkuSupplement: {
+            evidenceChecksum: childSkuApplication.evidenceChecksum,
+            completeEvidenceParents:
+              childSkuApplication.completeEvidenceParents,
+            appliedParents: childSkuApplication.appliedParents,
+            appliedChildren: childSkuApplication.appliedChildren,
+            unresolvedRecords: childSkuApplication.unresolvedRecords,
+          },
+        }
+      : {}),
     candidates: {
       total: candidates.length,
       ready: candidates.filter((candidate) => candidate.disposition === "ready").length,
@@ -199,6 +241,18 @@ async function main() {
               (structure) => structure.typeHint === "configurable"
             ).length,
           },
+          ...(childSkuApplication
+            ? {
+                configurableChildSkuSupplement: {
+                  evidenceChecksum: childSkuApplication.evidenceChecksum,
+                  completeEvidenceParents:
+                    childSkuApplication.completeEvidenceParents,
+                  appliedParents: childSkuApplication.appliedParents,
+                  appliedChildren: childSkuApplication.appliedChildren,
+                  unresolvedRecords: childSkuApplication.unresolvedRecords.length,
+                },
+              }
+            : {}),
           candidates: {
             total: candidates.length,
             ready: candidates.filter(
