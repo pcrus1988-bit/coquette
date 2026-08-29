@@ -2,6 +2,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import type { CaptureEvidencePackage } from "../migration/capture-evidence-package"
+import { sourceChecksum } from "../migration/checksum"
 import {
   buildStagingSliceDependencyEvidencePlan,
   type StagingSliceMediaRecord,
@@ -9,6 +10,7 @@ import {
   type StagingSliceSourceIngestionReport,
   type StagingTargetPolicyBundle,
 } from "../migration/staging-slice-dependency-evidence"
+import { buildStagingTargetPolicyApplication } from "../migration/staging-target-policy"
 
 function unexpected(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
@@ -32,6 +34,42 @@ async function readJsonl<T>(path: string) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line) as T)
+}
+
+function evidencePackageSemanticChecksum(value: CaptureEvidencePackage) {
+  return sourceChecksum({
+    schemaVersion: value.schemaVersion,
+    captureId: value.captureId,
+    source: value.source,
+    provenance: value.provenance,
+    files: value.files,
+    totals: value.totals,
+  })
+}
+
+function assertOuterBindings(input: {
+  report: StagingSliceSourceIngestionReport
+  policyBundle: StagingTargetPolicyBundle
+  evidencePackage: CaptureEvidencePackage
+}) {
+  const candidates = input.report.candidates?.records ?? []
+  const rebuiltApplication = buildStagingTargetPolicyApplication(candidates)
+  if (
+    sourceChecksum(rebuiltApplication) !==
+    sourceChecksum(input.policyBundle.application)
+  ) {
+    throw unexpected(
+      "Staging target policy application does not exactly rebuild from the checksum-bound ingestion report"
+    )
+  }
+  if (
+    input.evidencePackage.packageChecksum !==
+    evidencePackageSemanticChecksum(input.evidencePackage)
+  ) {
+    throw unexpected(
+      "Capture evidence-package semantic checksum does not match evidence-package.json"
+    )
+  }
 }
 
 function histogram(values: string[]) {
@@ -68,6 +106,8 @@ async function main() {
       readJsonl<StagingSliceMediaRecord>(join(resolvedCaptureDir, "media.jsonl")),
       readJsonl<StagingSliceProductRecord>(join(resolvedCaptureDir, "products.jsonl")),
     ])
+
+  assertOuterBindings({ report, policyBundle, evidencePackage })
 
   const plan = await buildStagingSliceDependencyEvidencePlan({
     captureDir: resolvedCaptureDir,
