@@ -3,7 +3,10 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { sourceChecksum } from "../migration/checksum"
 import type { RecoveryProductCandidate } from "../migration/recovery-candidates"
-import { buildStagingTargetPolicyApplication } from "../migration/staging-target-policy"
+import {
+  buildStagingTargetPolicyApplication,
+  stagingTargetPolicyBundleChecksum,
+} from "../migration/staging-target-policy"
 
 type CaptureIngestionReport = {
   schemaVersion?: number
@@ -25,6 +28,18 @@ async function atomicWriteJson(path: string, value: unknown) {
   const temporary = `${target}.${process.pid}.tmp`
   await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8")
   await rename(temporary, target)
+}
+
+function countStrings(values: string[]) {
+  return Object.fromEntries(
+    [...values.reduce((counts, value) => {
+      counts.set(value, (counts.get(value) ?? 0) + 1)
+      return counts
+    }, new Map<string, number>()).entries()].sort(
+      ([leftKey, leftCount], [rightKey, rightCount]) =>
+        rightCount - leftCount || leftKey.localeCompare(rightKey)
+    )
+  )
 }
 
 async function main() {
@@ -91,9 +106,16 @@ async function main() {
   }
   const bundle = {
     ...withoutChecksum,
-    bundleChecksum: sourceChecksum(withoutChecksum),
+    bundleChecksum: stagingTargetPolicyBundleChecksum(withoutChecksum),
   }
   await atomicWriteJson(outputPath, bundle)
+
+  const candidateTypeTotals = countStrings(
+    candidates.map((candidate) => candidate.selected.type ?? "missing")
+  )
+  const quarantineReasonTotals = countStrings(
+    application.quarantined.flatMap((entry) => entry.reasons)
+  )
 
   console.log(
     JSON.stringify(
@@ -106,8 +128,10 @@ async function main() {
         sourceIngestionReportChecksum: bundle.sourceIngestionReportChecksum,
         bundleChecksum: bundle.bundleChecksum,
         sourceCandidateCount: application.sourceCandidateCount,
+        candidateTypeTotals,
         eligibleCandidateCount: application.eligibleCandidateCount,
         quarantinedCandidateCount: application.quarantinedCandidateCount,
+        quarantineReasonTotals,
         productPlanTotals: application.productPlan.totals,
         productPlanExecutable: application.productPlan.isExecutable,
         policy: application.policy,
