@@ -8,9 +8,13 @@ import {
   deleteFilesWorkflow,
   uploadFilesWorkflow,
 } from "@medusajs/medusa/core-flows"
-import { assertDedicatedCoquetteStagingProject } from "../migration/coquette-staging-guard"
+import {
+  assertDedicatedCoquetteStagingProject,
+  COQUETTE_STAGING_SUPABASE_PROJECT_REF,
+} from "../migration/coquette-staging-guard"
 
-const CONFIRMATION = "COQUETTE_STORAGE_RECOVERY_REHEARSAL_CONFIRMED"
+const EXPECTED_RAILWAY_SERVICE = "coquette-backend"
+const EXPECTED_DATABASE = "postgres"
 const ONE_PIXEL_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 const SENTINEL_BYTES = Buffer.from(ONE_PIXEL_PNG_BASE64, "base64")
@@ -24,6 +28,55 @@ type PgConnection = {
 
 function unexpected(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
+}
+
+function requiredDeployedRailwayGuardEnv() {
+  if (process.platform !== "linux") {
+    throw unexpected(
+      "Storage recovery rehearsal must execute inside the deployed Railway Linux service"
+    )
+  }
+
+  const railwayServiceName = process.env.RAILWAY_SERVICE_NAME?.trim()
+  if (railwayServiceName !== EXPECTED_RAILWAY_SERVICE) {
+    throw unexpected(
+      `RAILWAY_SERVICE_NAME must equal ${EXPECTED_RAILWAY_SERVICE}; received ${railwayServiceName || "missing"}`
+    )
+  }
+
+  const databaseUrl = process.env.DATABASE_URL?.trim()
+  if (!databaseUrl) {
+    throw unexpected("DATABASE_URL is required inside the deployed Railway service")
+  }
+
+  const parsed = new URL(databaseUrl)
+  const databaseName = decodeURIComponent(parsed.pathname.replace(/^\//, ""))
+  const databaseUsername = decodeURIComponent(parsed.username).toLowerCase()
+  const databaseHost = parsed.hostname.toLowerCase()
+
+  if (databaseName !== EXPECTED_DATABASE) {
+    throw unexpected(
+      `DATABASE_URL must target ${EXPECTED_DATABASE}; received ${databaseName || "missing"}`
+    )
+  }
+  if (
+    !databaseHost.includes(COQUETTE_STAGING_SUPABASE_PROJECT_REF) &&
+    !databaseUsername.includes(COQUETTE_STAGING_SUPABASE_PROJECT_REF)
+  ) {
+    throw unexpected(
+      "DATABASE_URL does not identify the dedicated COQUETTE Supabase staging project"
+    )
+  }
+
+  return {
+    ...process.env,
+    COQUETTE_MIGRATION_TARGET: "staging",
+    COQUETTE_MIGRATION_ALLOW_WRITE: "COQUETTE_STAGING_WRITE_CONFIRMED",
+    COQUETTE_MIGRATION_EXPECTED_DATABASE_HOST: parsed.hostname,
+    COQUETTE_MIGRATION_EXPECTED_DATABASE_NAME: databaseName,
+    COQUETTE_MIGRATION_EXPECTED_SUPABASE_PROJECT_REF:
+      COQUETTE_STAGING_SUPABASE_PROJECT_REF,
+  }
 }
 
 function requiredHttpsUrl(name: string) {
@@ -153,13 +206,8 @@ async function observePostDeletePublicRead(uploadedUrl: string) {
 
 export default async function stagingStorageRecoveryRehearsal({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-  if (process.env.COQUETTE_STORAGE_RECOVERY_REHEARSAL !== CONFIRMATION) {
-    throw unexpected(
-      `COQUETTE_STORAGE_RECOVERY_REHEARSAL must equal ${CONFIRMATION}`
-    )
-  }
-
-  const project = assertDedicatedCoquetteStagingProject(process.env)
+  const guardedEnv = requiredDeployedRailwayGuardEnv()
+  const project = assertDedicatedCoquetteStagingProject(guardedEnv)
   const storage = requiredStorageRuntime()
   const fileModuleService = container.resolve(Modules.FILE)
   const pgConnection = container.resolve(
@@ -169,6 +217,18 @@ export default async function stagingStorageRecoveryRehearsal({ container }: Exe
   let uploadedId: string | undefined
   let uploadedUrl: string | undefined
   let deletionVerified = false
+
+  logger.info(
+    `COQUETTE storage recovery rehearsal deployed runtime verified: ${JSON.stringify({
+      platform: process.platform,
+      railwayServiceName: process.env.RAILWAY_SERVICE_NAME,
+      railwayDeploymentId: process.env.RAILWAY_DEPLOYMENT_ID || null,
+      railwayReplicaId: process.env.RAILWAY_REPLICA_ID || null,
+      supabaseProjectRef: project.supabaseProjectRef,
+      databaseHost: project.databaseHost,
+      databaseName: project.databaseName,
+    })}`
+  )
 
   try {
     const { result } = await uploadFilesWorkflow(container).run({
