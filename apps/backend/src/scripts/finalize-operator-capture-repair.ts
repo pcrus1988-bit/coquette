@@ -4,7 +4,6 @@ import {
   mkdir,
   open,
   readFile,
-  rm,
   stat,
 } from "node:fs/promises"
 import { basename, join, resolve } from "node:path"
@@ -12,7 +11,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import {
   CAPTURE_EVIDENCE_PACKAGE_FILE,
   createCaptureEvidencePackage,
-  verifyCaptureEvidencePackage,
+  type CaptureEvidencePackage,
 } from "../migration/capture-evidence-package"
 import { createStreamingCaptureHandoff } from "../migration/streaming-capture-handoff"
 
@@ -33,6 +32,21 @@ type CaptureManifest = {
   }
   repair?: {
     remainingRetryFailures?: number
+  }
+}
+
+type IngestionReport = {
+  capture?: {
+    captureId?: string
+    evidencePackage?: {
+      isValid?: boolean
+      packageChecksum?: string
+    }
+    validation?: {
+      isValid?: boolean
+      critical?: number
+      review?: number
+    }
   }
 }
 
@@ -99,6 +113,15 @@ async function runPnpm(
       )
     })
   })
+}
+
+async function readExistingEvidencePackage(path: string) {
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as CaptureEvidencePackage
+    return parsed
+  } catch {
+    return undefined
+  }
 }
 
 async function splitArchive(path: string, partBytes: number) {
@@ -200,29 +223,29 @@ async function main() {
   console.log(
     `Pages: captured=${manifest.pages?.captured ?? "unknown"}; products=${manifest.pages?.products ?? "unknown"}`
   )
-  console.log("Regenerating evidence package from the final repaired capture state...")
 
-  await rm(join(repairDir, CAPTURE_EVIDENCE_PACKAGE_FILE), { force: true })
   const revision = process.env.COQUETTE_CAPTURE_CODE_REVISION?.trim()
-  const evidencePackage = await createCaptureEvidencePackage({
-    captureDir: repairDir,
-    browserMode: "headed",
-    codeRevision: revision,
-    operatorLabel: "targeted_capture_repair_finalize",
-  })
-  const evidenceVerification = await verifyCaptureEvidencePackage(repairDir)
-  if (!evidenceVerification.isValid) {
-    throw unexpected(
-      `Final repaired capture evidence failed verification: ${evidenceVerification.issues
-        .map((issue) => issue.code)
-        .join(", ")}`
+  const evidencePath = join(repairDir, CAPTURE_EVIDENCE_PACKAGE_FILE)
+  let evidencePackage = await readExistingEvidencePackage(evidencePath)
+
+  if (evidencePackage) {
+    console.log(
+      `Reusing existing evidence package ${evidencePackage.packageChecksum}; capture:ingest will revalidate every bound file before handoff creation.`
+    )
+  } else {
+    console.log("No reusable evidence package found; generating it from the final repaired capture state...")
+    evidencePackage = await createCaptureEvidencePackage({
+      captureDir: repairDir,
+      browserMode: "headed",
+      codeRevision: revision,
+      operatorLabel: "targeted_capture_repair_finalize",
+    })
+    console.log(
+      `Evidence package generated: ${evidencePackage.packageChecksum}; files=${evidencePackage.totals.files}; bytes=${evidencePackage.totals.bytes}`
     )
   }
-  console.log(
-    `Evidence package verified: ${evidencePackage.packageChecksum}; files=${evidencePackage.totals.files}; bytes=${evidencePackage.totals.bytes}`
-  )
 
-  console.log("Regenerating ingestion report bound to the new evidence package...")
+  console.log("Validating capture + evidence and regenerating the bound ingestion report...")
   await runPnpm(
     repoRoot,
     "capture:ingest",
@@ -233,7 +256,29 @@ async function main() {
     },
     false
   )
-  console.log(`Ingestion report ready: ${ingestionReportPath}`)
+
+  const ingestionReport = JSON.parse(
+    await readFile(ingestionReportPath, "utf8")
+  ) as IngestionReport
+  if (ingestionReport.capture?.captureId !== manifest.captureId) {
+    throw unexpected("Regenerated ingestion report captureId does not match repaired capture")
+  }
+  if (
+    ingestionReport.capture?.evidencePackage?.isValid !== true ||
+    ingestionReport.capture.evidencePackage.packageChecksum !== evidencePackage.packageChecksum
+  ) {
+    throw unexpected(
+      "Regenerated ingestion report is not bound to the existing valid evidence package"
+    )
+  }
+  if (ingestionReport.capture?.validation?.isValid !== true) {
+    throw unexpected(
+      `Regenerated ingestion report still contains critical validation issues (${ingestionReport.capture?.validation?.critical ?? "unknown"})`
+    )
+  }
+  console.log(
+    `Ingestion report ready: ${ingestionReportPath}; critical=${ingestionReport.capture.validation.critical ?? 0}; review=${ingestionReport.capture.validation.review ?? 0}`
+  )
 
   console.log("Building large handoff with streaming tar/gzip (bounded memory)...")
   const handoff = await createStreamingCaptureHandoff({
