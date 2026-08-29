@@ -73,6 +73,49 @@ function validateOptionalLegacyUrl(
   }
 }
 
+function validateMediaSourceUrl(
+  issues: CaptureValidationIssue[],
+  value: string | undefined,
+  expectedHost: string,
+  context: "record" | "relationship"
+) {
+  const url = validHttpUrl(value)
+  const invalidCode =
+    context === "record" ? "invalid_media_source_url" : "invalid_page_media_asset_url"
+  const externalCode =
+    context === "record" ? "external_media_source_url" : "external_page_media_asset_url"
+
+  if (!url) {
+    issues.push({
+      severity: "critical",
+      code: invalidCode,
+      message: "Media source URL must be an absolute HTTP(S) URL.",
+      sourceUrl: value,
+    })
+    return false
+  }
+
+  if (url.hostname === expectedHost) return true
+
+  if (url.protocol !== "https:") {
+    issues.push({
+      severity: "critical",
+      code: invalidCode,
+      message: `External media source URL must use HTTPS; received host ${url.hostname}.`,
+      sourceUrl: value,
+    })
+    return false
+  }
+
+  issues.push({
+    severity: "review",
+    code: externalCode,
+    message: `Authoritative COQUETTE capture references externally hosted HTTPS media on ${url.hostname}; retain provenance and review before dependency provisioning.`,
+    sourceUrl: value,
+  })
+  return true
+}
+
 export function validateCaptureArtifactBundle(
   bundle: CaptureArtifactBundle,
   expectedHost = COQUETTE_LEGACY_HOST
@@ -136,7 +179,9 @@ export function validateCaptureArtifactBundle(
   ]
 
   for (const record of sourceCollections) {
-    if (!isUrlOnHost(record.url, expectedHost)) {
+    if (record.kind === "media") {
+      validateMediaSourceUrl(issues, record.url, expectedHost, "record")
+    } else if (!isUrlOnHost(record.url, expectedHost)) {
       issues.push({
         severity: "critical",
         code: `invalid_${record.kind}_source_url`,
@@ -242,14 +287,13 @@ export function validateCaptureArtifactBundle(
     }
 
     for (const mediaUrl of mediaUrls) {
-      if (!isUrlOnHost(mediaUrl, expectedHost)) {
-        issues.push({
-          severity: "critical",
-          code: "invalid_page_media_asset_url",
-          message: `Page-media relationship asset must remain on ${expectedHost}.`,
-          sourceUrl: mediaUrl,
-        })
-      } else if (!capturedMedia.has(mediaUrl)) {
+      const mediaUrlValid = validateMediaSourceUrl(
+        issues,
+        mediaUrl,
+        expectedHost,
+        "relationship"
+      )
+      if (mediaUrlValid && !capturedMedia.has(mediaUrl)) {
         issues.push({
           severity: "review",
           code: "page_media_asset_not_captured",
