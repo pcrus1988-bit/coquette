@@ -7,7 +7,8 @@ import {
   writeFile,
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { basename, join } from "node:path"
+import { MedusaError } from "@medusajs/framework/utils"
 import {
   createCaptureEvidencePackage,
   verifyCaptureEvidencePackage,
@@ -18,7 +19,9 @@ import {
 } from "../migration/streaming-capture-handoff"
 
 function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message)
+  if (!condition) {
+    throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
+  }
 }
 
 async function main() {
