@@ -85,6 +85,12 @@ function graphqlGetUrl(parentSku: string) {
   return url.toString()
 }
 
+function hasGraphqlErrors(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  return Array.isArray((value as Record<string, unknown>).errors) &&
+    ((value as Record<string, unknown>).errors as unknown[]).length > 0
+}
+
 async function main() {
   const browserMode = assertOperatorEnvironment()
   const captureDir = process.env.COQUETTE_CAPTURE_DIR?.trim()
@@ -146,6 +152,7 @@ async function main() {
 
   const browser = await BrowserTransport.launch()
   const records: Array<Record<string, unknown>> = []
+  let stoppedEarly = false
 
   try {
     for (let index = 0; index < selected.length; index += 1) {
@@ -242,6 +249,16 @@ async function main() {
         parsed,
       })
 
+      const endpointOrSchemaFailure =
+        !response.ok || Boolean(parseIssue) || hasGraphqlErrors(rawResponse)
+      if (endpointOrSchemaFailure) {
+        stoppedEarly = true
+        console.log(
+          "Child SKU probe stopped after endpoint/schema failure; diagnostic evidence will be saved without further GraphQL requests."
+        )
+        break
+      }
+
       await sleep(delayMs)
     }
   } finally {
@@ -261,6 +278,7 @@ async function main() {
       | undefined
     return sum + (parsed?.unresolvedSourceProductIds?.length ?? 0)
   }, 0)
+  const unprobedParents = selected.length - records.length
 
   const payload = {
     schemaVersion: 1 as const,
@@ -276,10 +294,13 @@ async function main() {
     },
     queryChecksum: sourceChecksum(configurableChildSkuGraphqlQuery()),
     parentsSelected: selected.length,
+    parentsProbed: records.length,
+    stoppedEarly,
     records,
     totals: {
       completeParents,
       incompleteParents: records.length - completeParents,
+      unprobedParents,
       resolvedChildren,
       unresolvedChildren,
     },
@@ -297,6 +318,7 @@ async function main() {
       {
         status:
           evidence.totals.incompleteParents === 0 &&
+          evidence.totals.unprobedParents === 0 &&
           evidence.totals.unresolvedChildren === 0
             ? "configurable_child_sku_evidence_complete"
             : "configurable_child_sku_evidence_partial",
@@ -304,6 +326,8 @@ async function main() {
         captureEvidencePackageChecksum: evidence.captureEvidencePackageChecksum,
         evidenceChecksum: evidence.evidenceChecksum,
         parentsSelected: evidence.parentsSelected,
+        parentsProbed: evidence.parentsProbed,
+        stoppedEarly: evidence.stoppedEarly,
         totals: evidence.totals,
         output: outputPath,
       },
@@ -314,6 +338,7 @@ async function main() {
 
   if (
     evidence.totals.incompleteParents > 0 ||
+    evidence.totals.unprobedParents > 0 ||
     evidence.totals.unresolvedChildren > 0
   ) {
     process.exitCode = 3
