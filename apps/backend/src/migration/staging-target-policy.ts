@@ -38,6 +38,15 @@ export type StagingTargetPolicyApplication = {
   isExecutable: boolean
 }
 
+export type StagingTargetPolicyBundlePayload = {
+  schemaVersion: 1
+  generatedAt?: string
+  captureId?: string
+  evidencePackageChecksum: string
+  sourceIngestionReportChecksum: string
+  application: StagingTargetPolicyApplication
+}
+
 const publicationFields = new Set(["status", "visibility"])
 const nonStructuralConflictFields = new Set([
   "status",
@@ -61,9 +70,17 @@ function capturedAt(candidate: RecoveryProductCandidate) {
 }
 
 function structuralMissingFields(candidate: RecoveryProductCandidate) {
-  return candidate.missingRequiredFields.filter(
-    (field) => !publicationFields.has(field)
-  )
+  return candidate.missingRequiredFields.filter((field) => {
+    if (publicationFields.has(field)) return false
+    // A simple Magento product is already the sellable SKU. It does not need a
+    // recovered variant-option matrix. The Medusa execution layer intentionally
+    // supplies a neutral Default Option / Default Variant when this collection
+    // is empty. Configurable products never pass this staging-simple gate.
+    if (candidate.selected.type === "simple" && field === "optionValues") {
+      return false
+    }
+    return true
+  })
 }
 
 function structuralConflicts(candidate: RecoveryProductCandidate) {
@@ -102,8 +119,14 @@ function targetNormalizedProduct(
   return {
     ...(candidate.selected as Omit<
       NormalizedStorefrontProduct,
-      "status" | "visibility" | "evidence" | "capturedAt" | "targetPublicationPolicy"
+      | "status"
+      | "visibility"
+      | "evidence"
+      | "capturedAt"
+      | "targetPublicationPolicy"
+      | "optionValues"
     >),
+    optionValues: candidate.selected.optionValues ?? {},
     status: stagingTargetPublicationPolicy.status,
     visibility: stagingTargetPublicationPolicy.visibility,
     targetPublicationPolicy: stagingTargetPublicationPolicy,
@@ -147,6 +170,14 @@ function quarantine(
     sku: candidate.selected.sku,
     reasons: [...new Set(reasons)].sort(),
   })
+}
+
+export function stagingTargetPolicyBundleChecksum(
+  input: StagingTargetPolicyBundlePayload
+) {
+  const { generatedAt, ...semanticPayload } = input
+  void generatedAt
+  return sourceChecksum(semanticPayload)
 }
 
 export function buildStagingTargetPolicyApplication(
