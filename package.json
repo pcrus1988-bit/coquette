@@ -22,6 +22,7 @@
     "capture:coquette:dependencies": "pnpm --filter @coquette/backend dependency-provisioning:evidence",
     "capture:coquette:reanalyse": "pnpm --filter @coquette/backend capture:ingest",
     "capture:coquette:staging-slice": "pnpm --filter @coquette/backend staging-target-policy:build",
+    "capture:coquette:staging-dependencies": "pnpm --filter @coquette/backend staging-slice:dependency-evidence",
     "capture:coquette:child-skus": "pnpm --filter @coquette/backend configurable-child-sku:probe",
     "railway-build-backend": "pnpm --filter @coquette/backend build:deploy",
     "railway-start-backend": "pnpm --filter @coquette/backend start:deploy",
