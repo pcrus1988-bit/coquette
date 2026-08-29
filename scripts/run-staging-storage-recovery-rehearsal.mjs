@@ -2,6 +2,7 @@ import { spawn } from "node:child_process"
 
 const PROJECT_REF = "pijetwrxqznxaoacnakr"
 const EXPECTED_DATABASE = "postgres"
+const EXPECTED_SERVICE = "coquette-backend"
 const REQUIRED_S3 = [
   "S3_FILE_URL",
   "S3_ENDPOINT",
@@ -16,10 +17,30 @@ function fail(message) {
   process.exit(3)
 }
 
-console.log("COQUETTE guarded storage rehearsal stage: validating Railway-injected runtime")
+console.log("COQUETTE guarded storage rehearsal stage: validating deployed Railway runtime")
+
+if (process.platform !== "linux") {
+  fail(
+    "this guarded rehearsal must execute inside the deployed Railway Linux container; railway run executes locally, so use railway ssh"
+  )
+}
+
+const railwayDeploymentId = process.env.RAILWAY_DEPLOYMENT_ID?.trim()
+const railwayReplicaId = process.env.RAILWAY_REPLICA_ID?.trim()
+const railwayServiceName = process.env.RAILWAY_SERVICE_NAME?.trim()
+if (!railwayDeploymentId || !railwayReplicaId) {
+  fail(
+    "RAILWAY_DEPLOYMENT_ID and RAILWAY_REPLICA_ID are required to prove execution inside a deployed Railway replica"
+  )
+}
+if (railwayServiceName !== EXPECTED_SERVICE) {
+  fail(
+    `RAILWAY_SERVICE_NAME must equal ${EXPECTED_SERVICE}; received ${railwayServiceName || "missing"}`
+  )
+}
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
-if (!databaseUrl) fail("DATABASE_URL is missing from the injected runtime environment")
+if (!databaseUrl) fail("DATABASE_URL is missing from the deployed runtime environment")
 
 let parsed
 try {
@@ -59,6 +80,14 @@ console.log(
   JSON.stringify(
     {
       status: "guarded_storage_rehearsal_runtime_ready",
+      execution: {
+        platform: process.platform,
+        cwd: process.cwd(),
+        railwayServiceName,
+        railwayDeploymentId,
+        railwayReplicaId,
+        railwayReplicaRegion: process.env.RAILWAY_REPLICA_REGION || null,
+      },
       projectRef: PROJECT_REF,
       database: {
         host: parsed.hostname,
@@ -72,7 +101,7 @@ console.log(
         hasSecretKey: Boolean(process.env.S3_SECRET_ACCESS_KEY?.trim()),
       },
       redis: {
-        disabledForLocalStorageRehearsal: true,
+        disabledForStorageRehearsal: true,
       },
     },
     null,
