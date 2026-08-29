@@ -15,6 +15,13 @@ const ONE_PIXEL_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 const SENTINEL_BYTES = Buffer.from(ONE_PIXEL_PNG_BASE64, "base64")
 
+type PgConnection = {
+  raw: (
+    sql: string,
+    bindings?: unknown[]
+  ) => Promise<{ rows?: Array<{ object_count?: number | string }> }>
+}
+
 function unexpected(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
 }
@@ -86,44 +93,62 @@ async function assertExactSentinelReadable(url: string, label: string) {
   }
 }
 
-async function assertSentinelDeleted(
-  fileModuleService: { retrieveFile: (id: string) => Promise<{ url?: string }> },
-  uploadedId: string,
-  uploadedUrl: string,
-  storage: ReturnType<typeof requiredStorageRuntime>
+async function storageObjectCount(
+  pgConnection: PgConnection,
+  bucket: string,
+  objectName: string
 ) {
+  const result = await pgConnection.raw(
+    `select count(*)::int as object_count
+       from storage.objects
+      where bucket_id = ?
+        and name = ?`,
+    [bucket, objectName]
+  )
+  return Number(result?.rows?.[0]?.object_count ?? 0)
+}
+
+async function assertAuthoritativeStorageObjectState(
+  pgConnection: PgConnection,
+  bucket: string,
+  objectName: string,
+  expectedCount: 0 | 1,
+  label: string
+) {
+  let lastCount = -1
   for (let attempt = 1; attempt <= 5; attempt += 1) {
-    const candidateUrls = new Set<string>([uploadedUrl])
-    try {
-      const retrieved = await fileModuleService.retrieveFile(uploadedId)
-      if (retrieved?.url) {
-        assertAllowedRetrievalUrl(retrieved.url, storage)
-        candidateUrls.add(retrieved.url)
-      }
-    } catch {
-      // A provider may reject retrieval after deletion; that is acceptable.
-    }
-
-    let stillReadable = false
-    for (const candidateUrl of candidateUrls) {
-      try {
-        const response = await fetch(candidateUrl, { cache: "no-store" })
-        if (response.ok) {
-          stillReadable = true
-          break
-        }
-      } catch {
-        // Network/read failure after deletion also proves the object is unavailable.
-      }
-    }
-
-    if (!stillReadable) return
+    lastCount = await storageObjectCount(pgConnection, bucket, objectName)
+    if (lastCount === expectedCount) return
     if (attempt < 5) {
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      await new Promise((resolve) => setTimeout(resolve, 250))
     }
   }
 
-  throw unexpected("Storage recovery rehearsal sentinel remained HTTP-readable after deletion")
+  throw unexpected(
+    `${label}: expected storage.objects count ${expectedCount}, received ${lastCount}`
+  )
+}
+
+async function observePostDeletePublicRead(uploadedUrl: string) {
+  const probeUrl = new URL(uploadedUrl)
+  probeUrl.searchParams.set(
+    "coquetteRecoveryProbe",
+    `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2)}`
+  )
+
+  try {
+    const response = await fetch(probeUrl, { cache: "no-store" })
+    return {
+      status: response.status,
+      readable: response.ok,
+    }
+  } catch (error) {
+    return {
+      status: "network-error",
+      readable: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 export default async function stagingStorageRecoveryRehearsal({ container }: ExecArgs) {
@@ -137,6 +162,9 @@ export default async function stagingStorageRecoveryRehearsal({ container }: Exe
   const project = assertDedicatedCoquetteStagingProject(process.env)
   const storage = requiredStorageRuntime()
   const fileModuleService = container.resolve(Modules.FILE)
+  const pgConnection = container.resolve(
+    ContainerRegistrationKeys.PG_CONNECTION
+  ) as PgConnection
   const filename = `phase4-recovery-rehearsal-${Date.now()}-${process.pid}.png`
   let uploadedId: string | undefined
   let uploadedUrl: string | undefined
@@ -171,6 +199,14 @@ export default async function stagingStorageRecoveryRehearsal({ container }: Exe
         `Storage recovery rehearsal uploaded outside the configured COQUETTE serving host: ${uploadedUrl}`
       )
     }
+
+    await assertAuthoritativeStorageObjectState(
+      pgConnection,
+      storage.bucket,
+      uploadedId,
+      1,
+      "Storage recovery rehearsal authoritative upload check failed"
+    )
     await assertExactSentinelReadable(uploadedUrl, "Storage recovery rehearsal public read")
 
     const retrieved = await fileModuleService.retrieveFile(uploadedId)
@@ -181,8 +217,16 @@ export default async function stagingStorageRecoveryRehearsal({ container }: Exe
     await assertExactSentinelReadable(retrievedUrl.toString(), "Storage recovery rehearsal provider read")
 
     await deleteFilesWorkflow(container).run({ input: { ids: [uploadedId] } })
-    await assertSentinelDeleted(fileModuleService, uploadedId, uploadedUrl, storage)
+    await assertAuthoritativeStorageObjectState(
+      pgConnection,
+      storage.bucket,
+      uploadedId,
+      0,
+      "Storage recovery rehearsal authoritative deletion check failed"
+    )
     deletionVerified = true
+
+    const postDeletePublicProbe = await observePostDeletePublicRead(uploadedUrl)
 
     logger.info(
       `COQUETTE storage recovery rehearsal passed: ${JSON.stringify({
@@ -193,6 +237,8 @@ export default async function stagingStorageRecoveryRehearsal({ container }: Exe
         retrievalHost: retrievedUrl.hostname.toLowerCase(),
         uploadedId,
         uploadedUrl,
+        authoritativeDeletion: "storage.objects absent",
+        postDeletePublicProbe,
         deleted: true,
       })}`
     )
