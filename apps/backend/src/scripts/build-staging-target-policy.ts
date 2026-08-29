@@ -3,7 +3,10 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { sourceChecksum } from "../migration/checksum"
 import type { RecoveryProductCandidate } from "../migration/recovery-candidates"
-import { buildStagingTargetPolicyApplication } from "../migration/staging-target-policy"
+import {
+  buildStagingTargetPolicyApplication,
+  stagingTargetPolicyBundleChecksum,
+} from "../migration/staging-target-policy"
 
 type CaptureIngestionReport = {
   schemaVersion?: number
@@ -91,7 +94,7 @@ async function main() {
   }
   const bundle = {
     ...withoutChecksum,
-    bundleChecksum: sourceChecksum(withoutChecksum),
+    bundleChecksum: stagingTargetPolicyBundleChecksum(withoutChecksum),
   }
   await atomicWriteJson(outputPath, bundle)
 
