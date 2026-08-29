@@ -30,6 +30,18 @@ async function atomicWriteJson(path: string, value: unknown) {
   await rename(temporary, target)
 }
 
+function countStrings(values: string[]) {
+  return Object.fromEntries(
+    [...values.reduce((counts, value) => {
+      counts.set(value, (counts.get(value) ?? 0) + 1)
+      return counts
+    }, new Map<string, number>()).entries()].sort(
+      ([leftKey, leftCount], [rightKey, rightCount]) =>
+        rightCount - leftCount || leftKey.localeCompare(rightKey)
+    )
+  )
+}
+
 async function main() {
   const reportPath = process.env.COQUETTE_CAPTURE_INGESTION_REPORT?.trim()
   const outputPath = process.env.COQUETTE_STAGING_TARGET_POLICY_BUNDLE?.trim()
@@ -98,6 +110,13 @@ async function main() {
   }
   await atomicWriteJson(outputPath, bundle)
 
+  const candidateTypeTotals = countStrings(
+    candidates.map((candidate) => candidate.selected.type ?? "missing")
+  )
+  const quarantineReasonTotals = countStrings(
+    application.quarantined.flatMap((entry) => entry.reasons)
+  )
+
   console.log(
     JSON.stringify(
       {
@@ -109,8 +128,10 @@ async function main() {
         sourceIngestionReportChecksum: bundle.sourceIngestionReportChecksum,
         bundleChecksum: bundle.bundleChecksum,
         sourceCandidateCount: application.sourceCandidateCount,
+        candidateTypeTotals,
         eligibleCandidateCount: application.eligibleCandidateCount,
         quarantinedCandidateCount: application.quarantinedCandidateCount,
+        quarantineReasonTotals,
         productPlanTotals: application.productPlan.totals,
         productPlanExecutable: application.productPlan.isExecutable,
         policy: application.policy,
