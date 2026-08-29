@@ -37,13 +37,20 @@ async function main() {
   try {
     const mediaDir = join(root, "media")
     await mkdir(mediaDir, { recursive: true })
-    const mediaBytes = Buffer.from("authoritative-product-image")
-    const mediaFile = "media/product.jpg"
-    await writeFile(join(root, mediaFile), mediaBytes)
+    const mediaBytes = Buffer.from([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00,
+      0x01, 0xff, 0xd9,
+    ])
+    const evidenceMediaFile = "media/product.jpg"
+    const windowsMediaFile = "media\\product.jpg"
+    await writeFile(join(root, evidenceMediaFile), mediaBytes)
 
     const sourceUrl = "https://coquetteconcept.gr/default/test-product.html"
+    const aliasUrl =
+      "https://coquetteconcept.gr/default/catalog/product/view/id/1234/"
     const categoryUrl = "https://coquetteconcept.gr/default/clothing.html"
-    const mediaUrl = "https://coquetteconcept.gr/media/catalog/product/test-product.jpg"
+    const mediaUrl =
+      "https://coquetteconcept.gr/media/catalog/product/test-product.jpg"
     const capturedAt = "2026-08-29T10:00:00.000Z"
     const candidate = buildRecoveryProductCandidate("direct:sku:TEST-1", [
       {
@@ -61,6 +68,13 @@ async function main() {
           salePrice: 16,
           currencyCode: "EUR",
         },
+      },
+      {
+        authority: "direct_storefront",
+        sourceUrl: aliasUrl,
+        observedAt: capturedAt,
+        note: "Retained exact Magento alias evidence.",
+        fields: {},
       },
     ])
     const application = buildStagingTargetPolicyApplication([candidate])
@@ -82,7 +96,8 @@ async function main() {
       candidates: { records: [candidate] },
       productStructure: {
         records: {
-          [sourceUrl]: {
+          [sourceUrl]: { categoryReferences: [] },
+          [aliasUrl]: {
             categoryReferences: [{ name: "Clothing", url: categoryUrl }],
           },
         },
@@ -92,12 +107,16 @@ async function main() {
     const mediaRecord: StagingSliceMediaRecord = {
       sourceUrl: mediaUrl,
       status: "captured",
-      contentType: "image/jpeg",
+      // The Windows operator capture can legitimately have no HTTP content-type.
+      // The dependency gate must prove the image from the captured bytes instead.
       bytes: mediaBytes.length,
       checksum: sha256(mediaBytes),
-      mediaFile,
+      mediaFile: windowsMediaFile,
     }
-    const withoutEvidenceChecksum: Omit<CaptureEvidencePackage, "packageChecksum"> = {
+    const withoutEvidenceChecksum: Omit<
+      CaptureEvidencePackage,
+      "packageChecksum"
+    > = {
       schemaVersion: 1,
       captureId: "capture-contract",
       source: "https://coquetteconcept.gr/",
@@ -109,7 +128,7 @@ async function main() {
       },
       files: [
         {
-          path: mediaFile,
+          path: evidenceMediaFile,
           bytes: mediaBytes.length,
           checksum: sha256(mediaBytes),
         },
@@ -147,17 +166,65 @@ async function main() {
     assert.equal(ready.isReadyForProvisioning, true)
     assert.deepEqual(ready.totals, { ready: 2, blocked: 0 })
     assert.equal(
-      ready.entries.filter((entry) => entry.entityType === "category")[0].category
+      ready.entries.find((entry) => entry.entityType === "category")?.category
         ?.name,
       "Clothing"
     )
-    assert.equal(
-      ready.entries.filter((entry) => entry.entityType === "media")[0].media
-        ?.checksum,
-      sha256(mediaBytes)
+    const readyMedia = ready.entries.find((entry) => entry.entityType === "media")
+      ?.media
+    assert.equal(readyMedia?.checksum, sha256(mediaBytes))
+    assert.equal(readyMedia?.contentType, "image/jpeg")
+    assert.equal(readyMedia?.mediaFile, evidenceMediaFile)
+
+    const semanticTamper: CaptureEvidencePackage = {
+      ...evidencePackage,
+      totals: { ...evidencePackage.totals, bytes: evidencePackage.totals.bytes + 1 },
+    }
+    const semanticTamperPlan = await buildStagingSliceDependencyEvidencePlan({
+      captureDir: root,
+      report,
+      policyBundle,
+      evidencePackage: semanticTamper,
+      mediaRecords: [mediaRecord],
+      products: [{ sourceUrl }],
+      expectedEvidencePackageChecksum: evidencePackage.packageChecksum,
+    })
+    assert.equal(semanticTamperPlan.isReadyForProvisioning, false)
+    assert.ok(
+      semanticTamperPlan.globalBlockers.includes(
+        "capture_evidence_package_semantic_checksum_mismatch"
+      )
     )
 
-    await writeFile(join(root, mediaFile), Buffer.from("tampered"))
+    const changedApplication = {
+      ...application,
+      quarantinedCandidateCount: application.quarantinedCandidateCount + 1,
+    }
+    const changedPolicyPayload = {
+      ...policyPayload,
+      application: changedApplication,
+    }
+    const changedPolicyBundle: StagingTargetPolicyBundle = {
+      ...changedPolicyPayload,
+      bundleChecksum: stagingTargetPolicyBundleChecksum(changedPolicyPayload),
+    }
+    const changedPolicyPlan = await buildStagingSliceDependencyEvidencePlan({
+      captureDir: root,
+      report,
+      policyBundle: changedPolicyBundle,
+      evidencePackage,
+      mediaRecords: [mediaRecord],
+      products: [{ sourceUrl }],
+      expectedEvidencePackageChecksum: evidencePackage.packageChecksum,
+    })
+    assert.equal(changedPolicyPlan.isReadyForProvisioning, false)
+    assert.ok(
+      changedPolicyPlan.globalBlockers.includes(
+        "staging_target_policy_application_source_mismatch"
+      )
+    )
+
+    await writeFile(join(root, evidenceMediaFile), Buffer.from("tampered"))
     const tampered = await buildStagingSliceDependencyEvidencePlan({
       captureDir: root,
       report,
@@ -175,7 +242,7 @@ async function main() {
     )
 
     console.log(
-      "COQUETTE staging slice dependency evidence contract passed: ready category/media evidence is checksum-bound and tampered media fails closed"
+      "COQUETTE staging slice dependency evidence contract passed: retained alias category evidence, Windows media paths and byte-derived image MIME are accepted only when checksum-bound; semantic/tamper changes fail closed"
     )
   } finally {
     await rm(root, { recursive: true, force: true })
