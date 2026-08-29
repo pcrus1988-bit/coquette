@@ -16,6 +16,7 @@ const productUrl = "https://coquetteconcept.gr/default/fixture-product.html"
 const englishProductUrl = "https://coquetteconcept.gr/en/fixture-product.html"
 const categoryUrl = "https://coquetteconcept.gr/default/clothing.html"
 const mediaUrl = "https://coquetteconcept.gr/media/catalog/product/fixture.jpg"
+const externalMediaUrl = "https://brand-assets.example/images/fixture.jpg"
 
 const bundle: CaptureArtifactBundle = {
   manifest: {
@@ -101,6 +102,65 @@ const bundle: CaptureArtifactBundle = {
 const validation = validateCaptureArtifactBundle(bundle)
 assert.equal(validation.isValid, true)
 assert.equal(validation.critical, 0)
+
+const externalMediaBundle: CaptureArtifactBundle = {
+  ...bundle,
+  media: [
+    ...bundle.media,
+    {
+      sourceUrl: externalMediaUrl,
+      status: "captured",
+      httpStatus: 200,
+      contentType: "image/jpeg",
+      bytes: 4321,
+      checksum: "external-media-fixture-checksum",
+      mediaFile: "media/external-fixture.jpg",
+      capturedAt,
+    },
+  ],
+  pageMedia: {
+    [productUrl]: [mediaUrl, externalMediaUrl],
+  },
+}
+const externalMediaValidation = validateCaptureArtifactBundle(externalMediaBundle)
+assert.equal(externalMediaValidation.isValid, true)
+assert.equal(externalMediaValidation.critical, 0)
+assert.ok(
+  externalMediaValidation.issues.some(
+    (issue) =>
+      issue.severity === "review" && issue.code === "external_media_source_url"
+  )
+)
+assert.ok(
+  externalMediaValidation.issues.some(
+    (issue) =>
+      issue.severity === "review" &&
+      issue.code === "external_page_media_asset_url"
+  )
+)
+
+const insecureExternalMediaBundle: CaptureArtifactBundle = {
+  ...bundle,
+  media: [
+    ...bundle.media,
+    {
+      sourceUrl: "http://brand-assets.example/images/insecure.jpg",
+      status: "error",
+      capturedAt,
+      error: "fixture",
+    },
+  ],
+}
+const insecureExternalMediaValidation = validateCaptureArtifactBundle(
+  insecureExternalMediaBundle
+)
+assert.equal(insecureExternalMediaValidation.isValid, false)
+assert.ok(
+  insecureExternalMediaValidation.issues.some(
+    (issue) =>
+      issue.severity === "critical" && issue.code === "invalid_media_source_url"
+  )
+)
 
 const invalidBundle: CaptureArtifactBundle = {
   ...bundle,
