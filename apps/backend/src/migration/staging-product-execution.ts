@@ -346,6 +346,17 @@ export function prepareMedusaSimpleProductInput(
   }
 
   const product = entry.normalizedProduct
+  const targetPolicy = product.targetPublicationPolicy
+  if (
+    targetPolicy &&
+    (product.status !== targetPolicy.status ||
+      product.visibility !== targetPolicy.visibility)
+  ) {
+    throw executionError(
+      "Staging target publication policy does not match the normalized product target status/visibility"
+    )
+  }
+
   const optionEntries = Object.entries(product.optionValues)
   const resolvedOptions =
     optionEntries.length > 0
@@ -361,8 +372,16 @@ export function prepareMedusaSimpleProductInput(
     coquette_migration_source_id: product.sourceId,
     coquette_migration_source_checksum: entry.sourceChecksum ?? "",
     coquette_migration_candidate_key: entry.candidateKey,
-    coquette_legacy_visibility: product.visibility,
-    coquette_legacy_status: product.status,
+  }
+  if (targetPolicy) {
+    metadata.coquette_migration_target_status = product.status
+    metadata.coquette_migration_target_visibility = product.visibility
+    metadata.coquette_migration_target_medusa_status = targetPolicy.medusaStatus
+    metadata.coquette_migration_target_policy_provenance = targetPolicy.provenance
+    metadata.coquette_migration_target_policy_checksum = sourceChecksum(targetPolicy)
+  } else {
+    metadata.coquette_legacy_visibility = product.visibility
+    metadata.coquette_legacy_status = product.status
   }
   if (product.canonicalUrl) metadata.coquette_legacy_canonical_url = product.canonicalUrl
   if (product.alternateLocaleUrl) {
@@ -372,7 +391,9 @@ export function prepareMedusaSimpleProductInput(
   return {
     title: product.name,
     description: product.description,
-    status: product.status === "enabled" ? "published" : "draft",
+    status:
+      targetPolicy?.medusaStatus ??
+      (product.status === "enabled" ? "published" : "draft"),
     shipping_profile_id: runtime.defaultShippingProfileId,
     sales_channels: [{ id: runtime.defaultSalesChannelId }],
     categories: entry.categoryTargetIds.map((id) => ({ id })),

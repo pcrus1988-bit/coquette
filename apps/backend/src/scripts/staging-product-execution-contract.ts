@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { sourceChecksum } from "../migration/checksum"
 import { buildProductImportPlan } from "../migration/import-plan"
 import {
   buildRecoveryProductCandidate,
@@ -10,6 +11,10 @@ import {
   prepareMedusaSimpleProductInput,
   type MigrationDependencyMapping,
 } from "../migration/staging-product-execution"
+import {
+  buildStagingTargetPolicyApplication,
+  stagingTargetPublicationPolicy,
+} from "../migration/staging-target-policy"
 import type { MigrationManifestEntry } from "../migration/types"
 
 const sourceUrl = "https://coquetteconcept.gr/default/execution-fixture.html"
@@ -99,6 +104,64 @@ assert.equal("prices" in medusaInput.variants[0], false)
 assert.equal(
   medusaInput.metadata.coquette_migration_source_id,
   sourceUrl
+)
+assert.equal(medusaInput.metadata.coquette_legacy_status, "enabled")
+assert.equal(medusaInput.metadata.coquette_legacy_visibility, "catalog_search")
+assert.equal(medusaInput.metadata.coquette_migration_target_status, undefined)
+
+const targetPolicyApplication = buildStagingTargetPolicyApplication([candidate])
+assert.equal(targetPolicyApplication.isExecutable, true)
+assert.equal(targetPolicyApplication.eligibleCandidateCount, 1)
+const targetExecutionPlan = buildStagingProductExecutionPlan({
+  importPlan: targetPolicyApplication.productPlan,
+  dependencyMappings: dependencies,
+  allowedMediaHosts: ["coquette-media.example"],
+})
+assert.equal(targetExecutionPlan.isExecutable, true)
+const targetMedusaInput = prepareMedusaSimpleProductInput(
+  targetExecutionPlan.entries[0],
+  {
+    defaultSalesChannelId: "sc_fixture",
+    defaultShippingProfileId: "sp_fixture",
+  }
+)
+assert.equal(targetMedusaInput.status, "draft")
+assert.equal(targetMedusaInput.metadata.coquette_legacy_status, undefined)
+assert.equal(targetMedusaInput.metadata.coquette_legacy_visibility, undefined)
+assert.equal(targetMedusaInput.metadata.coquette_migration_target_status, "disabled")
+assert.equal(
+  targetMedusaInput.metadata.coquette_migration_target_visibility,
+  "not_visible"
+)
+assert.equal(
+  targetMedusaInput.metadata.coquette_migration_target_medusa_status,
+  "draft"
+)
+assert.equal(
+  targetMedusaInput.metadata.coquette_migration_target_policy_provenance,
+  "migration_target_policy"
+)
+assert.equal(
+  targetMedusaInput.metadata.coquette_migration_target_policy_checksum,
+  sourceChecksum(stagingTargetPublicationPolicy)
+)
+
+const mismatchedPolicyEntry = {
+  ...targetExecutionPlan.entries[0],
+  normalizedProduct: targetExecutionPlan.entries[0].normalizedProduct
+    ? {
+        ...targetExecutionPlan.entries[0].normalizedProduct,
+        status: "enabled" as const,
+      }
+    : undefined,
+}
+assert.throws(
+  () =>
+    prepareMedusaSimpleProductInput(mismatchedPolicyEntry, {
+      defaultSalesChannelId: "sc_fixture",
+      defaultShippingProfileId: "sp_fixture",
+    }),
+  /target publication policy does not match/i
 )
 
 const missingMediaPlan = buildStagingProductExecutionPlan({
