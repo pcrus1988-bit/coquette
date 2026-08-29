@@ -2,11 +2,13 @@ import { createHash } from "node:crypto"
 import { lstat, readFile, realpath } from "node:fs/promises"
 import { isAbsolute, join, relative, resolve, sep } from "node:path"
 import { MedusaError } from "@medusajs/framework/utils"
+import { textContent } from "../reconstruction/html-evidence"
 import type { CaptureEvidencePackage } from "./capture-evidence-package"
 import { sourceChecksum } from "./checksum"
 import type { ProductImportPlan } from "./import-plan"
 import type { RecoveryProductCandidate } from "./recovery-candidates"
 import {
+  buildStagingTargetPolicyApplication,
   stagingTargetPolicyBundleChecksum,
   type StagingTargetPolicyApplication,
   type StagingTargetPolicyBundlePayload,
@@ -27,6 +29,7 @@ export type StagingSliceDependencyRequirement = {
 type CategoryEvidence = {
   name: string
   productSourceIds: string[]
+  categoryPageSourceIds: string[]
 }
 
 type BrandEvidence = {
@@ -100,6 +103,15 @@ export type StagingSliceProductRecord = {
   brand?: string
 }
 
+export type StagingSlicePageRecord = {
+  sourceUrl?: string
+  finalUrl?: string
+  status?: "captured" | "skipped" | "error"
+  pageType?: string
+  pageFile?: string
+  canonicalUrl?: string
+}
+
 function unexpected(message: string) {
   return new MedusaError(MedusaError.Types.UNEXPECTED_STATE, message)
 }
@@ -108,15 +120,36 @@ function sha256(value: Buffer) {
   return createHash("sha256").update(value).digest("hex")
 }
 
+function normalizedRelativePath(value: string | undefined) {
+  return value?.replace(/\\/g, "/").trim() || undefined
+}
+
 function safeRelativePath(value: string | undefined) {
-  if (!value) return false
-  const normalized = value.replace(/\\/g, "/")
+  const normalized = normalizedRelativePath(value)
+  if (!normalized) return false
   return (
-    normalized.length > 0 &&
     !normalized.startsWith("/") &&
     !normalized.split("/").includes("..") &&
     !/^[a-zA-Z]:\//.test(normalized)
   )
+}
+
+function normalizedUrl(value: string | undefined) {
+  if (!value?.trim()) return undefined
+  try {
+    const url = new URL(value.trim())
+    url.hash = ""
+    url.pathname = url.pathname.replace(/\/+$/, "") || "/"
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
+function sameUrl(left: string | undefined, right: string | undefined) {
+  const normalizedLeft = normalizedUrl(left)
+  const normalizedRight = normalizedUrl(right)
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight)
 }
 
 function uniqueStrings(values: Array<string | undefined>) {
@@ -197,52 +230,175 @@ export function buildStagingSliceDependencyRequirements(
     )
 }
 
-function productSourceIdsForRequirement(
+function productEvidenceSourceIdsForRequirement(
   productPlan: ProductImportPlan,
   requirement: StagingSliceDependencyRequirement
 ) {
   return uniqueStrings(
-    requirement.candidateKeys.map(
-      (candidateKey) =>
-        productPlan.entries.find((entry) => entry.candidateKey === candidateKey)
-          ?.normalizedProduct?.sourceId
-    )
+    requirement.candidateKeys.flatMap((candidateKey) => {
+      const product = productPlan.entries.find(
+        (entry) => entry.candidateKey === candidateKey
+      )?.normalizedProduct
+      if (!product) return []
+      return [product.sourceId, ...product.evidence.map((entry) => entry.sourceUrl)]
+    })
   ).sort()
 }
 
-function categoryEntry(input: {
+async function containedCaptureFile(captureDir: string, relativePath: string) {
+  const normalized = normalizedRelativePath(relativePath)
+  if (!normalized || !safeRelativePath(normalized)) return undefined
+  try {
+    const root = await realpath(resolve(captureDir))
+    const candidate = await realpath(join(root, normalized))
+    const relation = relative(root, candidate)
+    if (
+      relation === ".." ||
+      relation.startsWith(`..${sep}`) ||
+      isAbsolute(relation)
+    ) {
+      return undefined
+    }
+    const metadata = await lstat(candidate)
+    if (!metadata.isFile() || metadata.isSymbolicLink()) return undefined
+    return candidate
+  } catch {
+    return undefined
+  }
+}
+
+function extractCategoryPageName(html: string) {
+  const blocks = [
+    ...html.matchAll(
+      /<(?:div|nav|ul)\b[^>]*class=["'][^"']*breadcrumbs?[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|nav|ul)>/gi
+    ),
+  ]
+  for (const block of blocks) {
+    const names = [...block[1].matchAll(/<strong\b[^>]*>([\s\S]*?)<\/strong>/gi)]
+      .map((match) => textContent(match[1]))
+      .filter(Boolean)
+    if (names.length > 0) return names.at(-1)
+  }
+  return undefined
+}
+
+function categoryPagesForRequirement(
+  pages: StagingSlicePageRecord[],
+  requirement: StagingSliceDependencyRequirement
+) {
+  const captured = pages.filter(
+    (page) => page.status === "captured" && page.pageType === "category"
+  )
+  const exact = captured.filter(
+    (page) =>
+      sameUrl(page.sourceUrl, requirement.sourceId) ||
+      sameUrl(page.finalUrl, requirement.sourceId)
+  )
+  if (exact.length > 0) return exact
+  return captured.filter((page) => sameUrl(page.canonicalUrl, requirement.sourceId))
+}
+
+async function categoryEntry(input: {
   requirement: StagingSliceDependencyRequirement
   productPlan: ProductImportPlan
   structures: Record<string, ProductStructureRecord>
-}): StagingSliceDependencyEvidenceEntry {
-  const productSourceIds = productSourceIdsForRequirement(
+  captureDir: string
+  pages: StagingSlicePageRecord[]
+  evidenceFiles: Map<string, { bytes: number; checksum: string }>
+}): Promise<StagingSliceDependencyEvidenceEntry> {
+  const productSourceIds = productEvidenceSourceIdsForRequirement(
     input.productPlan,
     input.requirement
   )
-  const names = uniqueStrings(
+  const productNames = uniqueStrings(
     productSourceIds.flatMap((sourceId) =>
       (input.structures[sourceId]?.categoryReferences ?? [])
-        .filter((reference) => reference.url?.trim() === input.requirement.sourceId)
+        .filter((reference) => sameUrl(reference.url, input.requirement.sourceId))
         .map((reference) => reference.name)
     )
   )
+
   const blockers: string[] = []
-  if (productSourceIds.length === 0) blockers.push("category_evidence_product_source_missing")
+  const categoryPageEvidence: Array<{
+    sourceUrl?: string
+    pageFile?: string
+    bytes?: number
+    checksum?: string
+    name?: string
+  }> = []
+  const pageNames: string[] = []
+
+  if (productNames.length === 0) {
+    const categoryPages = categoryPagesForRequirement(input.pages, input.requirement)
+    if (categoryPages.length === 0) blockers.push("category_page_capture_missing")
+
+    for (const page of categoryPages) {
+      const pageFile = normalizedRelativePath(page.pageFile)
+      const sourceUrl = page.finalUrl ?? page.sourceUrl ?? page.canonicalUrl
+      if (!pageFile || !safeRelativePath(pageFile)) {
+        blockers.push("category_page_file_path_invalid")
+        categoryPageEvidence.push({ sourceUrl, pageFile })
+        continue
+      }
+
+      const evidenceFile = input.evidenceFiles.get(pageFile)
+      if (!evidenceFile) {
+        blockers.push("category_page_missing_from_evidence_package_inventory")
+      }
+      const absolute = await containedCaptureFile(input.captureDir, pageFile)
+      if (!absolute) {
+        blockers.push("category_page_bytes_missing_or_unsafe")
+        categoryPageEvidence.push({ sourceUrl, pageFile })
+        continue
+      }
+
+      const bytes = await readFile(absolute)
+      const checksum = sha256(bytes)
+      if (evidenceFile && evidenceFile.bytes !== bytes.length) {
+        blockers.push("category_page_evidence_package_byte_count_mismatch")
+      }
+      if (evidenceFile && evidenceFile.checksum !== checksum) {
+        blockers.push("category_page_evidence_package_checksum_mismatch")
+      }
+
+      const name = extractCategoryPageName(bytes.toString("utf8"))
+      if (name) pageNames.push(name)
+      categoryPageEvidence.push({
+        sourceUrl,
+        pageFile,
+        bytes: bytes.length,
+        checksum,
+        name,
+      })
+    }
+  }
+
+  const names = uniqueStrings([...productNames, ...pageNames])
+  if (productSourceIds.length === 0) {
+    blockers.push("category_evidence_product_source_missing")
+  }
   if (names.length === 0) blockers.push("category_public_name_missing")
   if (names.length > 1) blockers.push("category_public_name_conflict")
-  const category = blockers.length === 0
-    ? { name: names[0], productSourceIds }
+
+  const uniqueBlockers = [...new Set(blockers)].sort()
+  const categoryPageSourceIds = uniqueStrings(
+    categoryPageEvidence.map((entry) => entry.sourceUrl)
+  ).sort()
+  const category = uniqueBlockers.length === 0
+    ? { name: names[0], productSourceIds, categoryPageSourceIds }
     : undefined
   const evidenceChecksum = sourceChecksum({
     requirementChecksum: input.requirement.requirementChecksum,
     productSourceIds,
+    productNames,
+    categoryPageEvidence,
     names,
-    blockers,
+    blockers: uniqueBlockers,
   })
   return {
     ...input.requirement,
-    state: blockers.length ? "blocked" : "ready",
-    blockers,
+    state: uniqueBlockers.length ? "blocked" : "ready",
+    blockers: uniqueBlockers,
     evidenceChecksum,
     ...(category ? { category } : {}),
   }
@@ -253,19 +409,21 @@ function brandEntry(input: {
   productPlan: ProductImportPlan
   products: StagingSliceProductRecord[]
 }): StagingSliceDependencyEvidenceEntry {
-  const productSourceIds = productSourceIdsForRequirement(
+  const productSourceIds = productEvidenceSourceIdsForRequirement(
     input.productPlan,
     input.requirement
   )
   const names = uniqueStrings(
     productSourceIds.flatMap((sourceId) =>
       input.products
-        .filter((product) => product.sourceUrl?.trim() === sourceId)
+        .filter((product) => sameUrl(product.sourceUrl, sourceId))
         .map((product) => product.brand)
     )
   )
   const blockers: string[] = []
-  if (productSourceIds.length === 0) blockers.push("brand_evidence_product_source_missing")
+  if (productSourceIds.length === 0) {
+    blockers.push("brand_evidence_product_source_missing")
+  }
   if (names.length === 0) blockers.push("brand_public_name_missing")
   if (names.length > 1) blockers.push("brand_public_name_conflict")
   const brand = blockers.length === 0
@@ -286,25 +444,53 @@ function brandEntry(input: {
   }
 }
 
-async function containedCaptureFile(captureDir: string, relativePath: string) {
-  if (!safeRelativePath(relativePath)) return undefined
-  try {
-    const root = await realpath(resolve(captureDir))
-    const candidate = await realpath(join(root, relativePath))
-    const relation = relative(root, candidate)
-    if (
-      relation === ".." ||
-      relation.startsWith(`..${sep}`) ||
-      isAbsolute(relation)
-    ) {
-      return undefined
-    }
-    const metadata = await lstat(candidate)
-    if (!metadata.isFile() || metadata.isSymbolicLink()) return undefined
-    return candidate
-  } catch {
-    return undefined
+function detectedImageContentType(value: Buffer) {
+  if (
+    value.length >= 8 &&
+    value.subarray(0, 8).equals(
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+    )
+  ) {
+    return "image/png"
   }
+  if (
+    value.length >= 3 &&
+    value[0] === 0xff &&
+    value[1] === 0xd8 &&
+    value[2] === 0xff
+  ) {
+    return "image/jpeg"
+  }
+  const prefix = value.subarray(0, 12).toString("ascii")
+  if (prefix.startsWith("GIF87a") || prefix.startsWith("GIF89a")) {
+    return "image/gif"
+  }
+  if (
+    value.length >= 12 &&
+    value.subarray(0, 4).toString("ascii") === "RIFF" &&
+    value.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp"
+  }
+  if (
+    value.length >= 12 &&
+    value.subarray(4, 8).toString("ascii") === "ftyp" &&
+    ["avif", "avis"].some((brand) =>
+      value.subarray(8, Math.min(value.length, 64)).includes(Buffer.from(brand))
+    )
+  ) {
+    return "image/avif"
+  }
+  const text = value.subarray(0, Math.min(value.length, 4096)).toString("utf8")
+  if (/^\s*(?:<\?xml[^>]*>\s*)?<svg\b/i.test(text.replace(/^\uFEFF/, ""))) {
+    return "image/svg+xml"
+  }
+  return undefined
+}
+
+function normalizedImageContentType(value: string | undefined) {
+  const contentType = value?.split(";", 1)[0].trim().toLowerCase()
+  return contentType?.startsWith("image/") ? contentType : undefined
 }
 
 async function mediaEntry(input: {
@@ -313,8 +499,8 @@ async function mediaEntry(input: {
   mediaRecords: StagingSliceMediaRecord[]
   evidenceFiles: Map<string, { bytes: number; checksum: string }>
 }): Promise<StagingSliceDependencyEvidenceEntry> {
-  const records = input.mediaRecords.filter(
-    (record) => record.sourceUrl?.trim() === input.requirement.sourceId
+  const records = input.mediaRecords.filter((record) =>
+    sameUrl(record.sourceUrl, input.requirement.sourceId)
   )
   const blockers: string[] = []
   if (records.length === 0) blockers.push("captured_media_record_missing")
@@ -322,10 +508,14 @@ async function mediaEntry(input: {
 
   const record = records.length === 1 ? records[0] : undefined
   if (record?.status !== "captured") blockers.push("required_media_not_captured")
-  if (!record?.mediaFile?.trim() || !safeRelativePath(record.mediaFile)) {
+  const mediaFile = normalizedRelativePath(record?.mediaFile)
+  if (!mediaFile || !safeRelativePath(mediaFile)) {
     blockers.push("captured_media_file_path_invalid")
   }
-  if (!record?.contentType?.toLowerCase().startsWith("image/")) {
+  if (
+    record?.contentType?.trim() &&
+    !record.contentType.toLowerCase().startsWith("image/")
+  ) {
     blockers.push("captured_media_content_type_not_image")
   }
   if (!record?.checksum?.match(/^[a-f0-9]{64}$/)) {
@@ -335,9 +525,7 @@ async function mediaEntry(input: {
     blockers.push("captured_media_byte_count_invalid")
   }
 
-  const evidenceFile = record?.mediaFile
-    ? input.evidenceFiles.get(record.mediaFile)
-    : undefined
+  const evidenceFile = mediaFile ? input.evidenceFiles.get(mediaFile) : undefined
   if (!evidenceFile) blockers.push("media_file_missing_from_evidence_package_inventory")
   if (evidenceFile && record?.bytes !== evidenceFile.bytes) {
     blockers.push("media_evidence_package_byte_count_mismatch")
@@ -346,8 +534,8 @@ async function mediaEntry(input: {
     blockers.push("media_evidence_package_checksum_mismatch")
   }
 
-  const absolute = record?.mediaFile
-    ? await containedCaptureFile(input.captureDir, record.mediaFile)
+  const absolute = mediaFile
+    ? await containedCaptureFile(input.captureDir, mediaFile)
     : undefined
   if (!absolute) blockers.push("captured_media_bytes_missing_or_unsafe")
 
@@ -356,20 +544,38 @@ async function mediaEntry(input: {
   if (actualBytes && record?.bytes !== actualBytes.length) {
     blockers.push("captured_media_actual_byte_count_mismatch")
   }
-  if (actualBytes && record?.checksum !== sha256(actualBytes)) {
+  const actualChecksum = actualBytes ? sha256(actualBytes) : undefined
+  if (actualChecksum && record?.checksum !== actualChecksum) {
     blockers.push("captured_media_actual_checksum_mismatch")
   }
+
+  const detectedContentType = actualBytes
+    ? detectedImageContentType(actualBytes)
+    : undefined
+  const declaredContentType = normalizedImageContentType(record?.contentType)
+  if (actualBytes && !detectedContentType) {
+    blockers.push("captured_media_bytes_not_recognized_image")
+  }
+  if (
+    declaredContentType &&
+    detectedContentType &&
+    declaredContentType !== detectedContentType
+  ) {
+    blockers.push("captured_media_content_type_signature_mismatch")
+  }
+  const resolvedContentType = declaredContentType ?? detectedContentType
+  if (!resolvedContentType) blockers.push("captured_media_content_type_unresolved")
 
   const uniqueBlockers = [...new Set(blockers)].sort()
   const media =
     uniqueBlockers.length === 0 &&
-    record?.mediaFile &&
-    record.contentType &&
-    record.bytes &&
+    mediaFile &&
+    resolvedContentType &&
+    record?.bytes &&
     record.checksum
       ? {
-          mediaFile: record.mediaFile,
-          contentType: record.contentType,
+          mediaFile,
+          contentType: resolvedContentType,
           bytes: record.bytes,
           checksum: record.checksum,
         }
@@ -378,13 +584,15 @@ async function mediaEntry(input: {
     requirementChecksum: input.requirement.requirementChecksum,
     sourceUrl: record?.sourceUrl,
     status: record?.status,
-    mediaFile: record?.mediaFile,
-    contentType: record?.contentType,
+    mediaFile,
+    declaredContentType: record?.contentType,
+    detectedContentType,
+    resolvedContentType,
     bytes: record?.bytes,
     checksum: record?.checksum,
     evidenceFile,
     actualBytes: actualBytes?.length,
-    actualChecksum: actualBytes ? sha256(actualBytes) : undefined,
+    actualChecksum,
     blockers: uniqueBlockers,
   })
 
@@ -403,6 +611,17 @@ function policyPayload(bundle: StagingTargetPolicyBundle) {
   return payload
 }
 
+function evidencePackagePayload(value: CaptureEvidencePackage) {
+  return {
+    schemaVersion: value.schemaVersion,
+    captureId: value.captureId,
+    source: value.source,
+    provenance: value.provenance,
+    files: value.files,
+    totals: value.totals,
+  }
+}
+
 function planPayload(
   plan: Omit<StagingSliceDependencyEvidencePlan, "planChecksum">
 ) {
@@ -413,6 +632,13 @@ function planPayload(
   return neverHasChecksum
 }
 
+function sameApplication(
+  left: StagingTargetPolicyApplication,
+  right: StagingTargetPolicyApplication
+) {
+  return sourceChecksum(left) === sourceChecksum(right)
+}
+
 export async function buildStagingSliceDependencyEvidencePlan(input: {
   captureDir: string
   report: StagingSliceSourceIngestionReport
@@ -420,17 +646,24 @@ export async function buildStagingSliceDependencyEvidencePlan(input: {
   evidencePackage: CaptureEvidencePackage
   mediaRecords: StagingSliceMediaRecord[]
   products: StagingSliceProductRecord[]
+  pages: StagingSlicePageRecord[]
   expectedEvidencePackageChecksum?: string
 }): Promise<StagingSliceDependencyEvidencePlan> {
   const globalBlockers: string[] = []
   const reportChecksum = sourceChecksum(input.report)
-  const reportEvidenceChecksum = input.report.capture?.evidencePackage?.packageChecksum?.trim()
+  const reportEvidenceChecksum =
+    input.report.capture?.evidencePackage?.packageChecksum?.trim()
 
-  if (input.report.schemaVersion !== 3) globalBlockers.push("capture_ingestion_schema_version_3_required")
+  if (input.report.schemaVersion !== 3) {
+    globalBlockers.push("capture_ingestion_schema_version_3_required")
+  }
   if (input.report.capture?.evidencePackage?.isValid !== true) {
     globalBlockers.push("capture_ingestion_evidence_package_must_be_valid")
   }
-  if (input.report.capture?.evidencePackage?.provenanceMode !== "operator_local_browser") {
+  if (
+    input.report.capture?.evidencePackage?.provenanceMode !==
+    "operator_local_browser"
+  ) {
     globalBlockers.push("operator_local_browser_provenance_required")
   }
   if (input.report.capture?.evidencePackage?.transport !== "browser") {
@@ -460,6 +693,12 @@ export async function buildStagingSliceDependencyEvidencePlan(input: {
   if (input.evidencePackage.packageChecksum !== reportEvidenceChecksum) {
     globalBlockers.push("capture_evidence_package_file_checksum_binding_mismatch")
   }
+  if (
+    input.evidencePackage.packageChecksum !==
+    sourceChecksum(evidencePackagePayload(input.evidencePackage))
+  ) {
+    globalBlockers.push("capture_evidence_package_semantic_checksum_mismatch")
+  }
   if (input.evidencePackage.captureId !== input.report.capture?.captureId) {
     globalBlockers.push("capture_evidence_package_capture_id_mismatch")
   }
@@ -470,14 +709,21 @@ export async function buildStagingSliceDependencyEvidencePlan(input: {
     globalBlockers.push("expected_evidence_package_checksum_mismatch")
   }
 
+  const reportCandidates = input.report.candidates?.records ?? []
+  const rebuiltApplication = buildStagingTargetPolicyApplication(reportCandidates)
+  if (!sameApplication(rebuiltApplication, input.policyBundle.application)) {
+    globalBlockers.push("staging_target_policy_application_source_mismatch")
+  }
+
   const productPlan = input.policyBundle.application.productPlan
-  const requirements = globalBlockers.length === 0
-    ? buildStagingSliceDependencyRequirements(productPlan)
-    : []
+  const requirements =
+    globalBlockers.length === 0
+      ? buildStagingSliceDependencyRequirements(productPlan)
+      : []
   const structures = input.report.productStructure?.records ?? {}
   const evidenceFiles = new Map(
     (input.evidencePackage.files ?? []).map((entry) => [
-      entry.path,
+      normalizedRelativePath(entry.path) ?? entry.path,
       { bytes: entry.bytes, checksum: entry.checksum },
     ])
   )
@@ -485,7 +731,16 @@ export async function buildStagingSliceDependencyEvidencePlan(input: {
   const entries: StagingSliceDependencyEvidenceEntry[] = []
   for (const requirement of requirements) {
     if (requirement.entityType === "category") {
-      entries.push(categoryEntry({ requirement, productPlan, structures }))
+      entries.push(
+        await categoryEntry({
+          requirement,
+          productPlan,
+          structures,
+          captureDir: input.captureDir,
+          pages: input.pages,
+          evidenceFiles,
+        })
+      )
     } else if (requirement.entityType === "brand") {
       entries.push(
         brandEntry({ requirement, productPlan, products: input.products })
@@ -518,7 +773,10 @@ export async function buildStagingSliceDependencyEvidencePlan(input: {
     globalBlockers.push("staging_slice_dependency_requirements_required")
   }
 
-  const withoutChecksum: Omit<StagingSliceDependencyEvidencePlan, "planChecksum"> = {
+  const withoutChecksum: Omit<
+    StagingSliceDependencyEvidencePlan,
+    "planChecksum"
+  > = {
     schemaVersion: 1,
     captureId: input.report.capture?.captureId ?? "",
     captureEvidencePackageChecksum: reportEvidenceChecksum ?? "",

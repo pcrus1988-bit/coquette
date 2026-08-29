@@ -6,6 +6,7 @@ import { sourceChecksum } from "../migration/checksum"
 import {
   buildStagingSliceDependencyEvidencePlan,
   type StagingSliceMediaRecord,
+  type StagingSlicePageRecord,
   type StagingSliceProductRecord,
   type StagingSliceSourceIngestionReport,
   type StagingTargetPolicyBundle,
@@ -98,13 +99,14 @@ async function main() {
   }
 
   const resolvedCaptureDir = resolve(captureDir)
-  const [report, policyBundle, evidencePackage, mediaRecords, products] =
+  const [report, policyBundle, evidencePackage, mediaRecords, products, pages] =
     await Promise.all([
       readJson<StagingSliceSourceIngestionReport>(reportPath),
       readJson<StagingTargetPolicyBundle>(policyPath),
       readJson<CaptureEvidencePackage>(join(resolvedCaptureDir, "evidence-package.json")),
       readJsonl<StagingSliceMediaRecord>(join(resolvedCaptureDir, "media.jsonl")),
       readJsonl<StagingSliceProductRecord>(join(resolvedCaptureDir, "products.jsonl")),
+      readJsonl<StagingSlicePageRecord>(join(resolvedCaptureDir, "pages.jsonl")),
     ])
 
   assertOuterBindings({ report, policyBundle, evidencePackage })
@@ -116,6 +118,7 @@ async function main() {
     evidencePackage,
     mediaRecords,
     products,
+    pages,
     expectedEvidencePackageChecksum,
   })
   await atomicWriteJson(outputPath, plan)
