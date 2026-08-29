@@ -283,7 +283,8 @@ export function deterministicMigrationCategoryHandle(name: string, sourceId: str
 }
 
 export function deterministicMigrationMediaFilename(mediaFile: string, checksum: string) {
-  const original = basename(mediaFile).replace(/[^a-zA-Z0-9._-]+/g, "-")
+  const portablePath = mediaFile.replace(/\\/g, "/")
+  const original = basename(portablePath).replace(/[^a-zA-Z0-9._-]+/g, "-")
   const extension = extname(original).toLowerCase()
   const stem = (extension ? original.slice(0, -extension.length) : original).slice(0, 48) || "image"
   return `phase4-${checksum.slice(0, 20)}-${stem}${extension}`
