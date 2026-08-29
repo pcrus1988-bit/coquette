@@ -46,6 +46,7 @@ if (missingS3.length > 0) {
 
 const env = {
   ...process.env,
+  COQUETTE_DISABLE_REDIS: "true",
   COQUETTE_MIGRATION_TARGET: "staging",
   COQUETTE_MIGRATION_ALLOW_WRITE: "COQUETTE_STAGING_WRITE_CONFIRMED",
   COQUETTE_MIGRATION_EXPECTED_DATABASE_HOST: parsed.hostname,
@@ -69,6 +70,9 @@ console.log(
         region: process.env.S3_REGION,
         hasAccessKey: Boolean(process.env.S3_ACCESS_KEY_ID?.trim()),
         hasSecretKey: Boolean(process.env.S3_SECRET_ACCESS_KEY?.trim()),
+      },
+      redis: {
+        disabledForLocalStorageRehearsal: true,
       },
     },
     null,
