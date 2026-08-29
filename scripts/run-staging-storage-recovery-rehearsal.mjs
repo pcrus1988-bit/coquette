@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process"
+import { spawn } from "node:child_process"
 
 const PROJECT_REF = "pijetwrxqznxaoacnakr"
 const EXPECTED_DATABASE = "postgres"
@@ -15,6 +15,8 @@ function fail(message) {
   console.error(`COQUETTE guarded storage rehearsal blocked: ${message}`)
   process.exit(3)
 }
+
+console.log("COQUETTE guarded storage rehearsal stage: validating Railway-injected runtime")
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
 if (!databaseUrl) fail("DATABASE_URL is missing from the injected runtime environment")
@@ -74,19 +76,46 @@ console.log(
   )
 )
 
-const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
-const result = spawnSync(
-  command,
-  ["--filter", "@coquette/backend", "staging:storage-recovery-rehearsal"],
+const pnpmExecPath = process.env.npm_execpath?.trim()
+if (!pnpmExecPath) {
+  fail("pnpm executable path is unavailable; run this wrapper through the repository pnpm script")
+}
+
+console.log("COQUETTE guarded storage rehearsal stage: launching Medusa rehearsal child")
+
+const child = spawn(
+  process.execPath,
+  [pnpmExecPath, "--filter", "@coquette/backend", "staging:storage-recovery-rehearsal"],
   {
     stdio: "inherit",
     env,
-    shell: process.platform === "win32",
+    shell: false,
+    windowsHide: false,
   }
 )
 
-if (result.error) {
-  console.error(`COQUETTE guarded storage rehearsal failed to launch: ${result.error.message}`)
-  process.exit(1)
-}
-process.exit(result.status ?? 1)
+const heartbeat = setInterval(() => {
+  console.log(
+    `COQUETTE guarded storage rehearsal stage: Medusa child still running (pid=${child.pid ?? "unknown"})`
+  )
+}, 15000)
+heartbeat.unref()
+
+child.once("error", (error) => {
+  clearInterval(heartbeat)
+  console.error(`COQUETTE guarded storage rehearsal failed to launch: ${error.message}`)
+  process.exitCode = 1
+})
+
+child.once("exit", (code, signal) => {
+  clearInterval(heartbeat)
+  if (signal) {
+    console.error(`COQUETTE guarded storage rehearsal child exited via signal ${signal}`)
+    process.exitCode = 1
+    return
+  }
+  console.log(
+    `COQUETTE guarded storage rehearsal stage: Medusa child exited with code ${code ?? 1}`
+  )
+  process.exitCode = code ?? 1
+})
